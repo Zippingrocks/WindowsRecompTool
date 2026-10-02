@@ -1,0 +1,102 @@
+name: Native window source and acceptance
+on:
+  push:
+    branches: [work/native-window]
+    paths: [.window-bootstrap/patch.json]
+permissions:
+  contents: read
+jobs:
+  hydrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      source_sha: ${{ steps.publish.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify bounded source patch and apply
+        shell: python
+        run: |
+          import base64, hashlib, json, pathlib, subprocess, zlib
+          spec=json.loads(pathlib.Path('.window-bootstrap/patch.json').read_text())
+          assert spec['schema']=='winrecomp.window-patch.v1'
+          assert 0<spec['size']<1048576
+          decoder=zlib.decompressobj()
+          patch=decoder.decompress(base64.b64decode(spec['data'],validate=True),1048577)
+          assert decoder.eof and not decoder.unconsumed_tail and not decoder.unused_data
+          assert len(patch)==spec['size'] and hashlib.sha256(patch).hexdigest()==spec['sha256']
+          path=pathlib.Path('/tmp/winrecomp-window.patch');path.write_bytes(patch)
+          subprocess.run(['git','apply','--check',str(path)],check=True)
+          subprocess.run(['git','apply',str(path)],check=True)
+          inventory=pathlib.Path('verification/source-hashes.json')
+          data=json.loads(inventory.read_text())
+          names=subprocess.check_output(['git','diff','--name-only'],text=True).splitlines()
+          names+=subprocess.check_output(['git','ls-files','--others','--exclude-standard'],text=True).splitlines()
+          for name in names:
+              if name.startswith(('src/','include/','tests/','tools/')) or name=='CMakeLists.txt':
+                  data['sha256'][name]=hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest()
+          inventory.write_text(json.dumps(data,indent=2)+'\n')
+      - name: Publish source on development branch only
+        id: publish
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: native window boundary candidate and original/generated GUI tests'
+          git push origin HEAD:work/native-window
+          echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  verify:
+    needs: hydrate
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.hydrate.outputs.source_sha }}
+          fetch-depth: 0
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - run: python -m pip install unicorn==2.1.2
+      - run: python tools/check_repository.py
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=ON
+      - run: cmake --build build --parallel 2
+      - name: Native resource, callback and original/generated GUI acceptance
+        run: ctest --test-dir build --output-on-failure
+      - name: Independent i386 oracle
+        if: runner.os == 'Linux'
+        run: python tests/hardware_oracle.py --tool build/winrecomp --out build/hardware --vectors 64
+      - name: Retain exact source even if tests fail
+        if: always() && runner.os == 'Linux'
+        run: |
+          mkdir -p build
+          git bundle create build/WinRecomp.bundle --all
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: window-acceptance-${{ matrix.os }}
+          path: |
+            build/Testing/Temporary/LastTest.log
+            build/gui_program/acceptance.json
+            build/gui_program/run.json
+            build/gui_program/original/gui-result.bin
+            build/gui_program/generated/gui-result.bin
+            build/conformance/report.json
+            build/floating/report.json
+            build/simd/report.json
+            build/hardware/hardware-report.json
+            build/WinRecomp.bundle
+          retention-days: 14
+          if-no-files-found: warn
