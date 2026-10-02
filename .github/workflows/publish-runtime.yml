@@ -1,14 +1,38 @@
-name: Build and conformance
+name: Runtime source publication and verification
 on:
   push:
-    branches: [main, work/runtime-checkpoint]
-  pull_request:
-  workflow_dispatch:
+    branches: [work/runtime-checkpoint]
+    paths: [.runtime-bootstrap/publish.json]
 permissions:
   contents: read
 jobs:
+  hydrate:
+    if: ${{ contains(github.event.head_commit.message, '[source-transfer]') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      source_sha: ${{ steps.publish.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+      - name: Verify immutable snapshot before writing source
+        run: python .runtime-bootstrap/apply.py
+      - name: Commit exact validated source to the development branch
+        id: publish
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: publish verified-source runtime candidate'
+          git push origin HEAD:work/runtime-checkpoint
+          echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   verify:
-    if: ${{ !contains(github.event.head_commit.message, '[source-transfer]') }}
+    needs: hydrate
     strategy:
       fail-fast: false
       matrix:
@@ -18,6 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.hydrate.outputs.source_sha }}
           fetch-depth: 0
           submodules: false
       - name: Initialize only the production decoder dependency
