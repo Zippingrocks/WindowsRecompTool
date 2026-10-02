@@ -56,14 +56,25 @@ std::filesystem::path guest_path(Process& p,const std::string& name) {
 }
 U32 heap_create(Process& p,U32 flags,U32 initial,U32 maximum) {
     if(flags&~0x00000001u || (maximum && initial>maximum)){p.set_error(87);return 0;}
-    const auto id=p.state().next_heap;p.state().next_heap+=16;p.state().heaps[id]={maximum,{}};return id;
+    // Heap layout is guest-owned, but the documented page-rounded maximum is
+    // an upper bound for both in-place and moving reallocations.
+    const auto rounded=(std::uint64_t(maximum)+4095u)&~std::uint64_t(4095u);
+    if(rounded>0xffffffffu){p.set_error(8);return 0;}
+    const auto id=p.state().next_heap;p.state().next_heap+=16;p.state().heaps[id]={U32(rounded),{}};return id;
+}
+U32 owned_allocation(Process& p,U32 size) {
+    const auto pointer=p.virtual_alloc(0,std::max(size,1u),0x3000,0x04);
+    // This reservation belongs to an API allocator, not the guest VirtualAlloc
+    // caller. Only the corresponding Heap/Global/Local free may release it.
+    if(pointer)p.state().virtual_reservations.erase(pointer);
+    return pointer;
 }
 U32 heap_allocate(Process& p,U32 heap,U32 flags,U32 size) {
     auto it=p.state().heaps.find(heap);if(it==p.state().heaps.end() || flags&~9u){p.set_error(87);return 0;}
     if(size>128u*1024*1024){p.set_error(8);return 0;}
     std::uint64_t total=size;for(const auto& [at,n]:it->second.blocks){(void)at;total+=n;}
     if(it->second.maximum && total>it->second.maximum){p.set_error(8);return 0;}
-    const auto pointer=p.virtual_alloc(0,std::max(size,1u),0x3000,0x04);if(pointer)it->second.blocks[pointer]=size;return pointer;
+    const auto pointer=owned_allocation(p,size);if(pointer)it->second.blocks[pointer]=size;return pointer;
 }
 U32 heap_free(Process& p,U32 heap,U32 flags,U32 pointer) {
     auto it=p.state().heaps.find(heap);if(it==p.state().heaps.end() || flags&~1u){p.set_error(87);return 0;}
@@ -74,12 +85,13 @@ U32 heap_reallocate(Process& p,U32 heap,U32 flags,U32 pointer,U32 size) {
     auto it=p.state().heaps.find(heap);if(it==p.state().heaps.end() || flags&~0x19u){p.set_error(87);return 0;}
     auto block=it->second.blocks.find(pointer);if(block==it->second.blocks.end()){p.set_error(87);return 0;}
     const auto prior=block->second;const auto allocation=p.memory.allocation(pointer);
+    // Check the budget before the in-place shortcut as well as before a move.
+    // Failure must preserve the original allocation, bytes and requested size.
+    const auto maximum=it->second.maximum;std::uint64_t total=size;for(const auto& [at,n]:it->second.blocks)if(at!=pointer)total+=n;
+    if(size>128u*1024*1024 || (maximum && total>maximum)){p.set_error(8);return 0;}
     if(size<=allocation.size){if((flags&8u) && size>prior)zero(p.memory,pointer+prior,size-prior);block->second=size;return pointer;}
     if(flags&0x10){p.set_error(8);return 0;}
-    // Bound heap accounting by net new requested bytes, not temporary copies.
-    const auto maximum=it->second.maximum;std::uint64_t total=size;for(const auto& [at,n]:it->second.blocks)if(at!=pointer)total+=n;
-    if(maximum && total>maximum){p.set_error(8);return 0;}
-    auto replacement=p.virtual_alloc(0,std::max(size,1u),0x3000,0x04);if(!replacement)return 0;
+    auto replacement=owned_allocation(p,size);if(!replacement)return 0;
     try {std::vector<std::uint8_t> data(std::min(prior,size));p.memory.copy_out(pointer,data);p.memory.copy_in(replacement,data);p.memory.release(pointer);}
     catch(...){p.memory.release(replacement);throw;}
     it->second.blocks.erase(pointer);it->second.blocks[replacement]=size;return replacement;
@@ -416,11 +428,13 @@ void install_win32(Process& p) {
 
     kernel(p,"GetFileSize",2,[](auto& q){auto it=q.state().files.find(arg(q,0));if(it==q.state().files.end()){q.set_error(6);return 0xffffffffu;}auto high=arg(q,1);if(high)q.memory.check(high,4,Memory::Write);
 #ifdef _WIN32
-        struct _stat64 info{};if(_fstat64(_fileno(it->second.stream),&info)){q.set_error(6);return 0xffffffffu;}
+        LARGE_INTEGER info{};if(!::GetFileSizeEx(file_handle(it->second),&info)){q.set_error(::GetLastError());return 0xffffffffu;}
+        const auto length=info.QuadPart;
 #else
-        struct stat info{};if(fstat(fileno(it->second.stream),&info)){q.set_error(6);return 0xffffffffu;}
+        struct stat info{};if(fstat(fileno(it->second.stream),&info)){q.set_error(file_error(errno));return 0xffffffffu;}
+        const auto length=info.st_size;
 #endif
-        if(info.st_size<0){q.set_error(87);return 0xffffffffu;}auto size=std::uint64_t(info.st_size);if(high)q.memory.store(high,U32(size>>32),32);if(U32(size)==0xffffffffu)q.set_error(0);return U32(size);});
+        if(length<0){q.set_error(87);return 0xffffffffu;}auto size=std::uint64_t(length);if(high)q.memory.store(high,U32(size>>32),32);if(U32(size)==0xffffffffu)q.set_error(0);return U32(size);});
     kernel(p,"SetFilePointer",4,[](auto& q){auto it=q.state().files.find(arg(q,0));if(it==q.state().files.end()){q.set_error(6);return 0xffffffffu;}auto high=arg(q,2),method=arg(q,3);if(method>2){q.set_error(87);return 0xffffffffu;}std::int64_t distance;
         if(high){q.memory.check(high,4,Memory::Read|Memory::Write);distance=std::bit_cast<std::int64_t>((std::uint64_t(q.memory.load(high,32))<<32)|arg(q,1));}
         else distance=std::bit_cast<std::int32_t>(arg(q,1));

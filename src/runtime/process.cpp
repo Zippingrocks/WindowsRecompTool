@@ -165,7 +165,9 @@ bool Process::virtual_protect(U32 at,U32 size,U32 protect,U32 old) {
 }
 U32 Process::allocate_bytes(std::size_t size,unsigned permission) {
     if(size>512ull*1024*1024)throw std::runtime_error("oversized host-to-guest copy");
-    auto p=virtual_alloc(0,U32(std::max<std::size_t>(size,1)),0x3000,native_protection(permission));if(!p)throw std::runtime_error("guest allocation failed");return p;
+    auto p=virtual_alloc(0,U32(std::max<std::size_t>(size,1)),0x3000,native_protection(permission));if(!p)throw std::runtime_error("guest allocation failed");
+    // Internal API buffers are not public VirtualAlloc reservations.
+    state().virtual_reservations.erase(p);return p;
 }
 std::string Process::read_string(U32 p,std::size_t maximum) {
     std::string result;for(std::size_t n=0;n<maximum;++n){if(std::uint64_t(p)+n>0xffffffffull)throw GuestFault(FaultKind::memory,p,"string wraps");auto c=memory.load(p+U32(n),8);if(!c)return result;result+=char(c);}throw GuestFault(FaultKind::memory,p,"unterminated bounded guest string");

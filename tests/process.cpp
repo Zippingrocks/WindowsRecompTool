@@ -44,7 +44,21 @@ int main(){try{
     for(unsigned n=0;n<31;++n)CHECK(p.memory.load(block+n,8)==0);p.memory.store(block,0x12345678,32);
     auto grow=call(p,"HeapReAlloc",{heap,8,block,9000});CHECK(grow);CHECK(p.memory.load(grow,32)==0x12345678);CHECK(p.memory.load(grow+8500,32)==0);
     CHECK(call(p,"HeapFree",{heap,0,grow})==1);CHECK(call(p,"HeapFree",{heap,0,grow})==0);CHECK(call(p,"HeapDestroy",{heap})==1);
+    // Internal/API-owned pages must not acquire public VirtualFree ownership.
+    CHECK(!p.state().virtual_reservations.contains(output));
+    auto bounded=call(p,"HeapCreate",{0,0,4095});CHECK(bounded);
+    CHECK(p.state().heaps.at(bounded).maximum==4096);
+    auto ba=call(p,"HeapAlloc",{bounded,8,1536}),bb=call(p,"HeapAlloc",{bounded,8,1536});CHECK(ba && bb);
+    p.memory.store(ba,0x24681357,32);
+    CHECK(call(p,"HeapReAlloc",{bounded,8,ba,3000})==0);
+    CHECK(call(p,"HeapSize",{bounded,0,ba})==1536 && p.memory.load(ba,32)==0x24681357);
+    CHECK(call(p,"VirtualFree",{ba,0,0x8000})==0);
+    CHECK(call(p,"VirtualFree",{ba,4096,0x4000})==0);
+    CHECK(!p.state().virtual_reservations.contains(ba));
+    CHECK(call(p,"HeapDestroy",{bounded})==1);
+    CHECK(!p.state().virtual_reservations.contains(ba));
     auto fixed=call(p,"GlobalAlloc",{0,32});p.memory.store(fixed,0x12345678,32);
+    CHECK(!p.state().virtual_reservations.contains(fixed));CHECK(call(p,"VirtualFree",{fixed,0,0x8000})==0);
     CHECK(call(p,"GlobalReAlloc",{fixed,64,0x40})==fixed);CHECK(p.memory.load(fixed+32,32)==0);
     CHECK(call(p,"GlobalReAlloc",{fixed,8192,0})==0);CHECK(p.memory.load(fixed,32)==0x12345678);
     auto moved=call(p,"GlobalReAlloc",{fixed,8192,0x42});CHECK(moved && moved!=fixed);CHECK(p.memory.load(moved,32)==0x12345678);CHECK(p.memory.load(moved+7000,32)==0);CHECK(call(p,"GlobalFree",{moved})==0);
