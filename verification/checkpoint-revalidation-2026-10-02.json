@@ -1,0 +1,115 @@
+{
+  "schema": "winrecomp.checkpoint-revalidation.v1",
+  "observed_at_utc": "2026-10-02T19:14:46.794854+00:00",
+  "remote_baseline": "98c08bfff1ab4c7ac2c65428270d64d73830d18a",
+  "verified_implementation": "a9988b3c19571356b74f6ca7b7f50ac46d9cd54b",
+  "activity": "Restored the already-published runtime from its CI Git bundle, rebuilt it, and re-ran tests. No implementation or roadmap changes in this pass.",
+  "source_hashes_verified": 47,
+  "local_platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "local_compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "local_ctest": {
+    "total": 14,
+    "passed": 14,
+    "failed": 0
+  },
+  "local_comparisons": {
+    "conformance": {
+      "comparisons": 58880,
+      "passed": true,
+      "cases": 230
+    },
+    "floating": {
+      "comparisons": 18240,
+      "passed": true,
+      "cases": 95
+    },
+    "simd": {
+      "comparisons": 29952,
+      "passed": true,
+      "cases": 156
+    },
+    "controlflow": {
+      "comparisons": 1024,
+      "passed": true,
+      "cases": 4
+    },
+    "abi_callbacks": {
+      "comparisons": 256,
+      "passed": true
+    }
+  },
+  "synthetic_program": {
+    "generated_native_x64_passed": true,
+    "output_sha256": "5272460991e36a2ac7fe76a71c895c4a8c3a3e74cb41527dc9786eb597c7a7e5",
+    "original_pe32_local": "not_run: requires Windows",
+    "original_pe32_windows_ci": "passed: original and generated output hashes match"
+  },
+  "local_native_i386": {
+    "status": "unavailable",
+    "exit_code": 77,
+    "reason": "kernel disallows ELF32; not counted as a pass"
+  },
+  "e3": {
+    "input_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+    "cfg": {
+      "instructions": 113463,
+      "blocks": 23422,
+      "function_candidates": 1308,
+      "unresolved_indirect_transfers": 440,
+      "jump_table_candidates": 115
+    },
+    "deterministic_cfg": true,
+    "generated_instructions": 113903,
+    "partial_translation": false,
+    "generated_build_flags": "Release with -O1 -DNDEBUG, GCC x64",
+    "isolated_original_routine_comparisons": 5120,
+    "real_x87_sequences": 24,
+    "real_x87_instructions": 207,
+    "real_x87_comparisons": 9216,
+    "startup_runs": [
+      {
+        "runner_exit_code": 2,
+        "guest_exited": false,
+        "translated_guest_instructions": 20284149,
+        "implemented_api_dispatches": 482,
+        "stop_api": "user32.dll!LoadIconA",
+        "stop_eip": 4026533744,
+        "budget_left": 79653301,
+        "report_sha256": "b5836a91adcab951fdaa1547dd8c337d854adad62e92ee9b5fab15bbbc089d31"
+      },
+      {
+        "runner_exit_code": 2,
+        "guest_exited": false,
+        "translated_guest_instructions": 20284053,
+        "implemented_api_dispatches": 478,
+        "stop_api": "user32.dll!LoadIconA",
+        "stop_eip": 4026533744,
+        "budget_left": 79653420,
+        "report_sha256": "a864a674d85537099c1dc9b702207bd3648d9cab5bc6d68177be943549d94818"
+      }
+    ]
+  },
+  "rechecked_ci": {
+    "run_id": 36993865298,
+    "windows_msvc": "success",
+    "linux_gcc": "success",
+    "windows_address_sanitizer_process_nls": "success",
+    "native_i386_comparisons_in_ci": 14720,
+    "linux_artifact_sha256": "709ff5bb437723372df8a89587ad9be3ef6d739abf10a3abbc8135de12ba68cb",
+    "windows_artifact_sha256": "3636cc659c0112c47aea2038759d10bc9a4c5361d5e10afb3e26b1efc5c36d52",
+    "note": "Existing completed CI for this exact implementation, freshly checked; not a newly triggered CI run."
+  },
+  "checkpoint": {
+    "planning_points": 50,
+    "total": 100,
+    "scope": "The documented fixed-base E3 PE32 target profile; no new points awarded for this verification."
+  },
+  "limitations": [
+    "Expected unsupported LoadIconA stop is not successful game exit, a window, a frame, or playable gameplay.",
+    "API dispatch counts include normal failure returns; instruction counts refer to translated guest instructions, not host machine instructions.",
+    "Actual E3 startup and real-input FP tests were run locally on Linux x64, not Windows.",
+    "x87/SIMD original-byte oracles execute dual-mode FP instructions on x64 hardware, not an i386 whole game.",
+    "Static image TLS, SEH, guest thread scheduling, rebasing, GUI/graphics/audio/input/networking remain unaccepted.",
+    "No game executable, assets, disassembly or generated game source is included in this evidence commit."
+  ]
+}
