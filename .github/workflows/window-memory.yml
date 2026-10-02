@@ -1,0 +1,39 @@
+name: Native window memory safety
+on:
+  push:
+    branches: [work/native-window, main]
+    paths:
+      - .github/workflows/window-memory.yml
+      - src/runtime/gui.cpp
+      - src/runtime/resources.cpp
+      - tests/gui.cpp
+      - tests/resources.cpp
+  pull_request:
+    paths: [src/runtime/gui.cpp, src/runtime/resources.cpp, tests/gui.cpp, tests/resources.cpp]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows_memory:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Configure native runtime and tests with AddressSanitizer
+        run: cmake -S . -B build-memory -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWINRECOMP_CONFORMANCE=OFF "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_C_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
+      - run: cmake --build build-memory --target winrecomp_resource_tests winrecomp_gui_tests --parallel 2
+      - name: Execute native resource and GUI bounds and exception tests
+        run: ctest --test-dir build-memory -R "^(resources|gui_boundary)$" --output-on-failure --timeout 60
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: window-memory-${{ github.sha }}
+          path: build-memory/Testing/Temporary/LastTest.log
+          retention-days: 14
