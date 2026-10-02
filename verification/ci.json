@@ -1,0 +1,77 @@
+{
+  "schema": "winrecomp.ci-evidence.v1",
+  "verified_source_commit": "03fb54a2e99c8b1000a1250b0387109fa9a86eb3",
+  "workflow_run_id": 36958529481,
+  "workflow_url": "https://github.com/Zippingrocks/WinRecomp/actions/runs/36958529481",
+  "jobs": [
+    {
+      "name": "verify (ubuntu-24.04)",
+      "id": 110686819572,
+      "conclusion": "success"
+    },
+    {
+      "name": "verify (windows-2022)",
+      "id": 110686819421,
+      "conclusion": "success"
+    }
+  ],
+  "source_transfer": "All 16 implementation/build/test source hashes match the locally tested source and passed the source policy check on both CI platforms.",
+  "linux": {
+    "schema": "winrecomp.conformance.v1",
+    "oracle": "Unicorn 2.1.2",
+    "native_pointer_bits": 64,
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "compiler": "/usr/bin/c++",
+    "total_vectors": 15360,
+    "compared": "8 GPRs, EIP, defined status flags, complete 64 KiB stack",
+    "elapsed_seconds": 4.82,
+    "case_count": 60,
+    "all_cases_passed": true
+  },
+  "windows": {
+    "schema": "winrecomp.conformance.v1",
+    "oracle": "Unicorn 2.1.2",
+    "native_pointer_bits": 64,
+    "platform": "Windows-2022Server-10.0.20348-SP0",
+    "compiler": "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe",
+    "total_vectors": 15360,
+    "compared": "8 GPRs, EIP, defined status flags, complete 64 KiB stack",
+    "elapsed_seconds": 5.861,
+    "case_count": 60,
+    "all_cases_passed": true
+  },
+  "native_i386_hardware": {
+    "oracle": "native i386 ELF32 execution, not emulation",
+    "native_output_bits": 64,
+    "total_vectors": 3840,
+    "elapsed_seconds": 3.543,
+    "case_count": 60,
+    "all_cases_passed": true
+  },
+  "additional_local_clang": {
+    "schema": "winrecomp.conformance.v1",
+    "oracle": "Unicorn 2.1.2",
+    "native_pointer_bits": 64,
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "compiler": "/usr/local/swift/usr/bin/clang++",
+    "total_vectors": 15360,
+    "compared": "8 GPRs, EIP, defined status flags, complete 64 KiB stack",
+    "elapsed_seconds": 3.26,
+    "case_count": 60,
+    "all_cases_passed": true
+  },
+  "artifact_sha256": {
+    "verification-ubuntu-24.04": "d8ba8b5d235834cde0cbe4cc962724172595d0761ea0fd47dba4050314f9bd42",
+    "verification-windows-2022": "4ce5648c1dc18a6a70c09371e1de4ad7d1ce580655a1b6822de0c56c1e2f0f8c"
+  },
+  "gate": {
+    "planning_points_accepted": 15,
+    "planning_points_total": 100,
+    "interpretation": "Four foundation gates accepted; not a measured percentage of total effort, instruction coverage, game completion or general Windows compatibility."
+  },
+  "limitations": [
+    "E3-derived routines were tested locally on Linux x64 against Unicorn; no claim they have been tested on Windows or real i386 hardware.",
+    "Hardware oracle uses only synthetic fixtures, not the full game.",
+    "No full E3 boot, graphics/audio/input, Win32 import runtime, x87/SIMD or complete indirect dispatch."
+  ]
+}

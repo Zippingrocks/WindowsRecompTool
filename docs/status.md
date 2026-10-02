@@ -1,6 +1,7 @@
 # Foundation status
 
-This file reports verified local results and separates checks awaiting CI.
+The four foundation gates are accepted: **15/100 roadmap planning points**.
+The source is published and Windows/Linux CI has completed successfully.
 It is not a claim that E3 2000 boots or that the whole project is mechanically
 15% complete. See the planning-gate definition in `roadmap.md`.
 
@@ -26,12 +27,31 @@ It is not a claim that E3 2000 boots or that the whole project is mechanically
   `0x004B3218`, `0x004B7EB5`. Names and gameplay roles are not established; some
   look like compiler/runtime helpers. This is not proof of gameplay recompilation.
 
-## Still being verified for this source revision
+## Verified on independent CI runners
 
-Windows/MSVC CI and the native i386 hardware oracle are configured but their
-results must be read from the completed workflow before marking the foundation
-gate passed. The local kernel disallows ELF32 execution; the local hardware
-oracle correctly returned 77 (unsupported), not a passing test.
+Source commit: `03fb54a2e99c8b1000a1250b0387109fa9a86eb3`.
+GitHub Actions run: `36958529481` (Build and conformance).
+Both `verify (windows-2022)` and `verify (ubuntu-24.04)` completed successfully.
+The source-policy check verified all nine upstream gitlinks and the exact hashes
+of all 16 locally tested implementation/build/test files on both runners.
+
+- Windows x64/MSVC: parser/runtime/frontend tests passed; generated native x64
+  passed all 60 fixtures, 15,360 Unicorn comparisons.
+- Linux x64/GCC: the same suites and 15,360 Unicorn comparisons passed.
+- Linux native i386 oracle: 60 synthetic fixtures, 3,840 comparisons against
+  actual ELF32 instruction execution passed. This is not Unicorn or a bytecode
+  interpreter. It compares the original x86 fixture with the generated x64 code.
+- Additional local Clang Release build: all suites and 15,360 comparisons passed.
+- Local GCC Debug, Release, ASan/UBSan tests and full E3 CFG sanitizer run passed.
+
+Machine-readable results are retained in `verification/local.json` and
+`verification/ci.json`. The E3-derived routines were validated locally on Linux
+x64 against Unicorn, not on Windows or native i386. No game material was uploaded
+to CI. The local kernel's unsupported ELF32 result (77) is still documented;
+it was not counted as a pass. The separate CI native i386 run really passed.
+
+Nine upstream repositories are pinned as submodules; only Zydis/Zycore is linked
+into the tool. Other pins are isolated references, not merged implementations.
 
 ## Explicitly not implemented
 
