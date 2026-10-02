@@ -25,7 +25,7 @@ namespace { struct GuiFrame; }
 #endif
 struct GuiState {
     std::thread::id owner=std::this_thread::get_id();
-    std::uint64_t windows_created{},callbacks{},dispatched{},paints{};
+    std::uint64_t windows_created{},callbacks{},dispatched{},paints{},native_private{};
     bool shutting_down{};
 #ifdef _WIN32
     enum class Kind {window,icon,cursor,brush,dc,region};
@@ -213,6 +213,10 @@ LRESULT CALLBACK bridge(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) noexcept {
     if(g.shutting_down || g.pending || p.exited()){if(message==WM_NCDESTROY){retire_window(g,*w);}return message==WM_CREATE?-1:0;}
     try {
         if(g.owner!=std::this_thread::get_id())unsupported(p,"cross-thread native window callback is unsupported");
+        // Native-only non-client drawing messages: retain host parameters and
+        // native default rendering. Guest interception is outside this profile.
+        // Do not extend this to unknown application or pointer-bearing messages.
+        if(message==0x00ae || message==0x00af){++g.native_private;return ::DefWindowProcA(hwnd,message,wp,lp);}
         g.handles.at(w->id).native=reinterpret_cast<std::uintptr_t>(hwnd);
         GuiFrame frame(*w,message,wp,lp);frame.prepare();++g.callbacks;
         const std::array<U32,4> args{w->id,message,frame.wp,frame.lp};
@@ -344,7 +348,7 @@ void shutdown_gui(Process& p) noexcept {
 std::string gui_report(const Process& p){
     const auto& g=p.state().gui;std::ostringstream out;
     out<<"{\"enabled\":"<<(p.options.enable_gui?"true":"false")<<",\"native_windows_created\":"<<(g?g->windows_created:0)
-       <<",\"guest_window_callbacks\":"<<(g?g->callbacks:0)<<",\"dispatched_messages\":"<<(g?g->dispatched:0)<<",\"paint_cycles\":"<<(g?g->paints:0)<<",\"rendered_game_frames\":0,\"playable_verified\":false}";
+       <<",\"guest_window_callbacks\":"<<(g?g->callbacks:0)<<",\"dispatched_messages\":"<<(g?g->dispatched:0)<<",\"paint_cycles\":"<<(g?g->paints:0)<<",\"native_private_messages\":"<<(g?g->native_private:0)<<",\"rendered_game_frames\":0,\"playable_verified\":false}";
     return out.str();
 }
 }

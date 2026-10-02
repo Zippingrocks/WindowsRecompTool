@@ -58,6 +58,7 @@ if(BUILD_TESTING)
   add_executable(winrecomp_gui_tests tests/gui.cpp)
   target_link_libraries(winrecomp_gui_tests PRIVATE winrecomp_guest)
   add_test(NAME gui_boundary COMMAND winrecomp_gui_tests)
+  set_tests_properties(resources gui_boundary PROPERTIES TIMEOUT 60)
   add_executable(winrecomp_tests tests/core.cpp)
   target_link_libraries(winrecomp_tests PRIVATE winrecomp_core)
   add_test(NAME core COMMAND winrecomp_tests)
@@ -88,6 +89,7 @@ if(BUILD_TESTING AND WINRECOMP_CONFORMANCE)
   endif()
   add_test(NAME gui_program COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/gui_program.py
     --tool $<TARGET_FILE:winrecomp> --cxx ${CMAKE_CXX_COMPILER} --out ${CMAKE_CURRENT_BINARY_DIR}/gui_program)
+  set_tests_properties(gui_program PROPERTIES TIMEOUT 300)
   add_test(NAME callback_abi COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_callbacks.py
     --tool $<TARGET_FILE:winrecomp> --cxx ${CMAKE_CXX_COMPILER} --out ${CMAKE_CURRENT_BINARY_DIR}/abi_callbacks)
   add_test(NAME program COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/program.py

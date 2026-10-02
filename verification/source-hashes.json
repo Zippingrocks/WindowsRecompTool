@@ -3,7 +3,7 @@
   "note": "Exact owned-source/measurement bytes of the locally tested runtime candidate; raw Git blobs avoid platform newline conversion. No game binary/source included.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "0fb55bf1d06e5ad61388e7e29b62a8d79c515444235ef0da85da64be5bdebe54",
+    "CMakeLists.txt": "79545e841f19ad83a2e2f05fafc283f9942d6b94419a3d1fcb932dfa2ea4c394",
     "include/winrecomp/compiled.hpp": "2142de2df49af250cbdab8b3c7346d01f3ca1d2d9f329c5c5ed409b8c65f32aa",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
@@ -51,7 +51,7 @@
     "tests/target_fp_selector.py": "ad674e96f2a07ee56bc02b33726512cc6d9724bbc951f0285a3f8e2f2e984784",
     "include/winrecomp/gui.hpp": "b808ca7de50cd49b204eccb829a60145824b8604e20a45344c24fc952a14216b",
     "include/winrecomp/resources.hpp": "00a9f70af012ced583b10227f351f3ee846e9648a67ebe9541029e97a12968fc",
-    "src/runtime/gui.cpp": "32818797e0e70024b6b6dfe8fec31cbb2e7c87fbe305ece8c2b72296434310e3",
+    "src/runtime/gui.cpp": "75ee4dabf399ee3b4d227d54b90528e362dc6c3a38f419b21f64a7e7daaaecb1",
     "src/runtime/resources.cpp": "92bb0193b6e73c725aa6c86f382eeeee0c2f8011f9219b71543d4c52ed800820",
     "tests/gui.cpp": "7c744ba3a8eda186cc98db342acde36a8c120a5452edf950040b38937ed495a1",
     "tests/gui_program.py": "d7c5cd9ffb509e317cc6b35fb044a41e1c7420c532ff3bbd4b948ecbdf8dca50",

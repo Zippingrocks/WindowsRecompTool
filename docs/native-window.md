@@ -22,6 +22,12 @@ MSG (28), PAINTSTRUCT (64), MINMAXINFO (40), WINDOWPOS (28) and NCCALCSIZE_PARAM
 messages are allowlisted; unknown messages fail instead of truncating host pointers.
 Guest calls to DefWindowProc synchronize their active native message frame.
 Exceptions are contained at WNDPROC and rethrown at the controlled API boundary.
+The native-only non-client drawing IDs 0x00AE/0x00AF are sent directly to the
+real host DefWindowProc with unchanged native parameters, not returned as dummy
+success and not exposed as guest pointers. Their dispatches are counted separately.
+Intercepting these private messages in guest code is outside this profile; all
+other unknown messages still fail explicitly. CREATESTRUCT class-name pointer
+identity is not assumed: the acceptance fixture queries GetClassNameA instead.
 Shutdown disables guest callbacks while destroying owned native windows/icons.
 
 Resource tables are parsed from the already validated input bytes with depth,
