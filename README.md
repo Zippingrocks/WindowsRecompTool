@@ -6,7 +6,12 @@ flags and addresses remain 32-bit; they are not widened into host pointers.
 
 ## What exists now
 
-The 0.2 runtime candidate generates complete CMake/x64 projects for a bounded
+The first seven gates total **50/100 roadmap planning points**. This is a
+verified engineering checkpoint for the documented target profile, not a measure
+of total unknown work, gameplay completion or universal Windows compatibility.
+The exact source, CI and local evidence are recorded in `docs/status.md`.
+
+The 0.2 runtime generates complete CMake/x64 projects for a bounded
 PE32 profile, as well as individual translated slices. It has a Zydis-backed
 analyzer, guarded switch recovery, broad tested integer execution, 80-bit x87
 and SSE/SSE2 helpers, sparse guest memory, fixed-image loading, checked import
@@ -97,8 +102,16 @@ python tools/validate_target.py --tool build/winrecomp --exe local/e3_2000/blam.
 ```
 
 Use the appropriate Windows executable path and `--cxx cl` in a developer shell.
-Generated game-derived source, manifests and test images remain under ignored
-`build/`. No game files are needed by CI.
+The real-input floating-point corpus can also be reproduced locally on Linux:
+
+```sh
+python tests/floating.py --tool build/winrecomp --native-lib build/libwinrecomp_native.a --target local/e3_2000/blam.exe --contract examples/e3_2000/target.json --out local/e3_fp --vectors 384
+```
+
+This selects bounded original x87 sequences, not entire game functions. Generated
+game-derived source, manifests and test images remain under ignored `build/` or
+`local/`. No game files are needed by CI. The E3 startup and real-input FP results
+are local Linux observations; Windows CI compares synthetic programs and fixtures.
 
 ## Reference repositories
 

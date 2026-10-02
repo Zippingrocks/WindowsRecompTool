@@ -1,214 +1,276 @@
 {
-  "schema": "winrecomp.runtime-local-evidence.v1",
-  "previous_accepted_source": "03fb54a2e99c8b1000a1250b0387109fa9a86eb3",
-  "gate_acceptance": "pending new Windows/Linux CI; historical 15 points remain accepted",
-  "gcc": {
-    "ctest_total": 13,
-    "all_passed": true
-  },
-  "clang": {
-    "ctest_total": 13,
-    "all_passed": true
-  },
-  "asan_ubsan": {
-    "ctest_total": 7,
-    "all_passed": true,
-    "note": "The final corrected source was rebuilt and all seven sanitizer suites passed."
-  },
-  "conformance": {
-    "schema": "winrecomp.conformance.v1",
-    "oracle": "Unicorn 2.1.2",
-    "native_pointer_bits": 64,
-    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
-    "compiler": "/usr/bin/c++",
-    "total_vectors": 58880,
-    "compared": "8 GPRs, EIP, defined status flags, complete 64 KiB stack",
-    "elapsed_seconds": 12.954,
-    "case_count": 230,
-    "all_cases_passed": true
-  },
-  "x87": {
-    "schema": "winrecomp.x87-conformance.v1",
-    "oracle": "native x86-64 hardware, uninterrupted original x87 byte fixtures in long mode",
-    "native_pointer_bits": 64,
-    "total_vectors": 18240,
-    "control_modes": 12,
-    "elapsed_seconds": 2.769,
-    "exclusions": [
-      "FIP/FDP/FOP host-versus-guest environment fields",
-      "empty-register payloads"
-    ],
-    "not_a_native_i386_whole_program_oracle": true,
-    "case_count": 95,
-    "all_cases_passed": true
-  },
-  "simd": {
-    "schema": "winrecomp.sse2-conformance.v1",
-    "oracle": "native x86-64 hardware, uninterrupted original SSE/SSE2 byte fixtures in long mode",
-    "native_pointer_bits": 64,
-    "total_vectors": 29952,
-    "control_modes": 16,
-    "elapsed_seconds": 3.799,
-    "exclusions": [
-      "FIP/FDP/FOP host-versus-guest environment fields",
-      "empty-register payloads"
-    ],
-    "not_a_native_i386_whole_program_oracle": true,
-    "case_count": 156,
-    "all_cases_passed": true
-  },
-  "controlflow": {
-    "schema": "winrecomp.controlflow.v1",
-    "cases": [
-      {
-        "name": "guarded_table",
-        "entry": "0x401000",
-        "vectors": 256,
-        "result": "pass"
-      },
-      {
-        "name": "callback",
-        "entry": "0x401000",
-        "vectors": 256,
-        "result": "pass"
-      },
-      {
-        "name": "call_esp",
-        "entry": "0x401000",
-        "vectors": 256,
-        "result": "pass"
-      },
-      {
-        "name": "preserving_guard",
-        "entry": "0x401000",
-        "vectors": 256,
-        "result": "pass"
-      }
-    ],
-    "total_vectors": 1024,
-    "negative_table_tests": 8
-  },
-  "callback": {
-    "schema": "winrecomp.callback-abi.v1",
-    "vectors": 256,
-    "path": "generated guest -> real host dispatcher -> generated guest stdcall callback -> host -> generated guest",
-    "all_passed": true
-  },
-  "program": {
-    "schema": "winrecomp.program-test.v1",
-    "native_pointer_bits": 64,
-    "program": {
-      "schema": "winrecomp.process.v1",
-      "input_sha256": "44f9ded278341d1827eca1e529b2e31239ae220e33708b965e561f9088abd148",
-      "exited": true,
-      "exit_code": 0,
-      "eip": 4198470,
-      "esp": 118489068,
-      "native_instructions": 17,
-      "api_calls": 3,
-      "budget_left": 9999980,
-      "recent_transfers": [
-        {
-          "pc": 4026531968,
-          "return": 4198420,
-          "api": "kernel32.dll!VirtualAlloc",
-          "arguments": [
-            0,
-            8192,
-            12288,
-            4
-          ],
-          "detail": ""
-        },
-        {
-          "pc": 4026531984,
-          "return": 4198462,
-          "api": "kernel32.dll!VirtualFree",
-          "arguments": [
-            268435456,
-            0,
-            32768
-          ],
-          "detail": ""
-        },
-        {
-          "pc": 4026531872,
-          "return": 4198470,
-          "api": "kernel32.dll!ExitProcess",
-          "arguments": [
-            0
-          ],
-          "detail": ""
-        }
-      ]
-    },
-    "wrong_input_rejected": true,
-    "existing_output_preserved": true,
-    "input_report_collision_rejected": true
-  },
-  "nls": {
-    "checked": 2555,
-    "native_measurement_run": 36962189827,
-    "native_observations_sha256": "b40f11319a216204d9a63993c107f4a6294001923c6295d8f4ab68e125c1a55d",
-    "original_artifact_sha256": "806272dddb503beab76defbca0e5d7465071a385af9a80964fc663c25ca01998"
-  },
-  "private_target": {
-    "contract": {
-      "input_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
-      "imports": 155,
-      "cfg": {
-        "instructions": 113463,
-        "blocks": 23422,
-        "function_candidates": 1308,
-        "unresolved_indirect_transfers": 440,
-        "jump_table_candidates": 115
-      },
-      "manifest_sha256": "66c0f5a69f3ad5480f66942920278a9114b86abc0099a75319fab24e78cbcbb0",
-      "deterministic": true,
-      "whole_program_complete": false,
-      "elapsed_seconds": 1.689,
+  "schema": "winrecomp.runtime-local-evidence.v2",
+  "source_commit": "a9988b3c19571356b74f6ca7b7f50ac46d9cd54b",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "source_hashes_verified": 47,
+  "profiles": {
+    "gcc": {
+      "ctest_total": 14,
+      "all_passed": true,
+      "log_sha256": "fa8faa75686afaa7e09f8bcbdf46ef30ecd2082d60df00af59e35f781227e0cc",
       "conformance": {
-        "schema": "winrecomp.conformance.v1",
-        "oracle": "Unicorn 2.1.2",
-        "native_pointer_bits": 64,
-        "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
-        "compiler": "c++",
-        "total_vectors": 5120,
-        "compared": "8 GPRs, EIP, defined status flags, complete 64 KiB stack",
-        "elapsed_seconds": 2.246,
-        "target_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
-        "case_count": 5,
+        "case_count": 230,
+        "total_vectors": 58880,
         "all_cases_passed": true
+      },
+      "x87": {
+        "case_count": 95,
+        "total_vectors": 18240,
+        "all_cases_passed": true,
+        "control_modes": 12
+      },
+      "simd": {
+        "case_count": 156,
+        "total_vectors": 29952,
+        "all_cases_passed": true,
+        "control_modes": 16
       }
     },
-    "startup": {
-      "schema": "winrecomp.process.v1",
-      "input_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
-      "exited": false,
-      "exit_code": 0,
-      "eip": 4026533744,
-      "esp": 118488840,
-      "native_instructions": 20284053,
-      "api_calls": 478,
-      "budget_left": 79653420
+    "clang": {
+      "ctest_total": 14,
+      "all_passed": true,
+      "log_sha256": "30b7dce532b19b971b82ef83fa6495f6bd3ee1de8c70a0778effa3d1601ba27c",
+      "conformance": {
+        "case_count": 230,
+        "total_vectors": 58880,
+        "all_cases_passed": true
+      },
+      "x87": {
+        "case_count": 95,
+        "total_vectors": 18240,
+        "all_cases_passed": true,
+        "control_modes": 12
+      },
+      "simd": {
+        "case_count": 156,
+        "total_vectors": 29952,
+        "all_cases_passed": true,
+        "control_modes": 16
+      }
     },
-    "stop_api": "user32.dll!LoadIconA",
-    "stop_reason": "unimplemented Win32 import user32.dll!LoadIconA at guest address 4026533744",
-    "host": "Linux x64",
-    "input_has_not_been_run_natively_as_a_windows_exe": true,
-    "whole_game_behavior_validated": false,
-    "counts_are_one_observation_not_a_deterministic_fidelity_measure": true
+    "sanitizers": {
+      "ctest_total": 14,
+      "all_passed": true,
+      "log_sha256": "cc1a7e874eefbcda2efe243c7fc8f451a6967e16f2a37ef9337bdadbc52d70f5",
+      "conformance": {
+        "case_count": 230,
+        "total_vectors": 58880,
+        "all_cases_passed": true
+      },
+      "x87": {
+        "case_count": 95,
+        "total_vectors": 18240,
+        "all_cases_passed": true,
+        "control_modes": 12
+      },
+      "simd": {
+        "case_count": 156,
+        "total_vectors": 29952,
+        "all_cases_passed": true,
+        "control_modes": 16
+      },
+      "scope": "GCC ASan/UBSan analyzer and core/guest runtime tests; separate generated-code DLLs/projects do not all inherit sanitizer flags. Entire CTest suite passed; this is not a claim all emitted instructions are instrumented."
+    }
   },
-  "limitations": [
-    "Not a whole-game behavior equivalence proof",
-    "Native FP fixture oracle is x64, not a native i386 whole-program oracle",
-    "Local ELF32 execution unavailable, not counted as a pass",
-    "No game bytes or game-derived source sent to CI",
-    "No graphics/audio/input/networking/guest SEH/threading"
-  ],
-  "local_log_sha256": {
-    "accept-gcc-2": "64a77b1eac46ca2d0f88b5abe7e500fd193a3fbad30862eb3f204e6e688eea74",
-    "accept-clang-2": "c56737fd9a7e6e00db5e661f8884fd5a4f516a20c4833cf6f608d69390f879f9",
-    "asan-final": "604d35488ea95649ab66913c70a477fe628341b32c72ed255df42b6110bc3cc1"
-  }
+  "target": {
+    "input_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+    "imports": 155,
+    "cfg": {
+      "instructions": 113463,
+      "blocks": 23422,
+      "function_candidates": 1308,
+      "unresolved_indirect_transfers": 440,
+      "jump_table_candidates": 115
+    },
+    "manifest_sha256": "66c0f5a69f3ad5480f66942920278a9114b86abc0099a75319fab24e78cbcbb0",
+    "deterministic": true,
+    "whole_program_complete": false,
+    "elapsed_seconds": 2.816,
+    "conformance": {
+      "schema": "winrecomp.conformance.v1",
+      "oracle": "Unicorn 2.1.2",
+      "native_pointer_bits": 64,
+      "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+      "compiler": "c++",
+      "total_vectors": 5120,
+      "compared": "8 GPRs, EIP, defined status flags, complete 64 KiB stack",
+      "elapsed_seconds": 3.24,
+      "target_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+      "case_count": 5,
+      "all_cases_passed": true
+    }
+  },
+  "target_x87": {
+    "oracle": "native x86-64 hardware, uninterrupted original x87 byte fixtures in long mode",
+    "case_count": 24,
+    "total_vectors": 9216,
+    "control_modes": 12,
+    "all_cases_passed": true,
+    "target_corpus": {
+      "input_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+      "sequences": [
+        {
+          "address": 4652155,
+          "instructions": 27,
+          "bytes_sha256": "3f68a87a6c24e2cfe0ee7a7ce988f35dddde88e30b78bbc951b27af11db3b2f8"
+        },
+        {
+          "address": 4522581,
+          "instructions": 17,
+          "bytes_sha256": "bf9748dd862bcd6d7af13c28a799c2c47aea7d025a4432be6f0ff12d5502e565"
+        },
+        {
+          "address": 4718672,
+          "instructions": 17,
+          "bytes_sha256": "c496e9accf9b67621590f16a876d0ddb1820569d4d22cd7068d3ce9af872812a"
+        },
+        {
+          "address": 4718865,
+          "instructions": 17,
+          "bytes_sha256": "d7382bc3fc16b9a959dde0403aba731f636754aff3d79a514a35011ec4cb7a27"
+        },
+        {
+          "address": 4652116,
+          "instructions": 15,
+          "bytes_sha256": "b60e81f3f974e6a500112684516b41fee10a518d3f916207b272a7c31fe72dae"
+        },
+        {
+          "address": 4660015,
+          "instructions": 15,
+          "bytes_sha256": "99f05b1937dd3a5a133d6bcbd88ddd105443cdf4e97b470744f15698e856cc51"
+        },
+        {
+          "address": 4301613,
+          "instructions": 11,
+          "bytes_sha256": "b41215ea9a97e8fbe433196b3a9443e4b48a13fbd4d1d64c08e9447ae0415cb8"
+        },
+        {
+          "address": 4544846,
+          "instructions": 9,
+          "bytes_sha256": "3efb488d43884a7ac30684b4e1f8b7d82f592790c07751a0c6e429f5003a3481"
+        },
+        {
+          "address": 4551802,
+          "instructions": 9,
+          "bytes_sha256": "5e0e999582f9b7bec7b41bd8bcc007505c96e7a2a456773a06721608b52225a1"
+        },
+        {
+          "address": 4561080,
+          "instructions": 9,
+          "bytes_sha256": "c4afc4066e130d0b957c2db1a6047c7e4db997bf74ec10982bb099ea99d1b7b0"
+        },
+        {
+          "address": 4652249,
+          "instructions": 8,
+          "bytes_sha256": "e30da289774a01f4d346257d857dab416c3f5976b12e0c26ab542b6e37be9f30"
+        },
+        {
+          "address": 4673199,
+          "instructions": 7,
+          "bytes_sha256": "8a483ce4f0ae644024caa2d2a1483399315bb162798550a65e78e8381310dd49"
+        },
+        {
+          "address": 4561586,
+          "instructions": 6,
+          "bytes_sha256": "1a165405f7b3f3b040ed98e38726d931c1855a96a62be957c1b01bdf3c65d2f8"
+        },
+        {
+          "address": 4718754,
+          "instructions": 5,
+          "bytes_sha256": "4ec4f8da3af252f5e31d1c71a7ed06ce2166f7ac61fef1c546e8d702ce775086"
+        },
+        {
+          "address": 4718772,
+          "instructions": 5,
+          "bytes_sha256": "b619036cef419f2265cac98c3ab79d4a67c0b22bce9c5a5d43afe12633be04ca"
+        },
+        {
+          "address": 4718790,
+          "instructions": 5,
+          "bytes_sha256": "2ae7ba8e3ef28f414fda38bdc5f5b3d715d1258ff8583d68d63a2fd65b374d33"
+        },
+        {
+          "address": 4314039,
+          "instructions": 4,
+          "bytes_sha256": "c00632f7b8b4c86e533fde4422ace8752d5c3aec7a926b4e7813deb026a8d988"
+        },
+        {
+          "address": 4313983,
+          "instructions": 3,
+          "bytes_sha256": "8d00f0b8d5492878d0b65eb485a84c390613969a34f3b52ea9d15b928099f0d9"
+        },
+        {
+          "address": 4438024,
+          "instructions": 3,
+          "bytes_sha256": "cfd6c2034085929817c5144bdb14005bda9fc2c0967cfb5d3082309765f774a4"
+        },
+        {
+          "address": 4438042,
+          "instructions": 3,
+          "bytes_sha256": "6cc63980b76b3c13250b94d45765ce2290beb9633c5462e510af816afff26fcf"
+        },
+        {
+          "address": 4462675,
+          "instructions": 3,
+          "bytes_sha256": "e699701d08b6838c971d655e05aebe6a0a02a648cdc68d3bd4edee1da51025ab"
+        },
+        {
+          "address": 4529260,
+          "instructions": 3,
+          "bytes_sha256": "69d66244262c2591a0527333763d56c6c3768e8ff149e6989842545966d7360f"
+        },
+        {
+          "address": 4531266,
+          "instructions": 3,
+          "bytes_sha256": "51c7979431cb45b255647d470c7fd76d98b87bbae3232e9333780e2fa8554346"
+        },
+        {
+          "address": 4733049,
+          "instructions": 3,
+          "bytes_sha256": "ae44ec76e0463b68744180ca3364ce4320ce88f82eed47fc297c6ce7999f671a"
+        }
+      ],
+      "selection": "24 longest non-overlapping distinct safe x87 sequences, at most 64 instructions each; contiguous original bytes, harness-added RET",
+      "scope": "Controlled ESI/EDI buffers and initially empty x87 stack; not whole original functions or full gameplay",
+      "instruction_count": 207
+    },
+    "exclusions": [
+      "FIP/FCS/FOP/FDP/FDS host-versus-flat-guest environment fields (legacy bytes 12..25)",
+      "empty-register payloads"
+    ]
+  },
+  "target_project": {
+    "schema": "winrecomp.program.v1",
+    "sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+    "fixed_image_base": 4194304,
+    "entry": 4911384,
+    "instructions": 113903,
+    "partial": false,
+    "instruction_guard": "compare original bytes before each translated instruction"
+  },
+  "target_startup": {
+    "schema": "winrecomp.process.v1",
+    "input_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+    "exited": false,
+    "exit_code": 0,
+    "eip": 4026533744,
+    "esp": 118488840,
+    "native_instructions": 20284053,
+    "api_calls": 478,
+    "budget_left": 79653420
+  },
+  "target_stop": "unimplemented Win32 import user32.dll!LoadIconA at guest address 4026533744",
+  "target_sanitized_cfg": {
+    "passed": true,
+    "byte_identical_to_unsanitized": true,
+    "sha256": "66c0f5a69f3ad5480f66942920278a9114b86abc0099a75319fab24e78cbcbb0"
+  },
+  "scope_notes": [
+    "Target runs are local Linux x64, not Windows or a full-game native-i386 comparison.",
+    "The native_instructions report field counts successfully executed translated guest instructions, not the number of physical x64 host instructions.",
+    "api_calls counts implemented API invocations, including ordinary failure returns, not necessarily successful Win32 requests.",
+    "E3 was compiled without --partial; the 113903 admitted instructions have supported emission. Unknown indirect targets can still stop. No whole-program coverage claim.",
+    "Real FP corpus is 24 bounded sequences, 207 original x87 instructions, 9216 controlled comparisons; not entire gameplay functions.",
+    "No game bytes, assembly listings, generated game source or assets are included in this evidence file."
+  ]
 }

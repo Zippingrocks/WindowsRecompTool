@@ -1,46 +1,115 @@
-# Verification status — 0.2 runtime candidate
+# Verified runtime checkpoint — 50/100 roadmap planning points
 
-The previous 15/100 foundation gates remain accepted, against source `03fb54a`
-and Windows/Linux CI run `36958529481` (see historical evidence). The unchanged
-roadmap's next 35 points are under acceptance review. **Do not call this 50 until
-the new source is published and Windows/Linux verification is complete.**
+The original first seven roadmap gates are accepted for the documented target
+profile. The weights have not changed: foundation 15, integer/indirect execution
+10, x87/SIMD fidelity 10, and the loader/memory/Win32 ABI/import boundary 15.
+This is **50/100 planning points**, not a measured percentage of unknown remaining
+work, all possible x86 instructions, universal Windows compatibility or gameplay.
 
-The local runtime candidate has complete generated-project execution, expanded
-integer/indirect flow, native x87/SSE2 helpers and a bounded Win32/loader profile.
-See `runtime-scope.md` for substantial explicit limitations. Old CI success does
-not verify this new source; candidate results and final CI are recorded separately.
+**Verified implementation:** `a9988b3c19571356b74f6ca7b7f50ac46d9cd54b`.
+**Independent CI:** run `36993865298` (Runtime source publication and verification).
+Windows/MSVC, Linux/GCC and the separate Windows AddressSanitizer job completed
+successfully. All 47 recorded implementation/build/test/measurement file hashes
+match the tested source. Documentation updates do not change that implementation.
 
-## Local evidence
+## What works end to end
 
-- 230 integer fixtures: 58,880 Unicorn comparisons, native generated x64.
-- 95 x87 fixtures: 18,240 native x87 comparisons over 12 precision/rounding modes.
-- 156 SIMD fixtures: 29,952 native SSE/SSE2 comparisons over 16 control modes.
-- Four compiled indirect/table fixtures: 1,024 Unicorn comparisons, plus eight
-  rejection tests for guard bypasses, flag/index mutations and invalid data targets.
-- 256 compiled guest-to-host-to-guest callback transitions.
-- 2,555 bounded NLS checks against measured Windows data; direct Windows calls
-  will also be compared on the Windows runner.
-- Sparse page/VM, image/TEB/stack, heap, file/sharing, mutex, error-path and
-  marshalling tests, plus explicit FP fault/host-state-preservation tests.
-- A complete synthetic PE produces its own native executable and successfully
-  allocates memory, writes/reads it, frees it and exits through the parsed IAT.
-- E3's no-extra-seed graph: 113,463 instructions, 23,422 blocks, 1,308 function
-  candidates, 72 statically recovered tables, zero decode/overlap diagnostics.
-  There remain 440 unresolved indirect edges and 115 table candidates. Static
-  table candidate edges remain explicitly unknown pending runtime validation.
-- E3 with SHA-bound observed roots and original assets reaches USER32!LoadIconA
-  after 20,284,057 translated instructions and 478 successful API calls on Linux x64.
-  This is a pre-window initialization checkpoint, not a first frame or gameplay.
+`winrecomp project input.exe output-directory` generates a complete CMake project,
+including native compiled dispatch and the runtime, for the supported PE32 profile.
+The input is SHA-256-bound; guest pointers/registers remain 32-bit. No interpreter,
+JIT or Unicorn execution fallback is used. Unknown imports, unknown code targets,
+changed code and unsupported behaviors stop explicitly rather than returning fake
+success. `lift` remains available for independently tested slices.
 
-No game data, executable or generated game-derived source is used on CI.
-The E3 observations are local Linux results, NOT yet a Windows E3 execution test.
-Native x87/SSE hardware fixtures are distinct from native i386 integer testing;
-local inability to run ELF32 is not a passing result.
+The Windows end-to-end fixture runs an author-written PE32 through the **actual
+Windows loader**, then runs its generated native x64 version. Both must produce
+the same 16-byte file and exit successfully. The 15 real API calls cover virtual
+memory, heap creation/growth/freeing, last-error state, file creation/writing/size,
+handle closing and process exit. The output SHA-256 is
+`5272460991e36a2ac7fe76a71c895c4a8c3a3e74cb41527dc9786eb597c7a7e5`.
+This test passed on Windows; it is not merely comparison against our own model.
 
-## Open boundaries
+## Completed independent tests
 
-GUI/rendering, audio/input, networking, guest threading, SEH/unwind, static PE TLS,
-arbitrary guest DLL loading and universal Windows compatibility are unfinished.
-The original whole-game behavior has not been differentially validated. The
-runtime remains a correctness-first experimental implementation, not an optimized
-shipping port. Finite test counts do not prove every possible instruction state.
+| Test | Windows x64/MSVC | Linux x64/GCC |
+|---|---:|---:|
+| CTest suites | 14/14 | 14/14 |
+| Integer fixtures vs Unicorn (230 cases) | 58,880 comparisons | 58,880 comparisons |
+| x87 vs uninterrupted native x87 (95 cases) | 18,240 comparisons | 18,240 comparisons |
+| SSE/SSE2 vs uninterrupted native instructions (156 cases) | 29,952 comparisons | 29,952 comparisons |
+| Compiled indirect/table cases | 1,024 comparisons + 8 negative tests | 1,024 comparisons + 8 negative tests |
+| Compiled guest-host-guest callback ABI | 256 cases | 256 cases |
+| Generated standalone program | Original PE32/output comparison passed | Generated program/output check passed |
+
+Linux additionally passed **14,720 native-i386 comparisons** across all 230
+integer fixtures. That oracle executes ELF32 x86 instructions, not Unicorn.
+The floating-point hardware oracle is distinct: original dual-mode x87/SSE
+instructions execute on x64 hardware. It is not an i386 whole-game oracle.
+Defined flags, control/status state and data are compared; host pointer/selector
+fields and undefined empty-stack payloads are excluded explicitly. Guest
+pointer/selector environment behavior has separate deterministic regressions.
+
+Windows AddressSanitizer passed both native `process` and `nls` suites. Additional
+local Clang Release and GCC ASan/UBSan configurations each passed all 14 suites.
+Not every separately compiled generated-code DLL/project inherits sanitizer
+flags; these results are not a claim that an entire game was sanitizer-checked.
+
+## Real E3 evidence — local Linux x64
+
+Input SHA-256:
+`3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda`.
+
+The no-extra-seed graph contains **113,463 instructions**, **23,422 blocks**,
+**1,308 function-entry candidates** and **72 recovered guarded tables**. It has
+no decode/overlap diagnostics and is byte-identical across repeated runs and the
+sanitized analyzer. **440 unresolved indirect transfers** and **115 table
+candidates** remain; this is not a complete function/call-graph recovery claim.
+
+With the SHA-bound observed seed profile, a project containing **113,903 admitted
+instructions** was generated and compiled **without `--partial`**. That means
+those admitted forms have emission support, not that every possible target was
+statically discovered or every game behavior was verified.
+
+The latest repeated native startup run completed **20,284,053 translated guest
+instructions** and **478 implemented API dispatches**, then stopped explicitly
+at **`user32.dll!LoadIconA`**. The instruction count is translated x86 instructions,
+not a physical x64 instruction count. The API counter can include normal failure
+returns and is not a count of successful API requests. Observed counts can vary
+slightly with file/environment state; the meaningful checkpoint is pre-window
+initialization reaching the same unsupported API.
+
+Five original routines still pass **5,120 Unicorn comparisons** with the current
+lifter. In addition, a SHA-bound safe selector extracted **24 distinct contiguous
+x87 sequences**, **207 unchanged original instructions**, and passed **9,216
+native-hardware comparisons** across 12 precision/rounding modes. These are
+controlled instruction sequences, not 24 recovered gameplay functions.
+
+No original E3 binary, asset, disassembly or generated game source was uploaded
+to CI or committed. Actual E3 execution and its real-input FP corpus were tested
+locally on Linux x64, **not on Windows or as a whole original i386 game**.
+
+## Defects fixed during acceptance
+
+The failed CI history is retained. Repairs include the MSVC calling-convention
+identifier collision; RCL/RCR undefined overflow-flag handling for nonzero
+modulo-zero counts; in-place bounded-heap growth bypass; API allocation ownership;
+Windows file-size marshalling; x87 flat selector restore boundaries; and an actual
+Windows heap corruption caused by oversized `GetVolumeInformationA` host buffers.
+The last defect was localized with native Windows ASan and fixed using the API's
+MAX_PATH+1 bound, followed by direct native-volume and optional-buffer regressions.
+These were fixed rather than suppressed or counted as passes.
+
+## What remains unaccepted
+
+Static PE TLS, SEH/unwind/exception delivery, guest thread scheduling, arbitrary
+guest DLL loading, rebasing support, GUI/window callbacks, graphics, audio/input,
+networking and the E3 playable loop remain unfinished. Some callback and dynamic
+TLS-slot building blocks exist; they do not earn the later TLS/SEH/threading gate.
+There is **no game window, rendered frame or playable E3 port** at this checkpoint.
+The exact supported/unsupported profile is in `runtime-scope.md`.
+
+Machine-readable current evidence is in `verification/runtime-ci.json` and
+`verification/runtime-local.json`. Historical foundation evidence remains in
+`verification/ci.json` and `verification/local.json`; it has not been substituted
+for the new source's tests. Source history and dependency bundles are retained in
+CI artifacts even when later test runs fail. Source itself is committed in Git.

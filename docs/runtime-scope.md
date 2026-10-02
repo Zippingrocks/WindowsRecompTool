@@ -32,6 +32,8 @@ There is no runtime JIT or arbitrary native execution of input instruction bytes
 Precision control, rounding, sticky status, DAZ/FTZ and guest stack TOP are tested
 against native uninterrupted instruction fixtures. Host FIP/FDP addresses never
 leak into guest state. FLDENV restores physical/logical stack association correctly.
+The flat profile stores zero FCS/FDS selectors and rejects nonzero-selector restores
+without altering guest FP state; host selector values are not guest state.
 
 The oracle tests x87/SSE on x64 hardware. It is not a proof of bit-identical
 transcendental behavior on every historical x86 CPU. Native i386 integer tests
@@ -90,3 +92,27 @@ That call currently stops explicitly. This does NOT mean a window, rendered fram
 input system, networking, audio, playable loop or original-versus-recompiled
 whole-game fidelity has been completed. The real-input run is local Linux x64;
 Windows CI uses only author-written synthetic PE files and API fixtures, not Halo.
+
+## Acceptance evidence
+
+`verification/runtime-ci.json` and `verification/runtime-local.json` bind results
+to an exact source commit. The Windows end-to-end synthetic PE executes both as
+an original PE32 under Windows and as generated native x64, and must produce the
+same 16-byte output record and exit status. Tests also check real volume metadata,
+text conversions, allocations, handles, callbacks and error paths. Windows ASan
+checks process and NLS boundaries separately from normal optimized tests.
+
+The real-target x87 corpus is selected with a SHA-bound, bounded whitelist and
+is not published: 24 distinct contiguous sequences, 207 original instructions,
+9,216 local hardware comparisons over 12 precision/rounding modes. Input and output
+buffers are controlled. The harness adds only RET after the selected original
+sequence. This is stronger than only synthetic cases, but is not complete-function
+or whole-game validation. Host pointer/selector environment fields and undefined
+empty-stack payloads are excluded explicitly; arithmetic data/control/status remain
+checked. A separate guest-environment regression checks guest addresses, zero
+selectors, reserved bytes and fail-closed unsupported restores.
+
+`native_instructions` in runtime reports counts translated **guest** instructions
+that completed in native code, not the number of physical x64 instructions. The
+`api_calls` counter includes implemented calls returning normal failure values;
+it must not be interpreted as the number of successful Windows API requests.

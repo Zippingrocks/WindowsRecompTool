@@ -1,0 +1,213 @@
+{
+  "schema": "winrecomp.runtime-ci-evidence.v1",
+  "source_commit": "a9988b3c19571356b74f6ca7b7f50ac46d9cd54b",
+  "workflow_run_id": 36993865298,
+  "workflow_url": "https://github.com/Zippingrocks/WinRecomp/actions/runs/36993865298",
+  "jobs": [
+    {
+      "name": "verify (windows-2022)",
+      "id": 110796032348,
+      "conclusion": "success"
+    },
+    {
+      "name": "verify (ubuntu-24.04)",
+      "id": 110796032352,
+      "conclusion": "success"
+    },
+    {
+      "name": "windows_memory",
+      "id": 110796032337,
+      "conclusion": "success"
+    }
+  ],
+  "source_transfer": "47 implementation/build/test/measurement files match their recorded SHA-256 values on both runners and the locally tested checkout. Runtime runs are against the hydrated source_commit, not the workflow trigger commit.",
+  "platforms": {
+    "windows": {
+      "integer": {
+        "oracle": "Unicorn 2.1.2",
+        "case_count": 230,
+        "total_vectors": 58880,
+        "all_cases_passed": true
+      },
+      "x87": {
+        "oracle": "native x86-64 hardware, uninterrupted original x87 byte fixtures in long mode",
+        "case_count": 95,
+        "total_vectors": 18240,
+        "all_cases_passed": true,
+        "control_modes": 12
+      },
+      "simd": {
+        "oracle": "native x86-64 hardware, uninterrupted original SSE/SSE2 byte fixtures in long mode",
+        "case_count": 156,
+        "total_vectors": 29952,
+        "all_cases_passed": true,
+        "control_modes": 16
+      },
+      "controlflow": {
+        "schema": "winrecomp.controlflow.v1",
+        "total_vectors": 1024,
+        "negative_table_tests": 8,
+        "case_count": 4,
+        "all_cases_passed": true
+      },
+      "callback_abi": {
+        "schema": "winrecomp.callback-abi.v1",
+        "vectors": 256,
+        "path": "generated guest -> real host dispatcher -> generated guest stdcall callback -> host -> generated guest",
+        "all_passed": true
+      },
+      "ctest_total": 14,
+      "all_ctest_passed": true,
+      "generated_program": {
+        "native_original": {
+          "status": "passed",
+          "exit_code": 0,
+          "output_sha256": "5272460991e36a2ac7fe76a71c895c4a8c3a3e74cb41527dc9786eb597c7a7e5",
+          "oracle": "original PE32 executed by Windows, not Unicorn or the WinRecomp runtime"
+        },
+        "output_sha256": "5272460991e36a2ac7fe76a71c895c4a8c3a3e74cb41527dc9786eb597c7a7e5",
+        "native_pointer_bits": 64,
+        "wrong_input_rejected": true,
+        "existing_output_preserved": true,
+        "input_report_collision_rejected": true,
+        "compiled_run": {
+          "input_sha256": "c310ef25038dce405cfe38d0f60428704ff8ac7b47a4020aeb7e60310944b91b",
+          "exited": true,
+          "exit_code": 0,
+          "native_instructions": 100,
+          "api_calls": 15
+        }
+      }
+    },
+    "linux": {
+      "integer": {
+        "oracle": "Unicorn 2.1.2",
+        "case_count": 230,
+        "total_vectors": 58880,
+        "all_cases_passed": true
+      },
+      "x87": {
+        "oracle": "native x86-64 hardware, uninterrupted original x87 byte fixtures in long mode",
+        "case_count": 95,
+        "total_vectors": 18240,
+        "all_cases_passed": true,
+        "control_modes": 12
+      },
+      "simd": {
+        "oracle": "native x86-64 hardware, uninterrupted original SSE/SSE2 byte fixtures in long mode",
+        "case_count": 156,
+        "total_vectors": 29952,
+        "all_cases_passed": true,
+        "control_modes": 16
+      },
+      "controlflow": {
+        "schema": "winrecomp.controlflow.v1",
+        "total_vectors": 1024,
+        "negative_table_tests": 8,
+        "case_count": 4,
+        "all_cases_passed": true
+      },
+      "callback_abi": {
+        "schema": "winrecomp.callback-abi.v1",
+        "vectors": 256,
+        "path": "generated guest -> real host dispatcher -> generated guest stdcall callback -> host -> generated guest",
+        "all_passed": true
+      },
+      "ctest_total": 14,
+      "all_ctest_passed": true,
+      "generated_program": {
+        "native_original": {
+          "status": "not_run",
+          "reason": "requires Windows native PE32 loader"
+        },
+        "output_sha256": "5272460991e36a2ac7fe76a71c895c4a8c3a3e74cb41527dc9786eb597c7a7e5",
+        "native_pointer_bits": 64,
+        "wrong_input_rejected": true,
+        "existing_output_preserved": true,
+        "input_report_collision_rejected": true,
+        "compiled_run": {
+          "input_sha256": "c310ef25038dce405cfe38d0f60428704ff8ac7b47a4020aeb7e60310944b91b",
+          "exited": true,
+          "exit_code": 0,
+          "native_instructions": 100,
+          "api_calls": 15
+        }
+      }
+    }
+  },
+  "native_i386": {
+    "oracle": "native i386 ELF32 execution, not emulation",
+    "native_output_bits": 64,
+    "total_vectors": 14720,
+    "elapsed_seconds": 11.235,
+    "case_count": 230,
+    "all_cases_passed": true
+  },
+  "windows_address_sanitizer": {
+    "all_passed": true,
+    "tests": [
+      "process",
+      "nls"
+    ],
+    "scope": "Native runtime and test C/C++ compiled with MSVC /fsanitize=address; not a whole-game sanitizer claim.",
+    "log_sha256": "3beee2c011f3e5a6588e260f08e74065d164c0485ae343c54cab28fb92973496"
+  },
+  "artifacts": {
+    "windows": {
+      "id": 11221017497,
+      "sha256": "3636cc659c0112c47aea2038759d10bc9a4c5361d5e10afb3e26b1efc5c36d52"
+    },
+    "windows_asan": {
+      "id": 11220553732,
+      "sha256": "1278c219ec1529ed5599e8b8db911f853cb1c142db06c3a85d564353e5eff51c"
+    },
+    "linux": {
+      "id": 11220134598,
+      "sha256": "709ff5bb437723372df8a89587ad9be3ef6d739abf10a3abbc8135de12ba68cb"
+    }
+  },
+  "accepted_gates": [
+    {
+      "name": "Reproducible toolchain and source retention",
+      "points": 2
+    },
+    {
+      "name": "Validated PE image model",
+      "points": 3
+    },
+    {
+      "name": "Decoder and bounded CFG",
+      "points": 4
+    },
+    {
+      "name": "First independently checked native slices",
+      "points": 6
+    },
+    {
+      "name": "Remaining target-profile integer semantics and indirect flow",
+      "points": 10
+    },
+    {
+      "name": "Target-profile x87/SIMD fidelity",
+      "points": 10
+    },
+    {
+      "name": "Target-profile loader, memory and Win32 ABI/import boundary",
+      "points": 15
+    }
+  ],
+  "planning_points_accepted": 50,
+  "planning_points_total": 100,
+  "interpretation": "The unchanged roadmap first seven gates for the documented target profile. Not a measured fraction of total unknown engineering work, instruction universe, gameplay or Windows compatibility.",
+  "limitations": [
+    "E3 binaries/assets/generated game code are not used on CI. Real target startup and real-target FP corpus are local Linux results only.",
+    "Native x87/SIMD oracles use original dual-mode FP instruction bytes on x64 hardware, not native-i386 whole-game execution.",
+    "Static image TLS, SEH/exception delivery, guest thread scheduling, arbitrary guest DLL loading, GUI/graphics/audio/input/networking and gameplay are not accepted.",
+    "Finite randomized/boundary tests do not prove all possible guest instruction states.",
+    "Original Windows PE32-vs-generated-x64 comparison is an author-written 15-API synthetic program, not the E3 game."
+  ],
+  "comparison_scope": {
+    "integer": "Eight GPRs, EIP, defined status flags, complete 64 KiB stack.",
+    "floating": "Defined x87/SIMD data and control/status; host FIP/FCS/FOP/FDP/FDS and empty-register payloads excluded. Guest environment has separate exact-value tests."
+  }
+}
