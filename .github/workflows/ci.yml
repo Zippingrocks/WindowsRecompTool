@@ -43,7 +43,7 @@ jobs:
         if: runner.os == 'Linux'
         run: python tests/hardware_oracle.py --tool build/winrecomp --out build/hardware --vectors 64
       - name: Preserve source history for offline workspaces
-        if: runner.os == 'Linux'
+        if: always() && runner.os == 'Linux'
         run: |
           git bundle create build/WinRecomp.bundle --all
           git -C third_party/zydis bundle create "$GITHUB_WORKSPACE/build/Zydis.bundle" --all

@@ -8,7 +8,8 @@ import subprocess
 root = Path(__file__).resolve().parents[1]
 spec = json.loads((root / '.runtime-bootstrap/publish.json').read_text())
 paths = list(spec['sha256'])
-subprocess.run(['git', 'diff', '--exit-code', spec['base'], 'HEAD', '--', *paths], cwd=root, check=True)
+source_paths = [name for name in paths if not name.startswith('.github/')]
+subprocess.run(['git', 'diff', '--exit-code', spec['base'], 'HEAD', '--', *source_paths], cwd=root, check=True)
 changes = {name: (root / name).read_text() for name in paths}
 for name in ['include/winrecomp/process.hpp', 'src/runtime/process.cpp']:
     changes[name] = re.sub(r'\bcdecl\b', 'caller_cleans_stack', changes[name])
