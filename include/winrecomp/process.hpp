@@ -17,7 +17,7 @@ struct ProcessOptions {
 };
 class Process {
 public:
-    struct Api { std::string dll,name;unsigned arguments{};bool cdecl{};std::function<U32(Process&)> function; };
+    struct Api { std::string dll,name;unsigned arguments{};bool caller_cleans_stack{};std::function<U32(Process&)> function; };
     struct Transfer { U32 pc{},return_address{};std::string api;std::vector<U32> arguments;std::string detail; };
 private:
     std::unique_ptr<struct Win32State> win32_;
@@ -42,7 +42,7 @@ public:
     Process(const Process&)=delete;Process& operator=(const Process&)=delete;
     void load(const Image& image);
 
-    void register_api(const std::string& dll,const std::string& name,unsigned arguments,std::function<U32(Process&)> fn,bool cdecl=false);
+    void register_api(const std::string& dll,const std::string& name,unsigned arguments,std::function<U32(Process&)> fn,bool caller_cleans_stack=false);
     U32 resolve(const std::string& dll,const std::string& name,bool allow_unimplemented=false);
     U32 module(const std::string& dll,bool create=false);
     std::string module_name(U32 handle) const;

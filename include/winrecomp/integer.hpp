@@ -12,7 +12,13 @@ inline U32 shift(Cpu& s,U32 a,U32 count,unsigned w,unsigned kind) {
     if(!masked)return a;
     unsigned n=masked;U32 carry=s.flags&CF;
     if(kind>=5 && w<32)n%=w+1;
-    if(!n)return a;
+    if(!n) {
+        // Only a zero MASKED count preserves OF. A nonzero count that becomes
+        // zero modulo 9/17 still leaves OF undefined (RCL/RCR full cycles).
+        // Preserve CF and all other flags and the destination in this case.
+        s.defined_flags&=~OF;
+        return a;
+    }
     const U32 old=a;
     for(unsigned k=0;k<n;++k) {
         if(kind==0 || kind==3 || kind==5){const U32 next=(a&sign)?1u:0u;a=((a<<1)|(kind==3?next:kind==5?carry:0u))&mask(w);carry=next;}

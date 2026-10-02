@@ -1,5 +1,5 @@
 #include "winrecomp/core.hpp"
-#include "winrecomp/runtime.hpp"
+#include "winrecomp/integer.hpp"
 #include <iostream>
 #include <stdexcept>
 #define CHECK(x) do { if(!(x))throw std::runtime_error("check failed: " #x); } while(0)
@@ -14,6 +14,20 @@ int main(){try{
     wr::Memory m;m.map(0x1000,16,wr::Memory::Read|wr::Memory::Write);m.store(0x1001,0x89abcdef,32);CHECK(m.load(0x1001,32)==0x89abcdef);
     bool fault=false;try{m.store(0x100e,0xffffffff,32);}catch(const std::exception&){fault=true;}CHECK(fault);CHECK(m.load(0x100e,16)==0);
     s.r[wr::ESP]=0x1010;wr::push(s,m,0x12345678);CHECK(s.r[wr::ESP]==0x100c);CHECK(wr::pop(s,m)==0x12345678);CHECK(s.r[wr::ESP]==0x1010);
+    // RCL/RCR count=9/17 is not count=0: hardware may change the undefined OF.
+    // Test both directions, widths, incoming OF/CF and all encoded count bytes.
+    for(unsigned width:{8u,16u,32u})for(unsigned kind:{5u,6u})
+      for(unsigned count=0;count<256;++count)for(unsigned initial:{0u,wr::CF,wr::OF,wr::CF|wr::OF}) {
+        wr::Cpu c;c.flags=initial|wr::ZF|2u;c.defined_flags=wr::STATUS_FLAGS;
+        const auto before=c.flags;const auto value=wr::shift(c,0xa5a5a5a5u,count,width,kind);
+        const auto masked=count&31u;
+        CHECK(bool(c.defined_flags&wr::OF)==(masked<=1));
+        CHECK((c.defined_flags&~wr::OF)==(wr::STATUS_FLAGS&~wr::OF));
+        if(!masked || (width<32 && masked%(width+1)==0)) {
+          CHECK(value==(0xa5a5a5a5u&wr::mask(width)));
+          CHECK(c.flags==before);
+        }
+      }
     wr::Decoder d;std::array<std::uint8_t,5>b{0xe8,0xfb,0xff,0xff,0xff};auto i=d.decode(b,0x401000);CHECK(i && i->target==0x401000 && i->flow==wr::Flow::call);
     std::array<std::uint8_t,1>bad{0x0f};CHECK(!d.decode(bad,0x401000));
     std::cout<<"core checks passed\n";return 0;

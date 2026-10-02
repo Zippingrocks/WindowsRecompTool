@@ -63,12 +63,12 @@ void Process::load(const Image& image) {
     }
     loaded_=true;set_error(0);
 }
-void Process::register_api(const std::string& dll,const std::string& name,unsigned arguments,std::function<U32(Process&)> fn,bool cdecl) {
+void Process::register_api(const std::string& dll,const std::string& name,unsigned arguments,std::function<U32(Process&)> fn,bool caller_cleans_stack) {
     if(arguments>64 || !fn)throw std::runtime_error("invalid API registration");
     const auto key=canonical(dll)+"!"+name;
     if(api_names_.contains(key))throw std::runtime_error("duplicate API registration: "+key);
     if(next_thunk_>=0xf1000000)throw std::runtime_error("thunk space exhausted");
-    const auto at=next_thunk_;next_thunk_+=16;api_names_[key]=at;apis_.emplace(at,Api{canonical(dll),name,arguments,cdecl,std::move(fn)});
+    const auto at=next_thunk_;next_thunk_+=16;api_names_[key]=at;apis_.emplace(at,Api{canonical(dll),name,arguments,caller_cleans_stack,std::move(fn)});
 }
 U32 Process::resolve(const std::string& dll,const std::string& name,bool allow_unimplemented) {
     const auto key=canonical(dll)+"!"+name;auto found=api_names_.find(key);
@@ -103,7 +103,7 @@ bool Process::dispatch_api() {
     memory.check(cpu.r[ESP],(api.arguments+1)*4,Memory::Read);
     const auto stack=cpu.r[ESP];++api_calls;const auto value=api.function(*this);
     if(cpu.r[ESP]!=stack)throw GuestFault(FaultKind::unsupported,cpu.eip,"host API corrupted guest stack state");
-    cpu.r[EAX]=value;cpu.r[ESP]+=4+(api.cdecl?0:api.arguments*4);cpu.eip=return_address;return true;
+    cpu.r[EAX]=value;cpu.r[ESP]+=4+(api.caller_cleans_stack?0:api.arguments*4);cpu.eip=return_address;return true;
 }
 U32 Process::callback(U32 address,std::span<const U32> args,bool stdcall) {
     if(args.size()>64)throw std::runtime_error("too many callback arguments");
