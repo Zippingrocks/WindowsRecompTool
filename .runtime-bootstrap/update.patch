@@ -1,0 +1,345 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0cc244d..687d9a5 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -55,6 +55,7 @@ if(BUILD_TESTING)
+   add_executable(winrecomp_fp_faults tests/fp_faults.cpp)
+   target_link_libraries(winrecomp_fp_faults PRIVATE winrecomp_core winrecomp_native)
+   add_test(NAME fp_faults COMMAND winrecomp_fp_faults)
++  add_test(NAME target_fp_selector COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/target_fp_selector.py)
+   add_test(NAME nls_data COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nls.py --check)
+   find_package(Threads REQUIRED)
+   add_executable(winrecomp_nls_tests tests/nls.cpp)
+diff --git a/include/winrecomp/x87.hpp b/include/winrecomp/x87.hpp
+index f1ade21..dbcf1e8 100644
+--- a/include/winrecomp/x87.hpp
++++ b/include/winrecomp/x87.hpp
+@@ -46,7 +46,11 @@ inline void x87_env(Cpu& s,Memory& m,U32 address,bool restore,bool registers) {
+     auto get16=[&](unsigned off){return std::uint16_t(U32(buffer[off])|(U32(buffer[off+1])<<8));};
+     auto get32=[&](unsigned off){return U32(get16(off))|(U32(get16(off+2))<<16);};
+     if(restore) {
+-        m.copy_out(address,std::span(buffer.data(),size));auto next=s.fp;
++        m.copy_out(address,std::span(buffer.data(),size));
++        // This flat guest profile stores zero FCS/FDS. Do not silently discard
++        // nonzero legacy selector state supplied by a different environment.
++        if(get16(16) || get16(24))throw GuestFault(FaultKind::unsupported,s.eip,"nonzero x87 environment selectors require a segmented guest profile");
++        auto next=s.fp;
+         next.put16(0,get16(0));next.put16(2,get16(4));next.bytes[4]=0;const auto tag=get16(8);
+         for(unsigned k=0;k<8;++k)if(((tag>>(k*2))&3u)!=3u)next.bytes[4]|=std::uint8_t(1u<<k);
+         next.put64(8,get32(12));next.put16(6,std::uint16_t(get16(18)&0x7ff));next.put64(16,get32(20));
+diff --git a/tests/floating.py b/tests/floating.py
+index f80e5c3..0826af1 100644
+--- a/tests/floating.py
++++ b/tests/floating.py
+@@ -1,7 +1,7 @@
+ """Generated C++ x87 vs uninterrupted original FP instructions on native x64.
+ 
+-This is a hardware x87 oracle, not an IA-32 whole-program oracle. Only our own
+-FP-only, dual-mode instruction fixtures are accepted. Pointer-bearing environment
++This is a hardware x87 oracle, not an IA-32 whole-program oracle. Author-written fixtures or SHA-bound, conservatively selected
++FP-only target sequences are accepted. Pointer-bearing environment
+ fields and undefined empty-register payloads are excluded, explicitly. The main
+ integer suite independently compares against Unicorn and native i386 on CI.
+ """
+@@ -37,6 +37,8 @@ def original_asm(name,code,masm):
+ 
+ def inputs(fmt,k,rng):
+     b=bytearray(128)
++    if fmt.startswith('target_'):
++        return inputs('simd64' if fmt=='target_f64' else 'simd32',k,rng)
+     if fmt.startswith('simd'):
+         if fmt=='simd_integer':
+             b[:]=rng.randbytes(128)
+@@ -65,9 +67,14 @@ def inputs(fmt,k,rng):
+ 
+ def main():
+     ap=argparse.ArgumentParser();ap.add_argument('--tool',type=Path,required=True);ap.add_argument('--out',type=Path,required=True);ap.add_argument('--native-lib',type=Path,required=True);ap.add_argument('--cxx',default='c++');ap.add_argument('--vectors',type=int,default=192)
+-    ap.add_argument('--simd',action='store_true');a=ap.parse_args();a.out=a.out.resolve();a.out.mkdir(parents=True,exist_ok=True);a.tool=a.tool.resolve();a.native_lib=a.native_lib.resolve()
++    ap.add_argument('--simd',action='store_true');ap.add_argument('--target',type=Path);ap.add_argument('--contract',type=Path);a=ap.parse_args();a.out=a.out.resolve();a.out.mkdir(parents=True,exist_ok=True);a.tool=a.tool.resolve();a.native_lib=a.native_lib.resolve()
+     started=time.perf_counter()
+-    if a.simd:
++    target_metadata=None
++    if a.target:
++        if a.simd or not a.contract:raise RuntimeError('Target x87 corpus requires --contract and cannot use --simd')
++        from target_fp import load
++        items,target_metadata=load(a.tool,a.target,a.contract)
++    elif a.simd:
+         from simd_cases import cases as simd_cases
+         items=simd_cases()
+     else:items=cases()
+@@ -128,7 +135,9 @@ try {
+             src=inputs(case['format'],v,rng);ints=[rng.getrandbits(32),0x202|(rng.getrandbits(12)&c.STATUS)]
+             values=[]
+             for original in [False,True]:
+-                state=(ct.c_ubyte*512).from_buffer_copy(fp);source=(ct.c_ubyte*128).from_buffer_copy(src);dest=(ct.c_ubyte*128)();integers=(ct.c_uint32*2)(*ints)
++                state=(ct.c_ubyte*512).from_buffer_copy(fp);source=(ct.c_ubyte*128).from_buffer_copy(src)
++                initial_destination=inputs(case['format'],v+17,random.Random(k*100000+v)) if a.target else bytes(128)
++                dest=(ct.c_ubyte*128).from_buffer_copy(initial_destination);integers=(ct.c_uint32*2)(*ints)
+                 status=dll.fp_run(k,state,source,dest,integers,img,len(image),original)
+                 if status:raise RuntimeError(f'{case["name"]}/{v}: '+dll.fp_error().decode())
+                 values.append((bytes(state),bytes(dest),list(integers)))
+@@ -145,7 +154,11 @@ try {
+             am,em=bytearray(actual[1]),bytearray(expected[1])
+             if case['environment']:
+                 # Original native pointers cannot equal the generated guest pointers.
+-                am[12:24]=em[12:24]=bytes(12)
++                # Offsets 12..25 contain FIP, FCS, FOP, FDP and FDS in the
++                # 28-byte legacy environment. FDS (24..25) is nonzero on some
++                # Windows hosts, even though the flat guest profile uses zero.
++                # Reserved bytes 26..27, control/status/tags and data remain checked.
++                am[12:26]=em[12:26]=bytes(14)
+                 # Payload of empty x87 registers is undefined after INIT/stack faults.
+                 if case['name']=='save_restore':
+                     tagword=struct.unpack_from('<H',em,8)[0];saved_top=(struct.unpack_from('<H',em,4)[0]>>11)&7
+@@ -155,6 +168,7 @@ try {
+                 off=next(n for n,(x,y) in enumerate(zip(am,em)) if x!=y)
+                 raise RuntimeError(f'{case["name"]}/{v} memory mismatch at {off}: {am.hex()} != {em.hex()}')
+         results.append({'name':case['name'],'vectors':a.vectors,'result':'pass'});print('PASS native '+('SSE2' if a.simd else 'x87'),case['name'],a.vectors,flush=True)
+-    report={'schema':'winrecomp.'+('sse2' if a.simd else 'x87')+'-conformance.v1','oracle':'native x86-64 hardware, uninterrupted original '+('SSE/SSE2' if a.simd else 'x87')+' byte fixtures in long mode','native_pointer_bits':ct.sizeof(ct.c_void_p)*8,'cases':results,'total_vectors':len(results)*a.vectors,'control_modes':16 if a.simd else 12,'elapsed_seconds':round(time.perf_counter()-started,3),'exclusions':['FIP/FDP/FOP host-versus-guest environment fields','empty-register payloads'],'not_a_native_i386_whole_program_oracle':True}
++    report={'schema':'winrecomp.'+('sse2' if a.simd else 'x87')+'-conformance.v1','oracle':'native x86-64 hardware, uninterrupted original '+('SSE/SSE2' if a.simd else 'x87')+' byte fixtures in long mode','native_pointer_bits':ct.sizeof(ct.c_void_p)*8,'cases':results,'total_vectors':len(results)*a.vectors,'control_modes':16 if a.simd else 12,'elapsed_seconds':round(time.perf_counter()-started,3),'exclusions':['FIP/FCS/FOP/FDP/FDS host-versus-flat-guest environment fields (legacy bytes 12..25)','empty-register payloads'],'not_a_native_i386_whole_program_oracle':True}
++    if target_metadata:report['target_corpus']=target_metadata
+     (a.out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps({k:v for k,v in report.items() if k!='cases'},indent=2))
+ if __name__=='__main__':main()
+diff --git a/tests/fp_faults.cpp b/tests/fp_faults.cpp
+index 08254ec..53d9345 100644
+--- a/tests/fp_faults.cpp
++++ b/tests/fp_faults.cpp
+@@ -24,6 +24,20 @@ int main(){try{
+     // Reserved MXCSR and incorrectly aligned operands are rejected before native execution.
+     cpu.fp.put32(24,0x10000);fault([&]{wr::sse_execute(cpu,wr_sse_243_94_r1,&dummy);},wr::FaultKind::unsupported);
+     fault([&]{wr::sse_memory(cpu,memory,wr_sse_243_94_r1,0x10001,16,false,16);},wr::FaultKind::memory);
++    // Legacy environment pointers are guest addresses; host selector values
++    // must not leak in or be silently discarded on restore.
++    wr::x87_init(cpu);cpu.fp.put64(8,0x412345);cpu.fp.put64(16,0x501234);cpu.fp.put16(6,0x321);
++    wr::x87_env(cpu,memory,0x10100,false,false);
++    CHECK(memory.load(0x1010c,32)==0x412345 && memory.load(0x10114,32)==0x501234);
++    CHECK(memory.load(0x10110,16)==0 && memory.load(0x10118,16)==0);
++    CHECK(memory.load(0x10112,16)==0x321 && memory.load(0x1011a,16)==0xffff);
++    for(auto offset:{16u,24u}) {
++        before=cpu;memory.store(0x10100+offset,0x2b,16);
++        fault([&]{wr::x87_env(cpu,memory,0x10100,true,false);},wr::FaultKind::unsupported);
++        CHECK(cpu.fp.bytes==before.fp.bytes);memory.store(0x10100+offset,0,16);
++    }
++    wr::x87_env(cpu,memory,0x10100,true,false);
++    CHECK(cpu.fp.get64(8)==0x412345 && cpu.fp.get64(16)==0x501234 && cpu.fp.get16(6)==0x321);
+     std::cout<<"unmasked/pending FP faults, masked recovery, state preservation and alignment checks passed\n";
+     return 0;
+ }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+diff --git a/tests/process.cpp b/tests/process.cpp
+index 6595a18..610c25f 100644
+--- a/tests/process.cpp
++++ b/tests/process.cpp
+@@ -5,6 +5,7 @@
+ #include <random>
+ #include <fstream>
+ #include <stdexcept>
++#include <cstdlib>
+ #ifdef _WIN32
+ #define NOMINMAX
+ #include <windows.h>
+@@ -14,6 +15,9 @@ namespace {
+ wr::Image image(){wr::Image x;x.base=0x400000;x.entry=0x401000;x.size=0x4000;x.headers_size=512;x.bytes.resize(1536);x.sections={{".text",0x1000,512,512,512,0x60000020},{".data",0x2000,0x1800,1024,512,0xc0000040}};x.bytes[512]=0xc3;return x;}
+ bool step(wr::Cpu& cpu,wr::Memory& memory,std::uint64_t&) {if(cpu.eip==0x401000){wr::check_code(memory,cpu.eip,{0xc3});cpu.eip=wr::pop(cpu,memory);return true;}return false;}
+ wr::U32 call(wr::Process& p,const std::string& name,std::initializer_list<wr::U32> args={}) {
++    // Flush the API boundary before calling host code so native CI faults retain
++    // their last known operation rather than leaving an empty test log.
++    std::cerr<<"process API: "<<name<<'\n';
+     const auto sp=p.cpu.r[wr::ESP],pc=p.cpu.eip;auto nonvolatile=p.cpu.r;
+     for(auto it=args.end();it!=args.begin();)wr::push(p.cpu,p.memory,*--it);wr::push(p.cpu,p.memory,pc);p.cpu.eip=p.resolve("kernel32.dll",name);
+     CHECK(p.cpu.eip!=0);CHECK(p.dispatch_api());CHECK(p.cpu.r[wr::ESP]==sp);CHECK(p.cpu.eip==pc);
+@@ -21,7 +25,15 @@ wr::U32 call(wr::Process& p,const std::string& name,std::initializer_list<wr::U3
+ }
+ template<class F> void fault(F&& f,wr::FaultKind kind){bool caught=false;try{f();}catch(const wr::GuestFault& e){caught=true;CHECK(e.kind==kind);}CHECK(caught);}
+ }
+-int main(){try{
++int main(){
++#ifdef _WIN32
++    SetErrorMode(SEM_FAILCRITICALERRORS|SEM_NOGPFAULTERRORBOX);
++    _set_thread_local_invalid_parameter_handler([](const wchar_t*,const wchar_t*,const wchar_t*,unsigned,uintptr_t){
++        std::cerr<<"CRT rejected a native argument in process fixture\n";std::abort();
++    });
++#endif
++try{
++    std::cerr<<"process fixture started\n";
+     CHECK(wr::sha256({})=="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+     const std::string abc="abc";CHECK(wr::sha256(std::span(reinterpret_cast<const std::uint8_t*>(abc.data()),abc.size()))=="ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+     std::vector<std::uint8_t> million(1000000,'a');CHECK(wr::sha256(million)=="cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0");
+diff --git a/tests/target_fp.py b/tests/target_fp.py
+new file mode 100644
+index 0000000..06854c9
+--- /dev/null
++++ b/tests/target_fp.py
+@@ -0,0 +1,88 @@
++"""Select bounded, unchanged x87 instruction sequences from an owned PE.
++
++Only dual-mode, register-only or ESI/EDI-buffer x87 operations are admitted to
++our native test oracle. This is NOT a general facility for executing input EXEs.
++Generated code/corpus bytes remain in the caller's local output directory.
++"""
++from __future__ import annotations
++import hashlib
++import json
++from pathlib import Path
++import subprocess
++
++ALLOWED = frozenset({'fld','fst','fstp','fadd','faddp','fmul','fmulp','fsub',
++                    'fsubp','fsubr','fsubrp','fdiv','fdivp','fdivr','fdivrp',
++                    'fchs','fabs','fsqrt','frndint','fxch','fld1','fldz','fldpi'})
++CONSTANTS = frozenset({'fld1','fldz','fldpi'})
++
++def next_depth(instruction: dict, depth: int) -> int | None:
++    """Preflight exactly the instructions the original native oracle will run."""
++    mnemonic=instruction['mnemonic']
++    raw=bytes.fromhex(instruction['bytes'])
++    if mnemonic not in ALLOWED or not 2<=len(raw)<=8 or instruction['size']!=len(raw) or not 0xd8<=raw[0]<=0xdf:
++        return None  # No prefixes, branches, integer/system instructions or RET.
++    for operand in instruction['operands']:
++        if operand['kind']=='memory':
++            if (operand['base'] not in ('esi','edi') or operand['index']!='none'
++                or operand['segment']!='ds' or operand['address_width']!=32
++                or operand['width'] not in (32,64)
++                or not 0<=operand['displacement']<=128-operand['width']//8):
++                return None
++            if mnemonic in ('fst','fstp') and operand['base']!='edi':
++                return None  # Only the destination buffer can be modified.
++        elif operand['kind']=='register':
++            register=operand['register']
++            if register not in {f'st{n}' for n in range(depth)}:
++                return None
++        else:
++            return None
++    if mnemonic=='fld' or mnemonic in CONSTANTS:
++        return depth+1 if depth<8 else None
++    if not depth:
++        return None
++    return depth-1 if mnemonic.endswith('p') else depth
++
++def select(instructions: list[dict], limit: int=24) -> list[dict]:
++    """Take long, non-overlapping sequences with a valid initially empty stack."""
++    if not 1<=limit<=64:raise ValueError('Target corpus limit must be between 1 and 64')
++    by_address={i['address']:i for i in instructions}
++    candidates=[]
++    for instruction in instructions:
++        if instruction['mnemonic']!='fld' or not instruction['operands'] or instruction['operands'][0]['kind']!='memory':
++            continue
++        sequence=[];current=instruction;depth=0
++        while current and len(sequence)<64:
++            after=next_depth(current,depth)
++            if after is None:break
++            sequence.append(current);depth=after
++            current=by_address.get(current['address']+current['size'])
++        if len(sequence)>=3:candidates.append(sequence)
++    selected=[];covered=set();seen=set()
++    for sequence in sorted(candidates,key=lambda s:(-len(s),s[0]['address'])):
++        addresses={i['address'] for i in sequence}
++        code=''.join(i['bytes'] for i in sequence)
++        if addresses & covered or code in seen:continue
++        source=sequence[0]['address'];widths={o['width'] for i in sequence for o in i['operands'] if o['kind']=='memory'}
++        selected.append({'name':f'target_{source:08x}','code':code+'c3',
++                         'format':'target_f64' if widths=={64} else 'target_f32',
++                         'environment':False,'source_address':source,
++                         'source_instruction_count':len(sequence),
++                         'source_bytes_sha256':hashlib.sha256(bytes.fromhex(code)).hexdigest()})
++        covered.update(addresses);seen.add(code)
++        if len(selected)>=limit:break
++    return selected
++
++def load(tool: Path, exe: Path, contract: Path) -> tuple[list[dict], dict]:
++    identity=json.loads(contract.read_text())
++    digest=hashlib.sha256(exe.read_bytes()).hexdigest()
++    if digest!=identity['sha256']:
++        raise RuntimeError('FP corpus input SHA-256 does not match target contract')
++    graph=json.loads(subprocess.run([str(tool),'cfg',str(exe)],capture_output=True,check=True,text=True).stdout)
++    if graph['diagnostics'] or graph['budget_exhausted']:
++        raise RuntimeError('FP corpus requires a diagnostic-free bounded decode')
++    items=select(graph['instructions'])
++    if len(items)<8:raise RuntimeError('Too few safe target x87 sequences to validate')
++    metadata={'input_sha256':digest,'sequences':[{k:v for k,v in item.items() if k not in ('code','format','environment')} for item in items],
++              'selection':'24 longest non-overlapping distinct safe x87 sequences, at most 64 instructions each; contiguous original bytes, harness-added RET',
++              'scope':'Controlled ESI/EDI buffers and initially empty x87 stack; not whole original functions or full gameplay'}
++    return items,metadata
+diff --git a/tests/target_fp_selector.py b/tests/target_fp_selector.py
+new file mode 100644
+index 0000000..dac77d8
+--- /dev/null
++++ b/tests/target_fp_selector.py
+@@ -0,0 +1,79 @@
++"""Synthetic tests of the private-target oracle's conservative admission policy."""
++import copy
++import unittest
++from target_fp import next_depth, select
++
++
++def mem(base='esi', displacement=0, width=32, index='none', segment='ds', address_width=32):
++    return {'kind':'memory','base':base,'index':index,'segment':segment,
++            'address_width':address_width,'width':width,'displacement':displacement}
++
++def ins(mnemonic='fld', data='d906', operands=None, address=0x401000):
++    return {'mnemonic':mnemonic,'bytes':data,'size':len(bytes.fromhex(data)),
++            'operands':[mem()] if operands is None else operands,'address':address}
++
++
++def sequence(start=0x401000):
++    return [ins(address=start),ins('fmul','d84e04',[mem(displacement=4)],start+2),
++            ins('fstp','d91f',[mem(base='edi')],start+5)]
++
++
++class Admission(unittest.TestCase):
++    def test_controlled_sequence(self):
++        selected=select(sequence())
++        self.assertEqual(len(selected),1)
++        self.assertEqual(selected[0]['code'],'d906d84e04d91fc3')
++        self.assertEqual(selected[0]['source_instruction_count'],3)
++
++    def test_no_prefixes_control_or_environment(self):
++        for mnemonic,data in [('fld','64d906'),('fld','67d906'),('fld','48d906'),
++                              ('fnstenv','d937'),('frstor','dd27'),('ret','c3'),
++                              ('syscall','0f05'),('fld','d9')]:
++            with self.subTest(mnemonic=mnemonic,data=data):
++                self.assertIsNone(next_depth(ins(mnemonic,data),1))
++
++    def test_bounds_and_segment_addressing(self):
++        for operand in [mem(base='esp'),mem(base='ebp'),mem(base='none'),
++                        mem(index='eax'),mem(segment='fs'),mem(address_width=16),
++                        mem(width=80),mem(displacement=-1),mem(displacement=125),
++                        mem(displacement=121,width=64)]:
++            with self.subTest(operand=operand):
++                self.assertIsNone(next_depth(ins(operands=[operand]),0))
++        self.assertEqual(next_depth(ins(operands=[mem(displacement=124)]),0),1)
++        self.assertEqual(next_depth(ins(operands=[mem(displacement=120,width=64)]),0),1)
++
++    def test_source_is_not_writable(self):
++        self.assertIsNone(next_depth(ins('fstp','d91e',[mem()]),1))
++        self.assertEqual(next_depth(ins('fstp','d91f',[mem(base='edi')]),1),0)
++
++    def test_stack_underflow_overflow_and_aliases(self):
++        self.assertIsNone(next_depth(ins('fabs','d9e1',[]),0))
++        self.assertIsNone(next_depth(ins(),8))
++        self.assertIsNone(next_depth(ins('fxch','d9c9',[{'kind':'register','register':'st1'}]),1))
++        self.assertEqual(next_depth(ins('fxch','d9c9',[{'kind':'register','register':'st1'}]),2),2)
++        self.assertIsNone(next_depth(ins('fld','d9c0',[{'kind':'register','register':'st0'}]),0))
++        self.assertIsNone(next_depth(ins(operands=[{'kind':'immediate'}]),0))
++
++    def test_gaps_duplicates_and_overlap(self):
++        gapped=sequence();gapped[-1]['address']+=1
++        self.assertEqual(select(gapped),[])
++        self.assertEqual(len(select(sequence()+sequence(0x402000))),1)
++        overlapping=[ins(),ins(address=0x401002),ins('faddp','dec1',
++                     [{'kind':'register','register':'st1'},{'kind':'register','register':'st0'}],0x401004),
++                     ins('fstp','d91f',[mem(base='edi')],0x401006)]
++        chosen=select(overlapping)
++        self.assertEqual(len(chosen),1)
++        self.assertEqual(chosen[0]['source_instruction_count'],4)
++
++    def test_size_metadata_is_consistent(self):
++        malformed=ins();malformed['size']=8
++        self.assertIsNone(next_depth(malformed,0))
++
++    def test_bounded_length(self):
++        ops=[ins()]+[ins('fabs','d9e1',[],0x401002+n*2) for n in range(80)]
++        self.assertEqual(select(ops)[0]['source_instruction_count'],64)
++        for limit in [0,-1,65]:
++            with self.assertRaises(ValueError):select(ops,limit=limit)
++
++
++if __name__=='__main__':unittest.main(verbosity=2)
