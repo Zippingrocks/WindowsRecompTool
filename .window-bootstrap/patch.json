@@ -3,40 +3,29 @@
   "edits": [
     {
       "path": "src/runtime/gui.cpp",
-      "before": "4dfae4dffc8305fa24f6e8345465e3715d3d584d43824297d7a5c3b299a8ab83",
-      "after": "32818797e0e70024b6b6dfe8fec31cbb2e7c87fbe305ece8c2b72296434310e3",
+      "before": "32818797e0e70024b6b6dfe8fec31cbb2e7c87fbe305ece8c2b72296434310e3",
+      "after": "75ee4dabf399ee3b4d227d54b90528e362dc6c3a38f419b21f64a7e7daaaecb1",
       "replacements": [
-        ["std::map<std::pair<U32,U32>,U32> shared_icons;", "std::map<std::pair<U32,ResourceName>,U32> shared_icons;"],
-        ["auto& g=gui(p);U32 module=arg(p,0),name=arg(p,1);const auto key=std::pair{module,name};", "auto& g=gui(p);U32 module=arg(p,0),name=arg(p,1);\n    const auto resolved_name=module?resource_name(p,name):ResourceName{name};\n    const auto key=std::pair{module,resolved_name};"],
-        ["p.state().resources.find(14u,resource_name(p,name))", "p.state().resources.find(14u,resolved_name)"],
-        ["LRESULT CALLBACK bridge(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) noexcept {", "void retire_window(GuiState& g,GuiWindow& w) noexcept {\n    w.dead=true;auto it=g.handles.find(w.id);if(it!=g.handles.end())it->second.native=0;\n    if(w.hwnd)::SetWindowLongPtrA(w.hwnd,GWLP_USERDATA,0);\n}\nLRESULT CALLBACK bridge(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) noexcept {"],
-        ["w->dead=true;::SetWindowLongPtrA(hwnd,GWLP_USERDATA,0);", "retire_window(g,*w);"],
-        ["w->id=g.next_handle;g.next_handle+=16;", "if(g.next_handle>=0xbf000000u)unsupported(p,\"GUI handle table exhausted\");\n    w->id=g.next_handle;g.next_handle+=16;"],
-        ["    add(\"SetWindowTextA\",2,", "    add(\"GetClassNameA\",3,[](auto& q)->U32{auto w=owned_window(q,arg(q,0));auto cap=arg(q,2);if(!cap){q.set_error(ERROR_INVALID_PARAMETER);return 0;}if(cap>32768)unsupported(q,\"GetClassName buffer bound\");q.memory.check(arg(q,1),cap,Memory::Write);const auto& name=w->cls->guest_name;auto n=std::min<std::size_t>(name.size(),cap-1);q.memory.copy_in(arg(q,1),std::span(reinterpret_cast<const std::uint8_t*>(name.data()),n));q.memory.store(arg(q,1)+U32(n),0,8);return U32(n);});\n    add(\"SetWindowTextA\",2,"],
-        ["{\"GetWindowTextA\",3u}", "{\"GetWindowTextA\",3u},{\"GetClassNameA\",3u}"]
+        ["windows_created{},callbacks{},dispatched{},paints{};", "windows_created{},callbacks{},dispatched{},paints{},native_private{};"],
+        ["        g.handles.at(w->id).native=reinterpret_cast<std::uintptr_t>(hwnd);", "        // Native-only non-client drawing messages: retain host parameters and\n        // native default rendering. Guest interception is outside this profile.\n        // Do not extend this to unknown application or pointer-bearing messages.\n        if(message==0x00ae || message==0x00af){++g.native_private;return ::DefWindowProcA(hwnd,message,wp,lp);}\n        g.handles.at(w->id).native=reinterpret_cast<std::uintptr_t>(hwnd);"],
+        ["<<\",\\\"rendered_game_frames\\\":0,\\\"playable_verified\\\":false}\";", "<<\",\\\"native_private_messages\\\":\"<<(g?g->native_private:0)<<\",\\\"rendered_game_frames\\\":0,\\\"playable_verified\\\":false}\";"]
       ]
     },
     {
-      "path": "tests/gui.cpp",
-      "before": "2382dc947125e32b97304607382e0ac675ec31c7f607191addc2b21c2072c957",
-      "after": "7c744ba3a8eda186cc98db342acde36a8c120a5452edf950040b38937ed495a1",
+      "path": "CMakeLists.txt",
+      "before": "0fb55bf1d06e5ad61388e7e29b62a8d79c515444235ef0da85da64be5bdebe54",
+      "after": "79545e841f19ad83a2e2f05fafc283f9942d6b94419a3d1fcb932dfa2ea4c394",
       "replacements": [
-        ["bool step(wr::Cpu&,wr::Memory&,std::uint64_t&)", "wr::Image icon_image(){\n    auto i=image();i.directories[2]={0x2000,512};\n    auto w16=[&](unsigned at,unsigned value){i.bytes[1024+at]=std::uint8_t(value);i.bytes[1025+at]=std::uint8_t(value>>8);};\n    auto w32=[&](unsigned at,unsigned value){w16(at,value);w16(at+2,value>>16);};\n    w16(14,2);w32(16,3);w32(20,0x80000020);w32(24,14);w32(28,0x80000038);\n    w16(0x20+14,1);w32(0x30,1);w32(0x34,0x80000058);\n    w16(0x38+12,1);w16(0x38+14,1);w32(0x48,0x80000100);w32(0x4c,0x80000070);w32(0x50,101);w32(0x54,0x80000070);\n    w16(0x58+14,1);w32(0x68,0x409);w32(0x6c,0x88);\n    w16(0x70+14,1);w32(0x80,0x409);w32(0x84,0x98);\n    w32(0x88,0x20a8);w32(0x8c,48);w32(0x98,0x20d8);w32(0x9c,20);\n    // One authored opaque-red 1x1 BGRA icon with a DWORD AND mask.\n    w32(0xa8,40);w32(0xac,1);w32(0xb0,2);w16(0xb4,1);w16(0xb6,32);w32(0xbc,4);w32(0xd0,0xffff0000);\n    w16(0xda,1);w16(0xdc,1);w16(0xde,0x0101);w16(0xe2,1);w16(0xe4,32);w32(0xe6,48);w16(0xea,1);\n    w16(0x100,4);unsigned pos=0x102;for(auto c:std::u16string(u\"icon\")){w16(pos,c);pos+=2;}\n    return i;\n}\nbool step(wr::Cpu&,wr::Memory&,std::uint64_t&)"],
-        ["    auto icon=call(p,\"LoadIconA\",{0,32512});", "    {wr::Process resource_process(step,options);resource_process.load(icon_image());\n     auto id=call(resource_process,\"LoadIconA\",{resource_process.image_base,101});CHECK(id);\n     auto name=resource_process.put_string(\"icon\");auto named=call(resource_process,\"LoadIconA\",{resource_process.image_base,name});CHECK(named);\n     CHECK(named==call(resource_process,\"LoadIconA\",{resource_process.image_base,name}));\n     const std::array<std::uint8_t,5> missing{'g','o','n','e',0};resource_process.memory.copy_in(name,missing);\n     CHECK(!call(resource_process,\"LoadIconA\",{resource_process.image_base,name}));CHECK(resource_process.last_error==1814);}\n    auto icon=call(p,\"LoadIconA\",{0,32512});"]
+        ["  add_test(NAME gui_boundary COMMAND winrecomp_gui_tests)", "  add_test(NAME gui_boundary COMMAND winrecomp_gui_tests)\n  set_tests_properties(resources gui_boundary PROPERTIES TIMEOUT 60)"],
+        ["    --tool $<TARGET_FILE:winrecomp> --cxx ${CMAKE_CXX_COMPILER} --out ${CMAKE_CURRENT_BINARY_DIR}/gui_program)", "    --tool $<TARGET_FILE:winrecomp> --cxx ${CMAKE_CXX_COMPILER} --out ${CMAKE_CURRENT_BINARY_DIR}/gui_program)\n  set_tests_properties(gui_program PROPERTIES TIMEOUT 300)"]
       ]
     },
     {
-      "path": "tests/gui_program.py",
-      "before": "4560f3d2a483b801b110bad56c2508a2e5b003cd2801d92b707b55e8b28ef8af",
-      "after": "d7c5cd9ffb509e317cc6b35fb044a41e1c7420c532ff3bbd4b948ecbdf8dca50",
+      "path": "docs/native-window.md",
+      "before": "d47b258353f42d5e19609fda5b9ce0252aa875e72ba34d6eb5dccc31fef4dcf2",
+      "after": "162054efbec4ca8fae34cd0255ac7214c12331d7d0e89cf230e204e2b0724622",
       "replacements": [
-        ["'GetClientRect','IsWindow','SetWindowTextA','GetWindowTextA']", "'GetClientRect','IsWindow','SetWindowTextA','GetWindowTextA','GetClassNameA']"],
-        ["code=bytearray();labels={};fixups=[]", "code=bytearray();labels={};fixups=[];failures=[]"],
-        ["    def boolean():emit('85c0');branch('fail','84')", "    def fail_if(condition):\n        name=f'failure_{len(failures)}';failures.append(name);branch(name,condition)\n    def boolean():emit('85c0');fail_if('84')"],
-        ["def check_eax(value):emit('3d');u32(value);branch('fail','85')", "def check_eax(value):emit('3d');u32(value);fail_if('85')"],
-        ["    push(RECT);abs_mov('eax',STATE+16);emit('50');call('GetClientRect');boolean()", "    push(64);push(TEXT);abs_mov('eax',STATE+16);emit('50');call('GetClassNameA');check_eax(len(b'WinRecompAcceptance'))\n    abs_mov('eax',TEXT);check_eax(int.from_bytes(b'WinR','little'))\n    push(RECT);abs_mov('eax',STATE+16);emit('50');call('GetClientRect');boolean()"],
-        ["    assert len(code)<0x600", "    for n,target in enumerate(failures):label(target);push(10+n);call('ExitProcess');emit('c3')\n    assert len(code)<0x600"],
-        ["emit('817828');u32(CLASS);branch('badcreate','85');", "emit('83782800');branch('badcreate','84');"]
+        ["Exceptions are contained at WNDPROC and rethrown at the controlled API boundary.", "Exceptions are contained at WNDPROC and rethrown at the controlled API boundary.\nThe native-only non-client drawing IDs 0x00AE/0x00AF are sent directly to the\nreal host DefWindowProc with unchanged native parameters, not returned as dummy\nsuccess and not exposed as guest pointers. Their dispatches are counted separately.\nIntercepting these private messages in guest code is outside this profile; all\nother unknown messages still fail explicitly. CREATESTRUCT class-name pointer\nidentity is not assumed: the acceptance fixture queries GetClassNameA instead."]
       ]
     }
   ]
