@@ -1,0 +1,27 @@
+name: Optional test oracle snapshot
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/oracle-dependency.yml'
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download pinned external test oracle (not a runtime dependency)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip download unicorn==2.1.2 --platform manylinux_2_17_x86_64 --python-version 313 --implementation cp --abi cp313 --only-binary=:all: --no-deps --dest wheelhouse
+          sha256sum wheelhouse/* > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unicorn-2.1.2-test-only
+          path: |
+            wheelhouse/
+            SHA256SUMS
+          retention-days: 14
+          if-no-files-found: error
