@@ -34,7 +34,7 @@
     "tests/frontend.py": "2e83f4916fe0dddb5ce78d737249db5de640986377c5886842ba2b88e8c76f09",
     "tests/hardware_oracle.py": "a74cbec7c67083d77af23413a735bec8aa55c25f8b2c02f6ba77479ee746662d",
     "tests/integer_cases.py": "cd65632dffd8bef133634dd94e72e6298ebb0676e250479a67d3938fd6498afd",
-    "tests/nls.cpp": "c232d6257564c446618253820ac13b77b8f8d763eb32ea78d991fa1023e28644",
+    "tests/nls.cpp": "a5ee6f2d88f7387614a10eecfd3705faf8c6b0a1fb86afbaac88b5e3792711c8",
     "tests/process.cpp": "ef7387a0f1022f199521ac8604d402e5fe17f54b65cd731217dcf10ba80f79e8",
     "tests/program.py": "fa7813acd38c73e56215390bc35caa86b180537273e64243e6dc5a4d3204b707",
     "tests/runtime.cpp": "11dc97bc6c626b8975f3d6dfb833380e355967cefac746ce81a9c4775ece145e",
