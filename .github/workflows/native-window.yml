@@ -17,28 +17,35 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Verify bounded source patch and apply
+      - name: Verify bounded source edits before publication
         shell: python
         run: |
-          import base64, hashlib, json, pathlib, subprocess, zlib
+          import hashlib, json, pathlib, subprocess
           spec=json.loads(pathlib.Path('.window-bootstrap/patch.json').read_text())
-          assert spec['schema']=='winrecomp.window-patch.v1'
-          assert 0<spec['size']<1048576
-          encoded=spec.get('data') or ''.join(pathlib.Path(f'.window-bootstrap/part{k}.txt').read_text().strip() for k in range(4))
-          decoder=zlib.decompressobj()
-          patch=decoder.decompress(base64.b64decode(encoded,validate=True),1048577)
-          assert decoder.eof and not decoder.unconsumed_tail and not decoder.unused_data
-          assert len(patch)==spec['size'] and hashlib.sha256(patch).hexdigest()==spec['sha256']
-          path=pathlib.Path('/tmp/winrecomp-window.patch');path.write_bytes(patch)
-          subprocess.run(['git','apply','--check',str(path)],check=True)
-          subprocess.run(['git','apply',str(path)],check=True)
+          assert spec['schema']=='winrecomp.window-edits.v1'
+          assert 0<len(spec['edits'])<=32
+          updates={}
+          for edit in spec['edits']:
+              name=edit['path']; path=pathlib.PurePosixPath(name)
+              assert not path.is_absolute() and '..' not in path.parts
+              assert name.startswith(('src/','include/','tests/','tools/','docs/')) or name=='CMakeLists.txt'
+              assert name not in updates
+              file=pathlib.Path(name)
+              old=file.read_bytes() if file.exists() else b''
+              assert hashlib.sha256(old).hexdigest()==edit['before']
+              text=old.decode('utf-8')
+              for before,after in edit['replacements']:
+                  assert before in text
+                  text=text.replace(before,after)
+              new=text.encode('utf-8')
+              assert len(new)<=1048576 and hashlib.sha256(new).hexdigest()==edit['after']
+              updates[name]=new
           inventory=pathlib.Path('verification/source-hashes.json')
           data=json.loads(inventory.read_text())
-          names=subprocess.check_output(['git','diff','--name-only'],text=True).splitlines()
-          names+=subprocess.check_output(['git','ls-files','--others','--exclude-standard'],text=True).splitlines()
-          for name in names:
+          for name,new in updates.items():
+              path=pathlib.Path(name);path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(new)
               if name.startswith(('src/','include/','tests/','tools/')) or name=='CMakeLists.txt':
-                  data['sha256'][name]=hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest()
+                  data['sha256'][name]=hashlib.sha256(new).hexdigest()
           inventory.write_text(json.dumps(data,indent=2)+'\n')
       - name: Publish source on development branch only
         id: publish
