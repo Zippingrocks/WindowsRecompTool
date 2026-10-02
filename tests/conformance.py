@@ -54,6 +54,8 @@ for opcode in range(0x70,0x80):
     CASES[f'jcc_{opcode:02x}']=f'{opcode:02x}06b811111111c3b822222222c3'
 CASES['jecxz']='e306b811111111c3b822222222c3'
 CASES['jcxz']='67e306b811111111c3b822222222c3'
+from integer_cases import cases as integer_cases
+CASES.update(integer_cases())
 
 
 def run(args: list[str], **kw) -> subprocess.CompletedProcess:
@@ -117,7 +119,7 @@ def vectors(count: int, seed: int):
         if k%5==0:regs[1]=0
         flags=0x202 | (rng.getrandbits(12)&STATUS)
         memory=bytearray(STACK_SIZE)
-        for pos in range(0x7f00,0x8200,4):struct.pack_into('<I',memory,pos,rng.getrandbits(32))
+        for pos in list(range(0x300,0x800,4))+list(range(0x7f00,0x8200,4)):struct.pack_into('<I',memory,pos,rng.getrandbits(32))
         struct.pack_into('<I',memory,ESP-STACK,STOP)
         yield regs,flags,memory
 
@@ -144,7 +146,7 @@ def check_case(dll,case_id:int,name:str,mapped:bytes,base:int,entry:int,count:in
         status=dll.wr_execute(case_id,state,native_memory,len(memory),image_array,len(mapped),base,STOP)
         if status:raise RuntimeError(f'{name} vector {k}: native {dll.wr_last_error().decode()}')
         actual=list(state)
-        if actual[:9]!=expected[:9] or ((actual[9]^expected[9])&actual[10]&STATUS):
+        if actual[:9]!=expected[:9] or ((actual[9]^expected[9])&(actual[10]|0x400)&(STATUS|0x400)):
             raise RuntimeError(f'{name} vector {k}: mismatch\ninput={regs} flags={flags:#x}\nactual={actual}\nexpected={expected}')
         oracle_memory=bytes(machine.mem_read(STACK,STACK_SIZE))
         if bytes(native_memory)!=oracle_memory:

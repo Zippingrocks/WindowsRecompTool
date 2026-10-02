@@ -6,20 +6,20 @@ flags and addresses remain 32-bit; they are not widened into host pointers.
 
 ## What exists now
 
-A buildable C++20 CLI with a pinned in-process Zydis decoder, bounded PE32 parser,
-import inventory, recursive control-flow discovery, deterministic JSON manifests,
-and a fail-closed subset C++ emitter. The emitted blocks compile and execute as
-native x64, using the independent header-only guest state/memory runtime.
+The 0.2 runtime candidate generates complete CMake/x64 projects for a bounded
+PE32 profile, as well as individual translated slices. It has a Zydis-backed
+analyzer, guarded switch recovery, broad tested integer execution, 80-bit x87
+and SSE/SSE2 helpers, sparse guest memory, fixed-image loading, checked import
+marshalling, heap/file/text APIs and compiled guest callbacks.
 
-This is an **experimental foundation**, not a game-booting recompiler. The E3 2000
-integration target has been analyzed, and five routines from that executable have
-been translated and checked against an independent x86 oracle. That is not a
-claim of gameplay, complete function recovery, complete instruction coverage,
-or Win32 compatibility. See `docs/status.md` and `docs/roadmap.md`.
+With user-owned E3 data kept locally, compiled execution reaches the first
+`USER32!LoadIconA` request. No window or rendered frame exists yet. This is NOT
+a working game port or complete Windows compatibility. Read `docs/runtime-scope.md`
+and `docs/status.md` for exact validation and explicit unsupported boundaries.
 
 ## Build
 
-Use CMake 3.20+, a C++20 compiler, and Git. On Windows, use an x64 Visual Studio
+Use CMake 3.20+, Python 3, a C++20 compiler, and Git. On Windows, use an x64 Visual Studio
 developer shell. Only the decoder is needed for normal builds:
 
 ```sh
@@ -46,6 +46,29 @@ Unsupported instructions, imports or indirect transfers are errors, never no-ops
 An unsupported translation does not overwrite the selected output file.
 The CLI also refuses to overwrite its input executable.
 
+## Generate a native project
+
+```sh
+winrecomp project input.exe generated/project
+cmake -S generated/project -B generated/project/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_SOURCE=/absolute/path/to/WinRecomp
+cmake --build generated/project/build --parallel 2
+```
+
+Run `recompiled_program` (or `.exe` on Windows) with the original `input.exe`
+and `--root /path/to/data`. The SHA-256 must match. Writes are disabled unless
+`--allow-write` is explicitly supplied. `--report report.json` preserves the
+actual stop/failure, and `--budget N` bounds execution. No interpreter fallback
+is used. Unsupported imports/instructions stop, rather than returning dummy success.
+
+For the private E3 integration, first apply the SHA-bound observed seed profile:
+
+```sh
+python tools/create_project.py --tool build/winrecomp --exe local/e3_2000/blam.exe --profile examples/e3_2000/runtime.json --out generated/e3
+```
+
+Supply the original assets locally. Do not commit generated game source, images,
+or data. A generated project is a development tool, not a redistributable game.
+
 ## Test translated code
 
 Unicorn is a separate optional test dependency, not part of the product runtime:
@@ -57,7 +80,7 @@ cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-The suite compiles 60 author-created x86 fixtures into a native x64 library and
+The integer suite compiles 230 author-created x86 fixtures into a native x64 library and
 checks 256 states per fixture against Unicorn, including registers, EIP, defined
 status flags, and the complete 64 KiB test stack. Windows CI builds the generated
 code with MSVC; Linux CI additionally runs an actual i386 hardware oracle.
@@ -80,8 +103,8 @@ Generated game-derived source, manifests and test images remain under ignored
 ## Reference repositories
 
 `research/upstreams.lock.json` and Git submodules pin Zydis, xboxrecomp,
-recomp-kit, Remill, pe-parse, LIEF, Wine, ReactOS and Unicorn. Only Zydis links
-into the CLI. The other repositories are isolated research/test references,
+recomp-kit, Remill, pe-parse, LIEF, Wine, ReactOS and Unicorn. Only Zydis is an external source dependency of the CLI. Native floating-point
+helpers are generated from WinRecomp-owned scripts at build time. The other repositories are isolated research/test references,
 not an unreviewed merged engine. Fetch selected references on demand:
 
 ```sh

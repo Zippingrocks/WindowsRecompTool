@@ -83,9 +83,11 @@ class Frontend(unittest.TestCase):
         self.assertEqual(self.invoke('cfg',b).stdout,self.invoke('cfg',b).stdout)
     def test_unsupported_does_not_clobber_output(self):
         out=self.path/'output.cpp';out.write_text('KEEP')
-        self.invoke('lift',make_pe(bytes.fromhex('d9e8c3')),out,expected=1);self.assertEqual(out.read_text(),'KEEP')
-    def test_fs_memory_fails_closed(self):
-        self.invoke('lift',make_pe(bytes.fromhex('64a100000000c3')),self.path/'output.cpp',expected=1)
+        self.invoke('lift',make_pe(bytes.fromhex('0f0b')),out,expected=1);self.assertEqual(out.read_text(),'KEEP')
+    def test_fs_memory_requires_runtime_segment(self):
+        out=self.path/'output.cpp'
+        self.invoke('lift',make_pe(bytes.fromhex('64a100000000c3')),out)
+        self.assertIn('segment_address',out.read_text())
     def test_integer_lift(self):
         out=self.path/'output.cpp';self.invoke('lift',make_pe(bytes.fromhex('8b44240403442408c3')),out)
         self.assertIn('wr::add',out.read_text());self.assertNotIn('decode',out.read_text())

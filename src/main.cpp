@@ -20,19 +20,21 @@ int main(int argc,char** argv) {
 #ifdef _WIN32
         if(_setmode(_fileno(stdout),_O_BINARY)==-1)throw std::runtime_error("cannot set binary stdout");
 #endif
-        if(argc==2 && std::string(argv[1])=="--version"){std::cout<<"WinRecomp 0.1.0-foundation (Zydis 4.1.1)\n";return 0;}
-        if(argc<3){std::cerr<<"usage: winrecomp analyze|cfg|lift|dump-image <input.exe> [output] [--entry 0xVA] [--max-instructions N] [--name identifier] [--entry-only]\n";return 2;}
+        if(argc==2 && std::string(argv[1])=="--version"){std::cout<<"WinRecomp 0.2.0-runtime-experimental (Zydis 4.1.1)\n";return 0;}
+        if(argc<3){std::cerr<<"usage: winrecomp analyze|cfg|lift|dump-image|coverage|project <input.exe> [output] [--entry 0xVA] [--max-instructions N] [--name identifier] [--entry-only] [--seed 0xVA] [--trap-unsupported]\n";return 2;}
         const std::string command=argv[1];
-        if(command!="analyze" && command!="cfg" && command!="lift" && command!="dump-image")throw std::runtime_error("unknown command");
-        const auto image=wr::Image::load(argv[2]);auto entry=image.entry;std::uint32_t budget=1000000;bool image_roots=true;
-        std::string output,name="recompiled";
+        if(command!="analyze" && command!="cfg" && command!="lift" && command!="dump-image" && command!="coverage" && command!="project")throw std::runtime_error("unknown command");
+        const auto image=wr::Image::load(argv[2]);auto entry=image.entry;std::uint32_t budget=1000000;bool image_roots=true,partial=false;
+        std::string output,name="recompiled";std::set<wr::Address> seeds;
         for(int n=3;n<argc;++n) {
             const std::string arg=argv[n];
+            if(arg=="--trap-unsupported"){partial=true;continue;}
             if(arg=="--entry-only"){image_roots=false;continue;}
-            if(arg=="--entry" || arg=="--max-instructions" || arg=="--name") {
+            if(arg=="--entry" || arg=="--max-instructions" || arg=="--name" || arg=="--seed") {
                 if(n+1>=argc)throw std::runtime_error("option requires a value: "+arg);
                 const std::string value=argv[++n];
-                if(arg=="--entry"){entry=number(value);image_roots=false;}
+                if(arg=="--seed")seeds.insert(number(value));
+                else if(arg=="--entry"){entry=number(value);image_roots=false;}
                 else if(arg=="--max-instructions")budget=number(value);
                 else name=value;
             } else if(arg.starts_with("--"))throw std::runtime_error("unknown option: "+arg);
@@ -48,11 +50,13 @@ int main(int argc,char** argv) {
             const auto bytes=image.mapped();wr::write_file(output,std::string(reinterpret_cast<const char*>(bytes.data()),bytes.size()));return 0;
         }
         if(command=="analyze") {const auto text=image.json()+"\n";if(output.empty())std::cout<<text;else wr::write_file(output,text);return 0;}
-        auto g=wr::discover(image,entry,budget,image_roots);
+        auto g=wr::discover(image,entry,budget,image_roots,seeds);
+        if(command=="coverage"){const auto text=wr::coverage_json(g);if(output.empty())std::cout<<text;else wr::write_file(output,text);return g.budget_exhausted?3:0;}
         if(command=="cfg") {const auto text=g.json(image);if(output.empty())std::cout<<text;else wr::write_file(output,text);return g.budget_exhausted?3:0;}
+        if(command=="project") {if(output.empty())throw std::runtime_error("project requires an output directory");wr::emit_project(image,g,output,partial);std::cout<<"generated native project with "<<g.instructions.size()<<" admitted instructions\n";return 0;}
         if(output.empty())throw std::runtime_error("lift needs an output C++ path");
         // Complete preflight before opening/truncating any output file.
-        const auto source=wr::emit_cpp(g,name);wr::write_file(output,source);
+        const auto source=wr::emit_cpp(g,name,partial);wr::write_file(output,source);
         std::cout<<"lifted "<<g.instructions.size()<<" instructions in "<<g.blocks.size()<<" blocks\n";return 0;
     } catch(const std::exception& e) {std::cerr<<"WinRecomp: "<<e.what()<<'\n';return 1;}
 }

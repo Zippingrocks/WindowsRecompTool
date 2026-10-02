@@ -55,6 +55,7 @@ public:
 };
 struct Edge { Address from{}; std::optional<Address> to; std::string kind, detail; };
 struct Block { Address start{}, end{}; std::vector<Address> instructions; };
+struct JumpTable { Address branch{}, guard{}, table{}; std::vector<Address> targets; };
 struct Graph {
     Address entry{};
     std::map<Address,Instruction> instructions;
@@ -63,11 +64,14 @@ struct Graph {
     std::vector<Edge> edges;
     std::vector<std::string> diagnostics;
     std::vector<Address> jump_table_candidates;
+    std::vector<JumpTable> recovered_tables;
     bool budget_exhausted{};
     std::string json(const Image& image) const;
 };
-Graph discover(const Image& image, Address entry, std::size_t budget=1000000, bool include_image_roots=true);
-std::string emit_cpp(const Graph& graph, const std::string& name="recompiled");
+Graph discover(const Image& image, Address entry, std::size_t budget=1000000, bool include_image_roots=true,const std::set<Address>& extra_roots={});
+std::string emit_cpp(const Graph& graph, const std::string& name="recompiled",bool partial=false);
+std::string coverage_json(const Graph& graph);
+void emit_project(const Image& image,const Graph& graph,const std::filesystem::path& output,bool partial=false);
 std::string hex(std::uint64_t value);
 std::string quote(const std::string& value);
 void write_file(const std::filesystem::path& path, const std::string& content);

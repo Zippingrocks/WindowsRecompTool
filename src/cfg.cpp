@@ -6,11 +6,12 @@
 #include <stdexcept>
 
 namespace wr {
-Graph discover(const Image& image,Address entry,std::size_t budget,bool include_image_roots) {
+Graph discover(const Image& image,Address entry,std::size_t budget,bool include_image_roots,const std::set<Address>& extra_roots) {
     if (image.code(entry).empty()) throw std::runtime_error("seed is not file-backed executable code: "+hex(entry));
     if(!budget)throw std::runtime_error("instruction budget must be positive");
     Graph g;g.entry=entry;g.roots.insert(entry);
     if(include_image_roots){g.roots.insert(image.exports.begin(),image.exports.end());g.roots.insert(image.tls_callbacks.begin(),image.tls_callbacks.end());}
+    g.roots.insert(extra_roots.begin(),extra_roots.end());
     g.function_candidates=g.roots;
     Decoder decoder;
     std::priority_queue<Address,std::vector<Address>,std::greater<Address>> work;
@@ -20,6 +21,8 @@ Graph discover(const Image& image,Address entry,std::size_t budget,bool include_
     auto edge=[&](Address from,std::optional<Address> to,const std::string& kind,const std::string& detail="") {
         g.edges.push_back({from,to,kind,detail});if(to)enqueue(*to);
     };
+    std::set<Address> recovered;
+    for(;;) {
     while(!work.empty()) {
         if(g.instructions.size()>=budget){g.budget_exhausted=true;g.diagnostics.push_back("instruction budget exhausted; pending targets="+std::to_string(work.size()));break;}
         const auto a=work.top();work.pop();
@@ -53,6 +56,59 @@ Graph discover(const Image& image,Address entry,std::size_t budget,bool include_
                 if(i.flow==Flow::jump && i.decoded.operand_count_visible && i.operands[0].type==ZYDIS_OPERAND_TYPE_MEMORY && i.operands[0].mem.index!=ZYDIS_REGISTER_NONE)g.jump_table_candidates.push_back(a);
             }
         }
+    }
+    if(g.budget_exhausted)break;
+    bool added=false;
+    // Prove a bounded, straight-line CMP -> unsigned guard -> indexed jump.
+    // Flag- and index-preserving instructions (including x87 operations) may
+    // separate CMP and the guard. Runtime targets remain independently checked.
+    for(auto pc:g.jump_table_candidates) {
+        if(recovered.contains(pc))continue;
+        const auto at=g.instructions.find(pc);
+        if(at==g.instructions.begin() || at==g.instructions.end())continue;
+        const auto guard=std::prev(at);if(guard==g.instructions.begin())continue;
+        const auto& jump=at->second;const auto& j=guard->second;
+        if(j.next()!=pc || (j.decoded.mnemonic!=ZYDIS_MNEMONIC_JNBE && j.decoded.mnemonic!=ZYDIS_MNEMONIC_JNB))continue;
+        const auto& operand=jump.operands[0];
+        if(operand.mem.base!=ZYDIS_REGISTER_NONE || operand.mem.scale!=4 || jump.decoded.address_width!=32 || operand.size!=32)continue;
+        if(operand.mem.segment==ZYDIS_REGISTER_FS || operand.mem.segment==ZYDIS_REGISTER_GS)continue;
+        auto cmp=guard;bool proved=false;Address successor_pc=j.address;
+        std::vector<Address> chain{pc,j.address};
+        for(unsigned distance=0;distance<16 && cmp!=g.instructions.begin();++distance) {
+            --cmp;const auto& i=cmp->second;
+            if(i.next()!=successor_pc || i.flow!=Flow::normal)break;
+            if(i.decoded.mnemonic==ZYDIS_MNEMONIC_CMP) {
+                proved=i.operands[0].type==ZYDIS_OPERAND_TYPE_REGISTER && i.operands[1].type==ZYDIS_OPERAND_TYPE_IMMEDIATE && i.operands[0].size==32 && i.operands[0].reg.value==operand.mem.index;
+                chain.push_back(i.address);break;
+            }
+            if(const auto* flags=i.decoded.cpu_flags;flags && (flags->modified|flags->set_0|flags->set_1|flags->undefined))break;
+            bool changes_index=false;
+            for(unsigned n=0;n<i.decoded.operand_count;++n) {
+                const auto& op=i.operands[n];
+                if(op.type==ZYDIS_OPERAND_TYPE_REGISTER && (op.actions&ZYDIS_OPERAND_ACTION_MASK_WRITE) && ZydisRegisterGetLargestEnclosing(ZYDIS_MACHINE_MODE_LEGACY_32,op.reg.value)==operand.mem.index){changes_index=true;break;}
+            }
+            if(changes_index)break;
+            chain.push_back(i.address);successor_pc=i.address;
+        }
+        if(!proved)continue;
+        const auto& c=cmp->second;bool bypass=false;
+        for(std::size_t n=0;n+1<chain.size() && !bypass;++n) {
+            const auto address=chain[n],predecessor=chain[n+1];
+            if(g.roots.contains(address)){bypass=true;break;}
+            for(const auto& e:g.edges)if(e.to && *e.to==address && (e.from!=predecessor || e.kind!=(n==0?"branch_not_taken":"fallthrough"))){bypass=true;break;}
+        }
+        if(bypass)continue;
+        const auto n=std::uint64_t(std::uint32_t(c.operands[1].imm.value.u))+(j.decoded.mnemonic==ZYDIS_MNEMONIC_JNBE?1u:0u);
+        if(!n || n>4096)continue;
+        const auto table=Address(operand.mem.disp.value);auto file=image.offset(table,std::size_t(n*4));if(!file)continue;
+        JumpTable t;t.branch=pc;t.guard=j.address;t.table=table;bool valid=true;
+        for(std::size_t k=0;k<n;++k){const auto off=*file+k*4;const auto& b=image.bytes;const Address target=Address(b[off])|(Address(b[off+1])<<8)|(Address(b[off+2])<<16)|(Address(b[off+3])<<24);if(image.code(target).empty()){valid=false;break;}t.targets.push_back(target);}
+        if(!valid)continue;
+        recovered.insert(pc);g.recovered_tables.push_back(t);
+        for(auto target:t.targets){leaders.insert(target);edge(pc,target,"jump_table_static",hex(table));}
+        added=true;
+    }
+    if(!added)break;
     }
     // A second pass splits blocks at every discovered target. No stale overlapping blocks.
     std::set<Address> assigned;
@@ -99,6 +155,8 @@ std::string Graph::json(const Image& image) const {
     }
     o<<"],\"edges\":[";first=true;for(const auto& e:edges){if(!first)o<<',';first=false;o<<"{\"from\":"<<e.from<<",\"to\":";if(e.to)o<<*e.to;else o<<"null";o<<",\"kind\":"<<quote(e.kind)<<",\"detail\":"<<quote(e.detail)<<'}';}
     o<<"],\"jump_table_candidates\":[";first=true;for(auto a:jump_table_candidates){if(!first)o<<',';first=false;o<<a;}
+    o<<"],\"recovered_tables\":[";first=true;
+    for(const auto& t:recovered_tables){if(!first)o<<',';first=false;o<<"{\"branch\":"<<t.branch<<",\"guard\":"<<t.guard<<",\"table\":"<<t.table<<",\"runtime_target_still_checked\":true,\"targets\":[";bool f=true;for(auto a:t.targets){if(!f)o<<',';f=false;o<<a;}o<<"]}";}
     o<<"],\"diagnostics\":[";first=true;for(const auto& d:diagnostics){if(!first)o<<',';first=false;o<<quote(d);}o<<"]}\n";return o.str();
 }
 }

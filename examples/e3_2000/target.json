@@ -13,11 +13,11 @@
     ".rsrc"
   ],
   "expected_cfg": {
-    "instructions": 101542,
-    "blocks": 21063,
-    "function_candidates": 1234,
-    "unresolved_indirect_transfers": 371,
-    "jump_table_candidates": 103
+    "instructions": 113463,
+    "blocks": 23422,
+    "function_candidates": 1308,
+    "unresolved_indirect_transfers": 440,
+    "jump_table_candidates": 115
   },
   "validated_entries": [
     4907971,
@@ -26,5 +26,5 @@
     4928024,
     4947637
   ],
-  "note": "Routine names and gameplay purpose are unverified. No game bytes included."
+  "note": "Routine names/gameplay purpose unverified. Expected CFG uses the 0.2 bounded guarded-table analysis without dynamic seeds. No game bytes included."
 }

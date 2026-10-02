@@ -1,0 +1,214 @@
+{
+  "schema": "winrecomp.runtime-local-evidence.v1",
+  "previous_accepted_source": "03fb54a2e99c8b1000a1250b0387109fa9a86eb3",
+  "gate_acceptance": "pending new Windows/Linux CI; historical 15 points remain accepted",
+  "gcc": {
+    "ctest_total": 13,
+    "all_passed": true
+  },
+  "clang": {
+    "ctest_total": 13,
+    "all_passed": true
+  },
+  "asan_ubsan": {
+    "ctest_total": 7,
+    "all_passed": true,
+    "note": "The final corrected source was rebuilt and all seven sanitizer suites passed."
+  },
+  "conformance": {
+    "schema": "winrecomp.conformance.v1",
+    "oracle": "Unicorn 2.1.2",
+    "native_pointer_bits": 64,
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "compiler": "/usr/bin/c++",
+    "total_vectors": 58880,
+    "compared": "8 GPRs, EIP, defined status flags, complete 64 KiB stack",
+    "elapsed_seconds": 12.954,
+    "case_count": 230,
+    "all_cases_passed": true
+  },
+  "x87": {
+    "schema": "winrecomp.x87-conformance.v1",
+    "oracle": "native x86-64 hardware, uninterrupted original x87 byte fixtures in long mode",
+    "native_pointer_bits": 64,
+    "total_vectors": 18240,
+    "control_modes": 12,
+    "elapsed_seconds": 2.769,
+    "exclusions": [
+      "FIP/FDP/FOP host-versus-guest environment fields",
+      "empty-register payloads"
+    ],
+    "not_a_native_i386_whole_program_oracle": true,
+    "case_count": 95,
+    "all_cases_passed": true
+  },
+  "simd": {
+    "schema": "winrecomp.sse2-conformance.v1",
+    "oracle": "native x86-64 hardware, uninterrupted original SSE/SSE2 byte fixtures in long mode",
+    "native_pointer_bits": 64,
+    "total_vectors": 29952,
+    "control_modes": 16,
+    "elapsed_seconds": 3.799,
+    "exclusions": [
+      "FIP/FDP/FOP host-versus-guest environment fields",
+      "empty-register payloads"
+    ],
+    "not_a_native_i386_whole_program_oracle": true,
+    "case_count": 156,
+    "all_cases_passed": true
+  },
+  "controlflow": {
+    "schema": "winrecomp.controlflow.v1",
+    "cases": [
+      {
+        "name": "guarded_table",
+        "entry": "0x401000",
+        "vectors": 256,
+        "result": "pass"
+      },
+      {
+        "name": "callback",
+        "entry": "0x401000",
+        "vectors": 256,
+        "result": "pass"
+      },
+      {
+        "name": "call_esp",
+        "entry": "0x401000",
+        "vectors": 256,
+        "result": "pass"
+      },
+      {
+        "name": "preserving_guard",
+        "entry": "0x401000",
+        "vectors": 256,
+        "result": "pass"
+      }
+    ],
+    "total_vectors": 1024,
+    "negative_table_tests": 8
+  },
+  "callback": {
+    "schema": "winrecomp.callback-abi.v1",
+    "vectors": 256,
+    "path": "generated guest -> real host dispatcher -> generated guest stdcall callback -> host -> generated guest",
+    "all_passed": true
+  },
+  "program": {
+    "schema": "winrecomp.program-test.v1",
+    "native_pointer_bits": 64,
+    "program": {
+      "schema": "winrecomp.process.v1",
+      "input_sha256": "44f9ded278341d1827eca1e529b2e31239ae220e33708b965e561f9088abd148",
+      "exited": true,
+      "exit_code": 0,
+      "eip": 4198470,
+      "esp": 118489068,
+      "native_instructions": 17,
+      "api_calls": 3,
+      "budget_left": 9999980,
+      "recent_transfers": [
+        {
+          "pc": 4026531968,
+          "return": 4198420,
+          "api": "kernel32.dll!VirtualAlloc",
+          "arguments": [
+            0,
+            8192,
+            12288,
+            4
+          ],
+          "detail": ""
+        },
+        {
+          "pc": 4026531984,
+          "return": 4198462,
+          "api": "kernel32.dll!VirtualFree",
+          "arguments": [
+            268435456,
+            0,
+            32768
+          ],
+          "detail": ""
+        },
+        {
+          "pc": 4026531872,
+          "return": 4198470,
+          "api": "kernel32.dll!ExitProcess",
+          "arguments": [
+            0
+          ],
+          "detail": ""
+        }
+      ]
+    },
+    "wrong_input_rejected": true,
+    "existing_output_preserved": true,
+    "input_report_collision_rejected": true
+  },
+  "nls": {
+    "checked": 2555,
+    "native_measurement_run": 36962189827,
+    "native_observations_sha256": "b40f11319a216204d9a63993c107f4a6294001923c6295d8f4ab68e125c1a55d",
+    "original_artifact_sha256": "806272dddb503beab76defbca0e5d7465071a385af9a80964fc663c25ca01998"
+  },
+  "private_target": {
+    "contract": {
+      "input_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+      "imports": 155,
+      "cfg": {
+        "instructions": 113463,
+        "blocks": 23422,
+        "function_candidates": 1308,
+        "unresolved_indirect_transfers": 440,
+        "jump_table_candidates": 115
+      },
+      "manifest_sha256": "66c0f5a69f3ad5480f66942920278a9114b86abc0099a75319fab24e78cbcbb0",
+      "deterministic": true,
+      "whole_program_complete": false,
+      "elapsed_seconds": 1.689,
+      "conformance": {
+        "schema": "winrecomp.conformance.v1",
+        "oracle": "Unicorn 2.1.2",
+        "native_pointer_bits": 64,
+        "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+        "compiler": "c++",
+        "total_vectors": 5120,
+        "compared": "8 GPRs, EIP, defined status flags, complete 64 KiB stack",
+        "elapsed_seconds": 2.246,
+        "target_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+        "case_count": 5,
+        "all_cases_passed": true
+      }
+    },
+    "startup": {
+      "schema": "winrecomp.process.v1",
+      "input_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+      "exited": false,
+      "exit_code": 0,
+      "eip": 4026533744,
+      "esp": 118488840,
+      "native_instructions": 20284053,
+      "api_calls": 478,
+      "budget_left": 79653420
+    },
+    "stop_api": "user32.dll!LoadIconA",
+    "stop_reason": "unimplemented Win32 import user32.dll!LoadIconA at guest address 4026533744",
+    "host": "Linux x64",
+    "input_has_not_been_run_natively_as_a_windows_exe": true,
+    "whole_game_behavior_validated": false,
+    "counts_are_one_observation_not_a_deterministic_fidelity_measure": true
+  },
+  "limitations": [
+    "Not a whole-game behavior equivalence proof",
+    "Native FP fixture oracle is x64, not a native i386 whole-program oracle",
+    "Local ELF32 execution unavailable, not counted as a pass",
+    "No game bytes or game-derived source sent to CI",
+    "No graphics/audio/input/networking/guest SEH/threading"
+  ],
+  "local_log_sha256": {
+    "accept-gcc-2": "64a77b1eac46ca2d0f88b5abe7e500fd193a3fbad30862eb3f204e6e688eea74",
+    "accept-clang-2": "c56737fd9a7e6e00db5e661f8884fd5a4f516a20c4833cf6f608d69390f879f9",
+    "asan-final": "604d35488ea95649ab66913c70a477fe628341b32c72ed255df42b6110bc3cc1"
+  }
+}

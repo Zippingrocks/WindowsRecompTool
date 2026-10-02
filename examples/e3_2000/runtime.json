@@ -1,0 +1,35 @@
+{
+  "schema": "winrecomp.runtime-profile.v1",
+  "sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+  "guest": "PE32 i386, fixed image base",
+  "host": "Windows x64 / Linux x64 diagnostic backend",
+  "seeds": [
+    4402942,
+    4402970,
+    4403405,
+    4821462,
+    4821521,
+    4821576,
+    4821606,
+    4902070,
+    4903691,
+    4906052,
+    4911032,
+    4921188
+  ],
+  "seed_provenance": "Actual untranslated PCs observed in local compiled execution of this exact input; no prologue/data scanning or game code bytes. Guarded switch cases are now recovered statically and are not manual roots.",
+  "execution_budget": 100000000,
+  "last_local_checkpoint": {
+    "api": "user32.dll!LoadIconA",
+    "native_instructions": 20284057,
+    "api_calls": 478,
+    "host": "Linux x64",
+    "gameplay": false
+  },
+  "limitations": [
+    "No GUI/rendering, sound or input yet",
+    "No TLS image loading, guest threads or SEH delivery",
+    "No networking backend",
+    "Seed list and observed counts are tied to this SHA-256; these are not game behavior equivalence proofs"
+  ]
+}

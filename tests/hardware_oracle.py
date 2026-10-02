@@ -158,7 +158,7 @@ def main():
             status=dll.wr_execute(case_id,state,memory,len(mem),img,len(image),0x400000,c.STOP)
             if status:raise RuntimeError(dll.wr_last_error().decode())
             actual=list(state)
-            if actual[:9]!=list(expected[:9]) or ((actual[9]^expected[9])&actual[10]&c.STATUS):
+            if actual[:9]!=list(expected[:9]) or ((actual[9]^expected[9])&(actual[10]|0x400)&(c.STATUS|0x400)):
                 raise RuntimeError(f'{label} vector {n}: real hardware mismatch: {actual} vs {expected}')
             if bytes(memory)!=result[40:]:raise RuntimeError(f'{label} vector {n}: hardware memory mismatch')
         reports.append({'name':label,'vectors':len(rows),'result':'pass'})
