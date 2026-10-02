@@ -24,8 +24,9 @@ jobs:
           spec=json.loads(pathlib.Path('.window-bootstrap/patch.json').read_text())
           assert spec['schema']=='winrecomp.window-patch.v1'
           assert 0<spec['size']<1048576
+          encoded=''.join(pathlib.Path(f'.window-bootstrap/part{k}.txt').read_text().strip() for k in range(4))
           decoder=zlib.decompressobj()
-          patch=decoder.decompress(base64.b64decode(spec['data'],validate=True),1048577)
+          patch=decoder.decompress(base64.b64decode(encoded,validate=True),1048577)
           assert decoder.eof and not decoder.unconsumed_tail and not decoder.unused_data
           assert len(patch)==spec['size'] and hashlib.sha256(patch).hexdigest()==spec['sha256']
           path=pathlib.Path('/tmp/winrecomp-window.patch');path.write_bytes(patch)
