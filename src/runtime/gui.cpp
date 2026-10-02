@@ -34,7 +34,7 @@ struct GuiState {
     std::map<U32,Handle> handles;
     std::map<U32,std::shared_ptr<GuiWindow>> windows;
     std::map<std::string,std::shared_ptr<GuiClass>> classes;
-    std::map<std::pair<U32,U32>,U32> shared_icons;
+    std::map<std::pair<U32,ResourceName>,U32> shared_icons;
     std::vector<GuiFrame*> frames;
     std::exception_ptr pending;
     int cursor_balance{};
@@ -93,13 +93,15 @@ ResourceName resource_name(Process& p,U32 value){
     return wide;
 }
 U32 load_icon(Process& p){
-    auto& g=gui(p);U32 module=arg(p,0),name=arg(p,1);const auto key=std::pair{module,name};
+    auto& g=gui(p);U32 module=arg(p,0),name=arg(p,1);
+    const auto resolved_name=module?resource_name(p,name):ResourceName{name};
+    const auto key=std::pair{module,resolved_name};
     if(auto it=g.shared_icons.find(key);it!=g.shared_icons.end())return it->second;
     HICON icon{};bool owned=false;
     if(!module){if(name>65535)unsupported(p,"stock icon requires an integer resource id");icon=::LoadIconA(nullptr,MAKEINTRESOURCEA(name));}
     else {
         if(module!=p.image_base)unsupported(p,"icon resource module is not the loaded guest image");
-        auto* group=p.state().resources.find(14u,resource_name(p,name));
+        auto* group=p.state().resources.find(14u,resolved_name);
         if(!group){p.set_error(ERROR_RESOURCE_NAME_NOT_FOUND);return 0;}
         auto bytes=group->bytes;
         auto u16=[&](std::size_t n){return unsigned(bytes.at(n))|(unsigned(bytes.at(n+1))<<8);};
@@ -196,6 +198,10 @@ struct GuiFrame {
     U32 guest_result(LRESULT value){if(message==WM_GETICON || message==WM_SETICON)return token(g,Kind::icon,std::uintptr_t(value));return scalar(p,std::uintptr_t(value));}
     LRESULT native_result(U32 value){if(message==WM_GETICON || message==WM_SETICON)return reinterpret_cast<LRESULT>(native<HICON>(p,value,Kind::icon));return LRESULT(signed32(value));}
 };
+void retire_window(GuiState& g,GuiWindow& w) noexcept {
+    w.dead=true;auto it=g.handles.find(w.id);if(it!=g.handles.end())it->second.native=0;
+    if(w.hwnd)::SetWindowLongPtrA(w.hwnd,GWLP_USERDATA,0);
+}
 LRESULT CALLBACK bridge(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) noexcept {
     auto* w=reinterpret_cast<GuiWindow*>(::GetWindowLongPtrA(hwnd,GWLP_USERDATA));
     if(!w && !creating.empty()){
@@ -204,14 +210,14 @@ LRESULT CALLBACK bridge(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) noexcept {
     }
     if(!w)return ::DefWindowProcA(hwnd,message,wp,lp);
     auto& p=*w->process;auto& g=*p.state().gui;
-    if(g.shutting_down || g.pending || p.exited()){if(message==WM_NCDESTROY){w->dead=true;::SetWindowLongPtrA(hwnd,GWLP_USERDATA,0);}return message==WM_CREATE?-1:0;}
+    if(g.shutting_down || g.pending || p.exited()){if(message==WM_NCDESTROY){retire_window(g,*w);}return message==WM_CREATE?-1:0;}
     try {
         if(g.owner!=std::this_thread::get_id())unsupported(p,"cross-thread native window callback is unsupported");
         g.handles.at(w->id).native=reinterpret_cast<std::uintptr_t>(hwnd);
         GuiFrame frame(*w,message,wp,lp);frame.prepare();++g.callbacks;
         const std::array<U32,4> args{w->id,message,frame.wp,frame.lp};
         auto value=p.callback(w->proc,args);frame.sync_native();auto result=frame.native_result(value);
-        if(message==WM_NCDESTROY){w->dead=true;::SetWindowLongPtrA(hwnd,GWLP_USERDATA,0);}
+        if(message==WM_NCDESTROY){retire_window(g,*w);}
         return result;
     }catch(...){if(!g.pending)g.pending=std::current_exception();return message==WM_CREATE?-1:0;}
 }
@@ -246,6 +252,7 @@ U32 create_window(Process& p){
     auto w=std::make_shared<GuiWindow>();w->process=&p;w->cls=c;w->proc=c->proc;
     for(unsigned n=0;n<12;++n)w->create[n]=arg(p,n);
     const auto text=arg(p,2)?p.read_string(arg(p,2)):std::string();
+    if(g.next_handle>=0xbf000000u)unsupported(p,"GUI handle table exhausted");
     w->id=g.next_handle;g.next_handle+=16;g.handles.emplace(w->id,GuiState::Handle{Kind::window,0,false});g.windows.emplace(w->id,w);
     creating.push_back(w.get());
     const auto hwnd=::CreateWindowExA(arg(p,0),c->native_name.c_str(),text.c_str(),arg(p,3),signed32(arg(p,4)),signed32(arg(p,5)),signed32(arg(p,6)),signed32(arg(p,7)),nullptr,nullptr,::GetModuleHandleW(nullptr),w.get());
@@ -304,6 +311,7 @@ void install_gui(Process& p){
     add("InvalidateRect",3,[](auto& q)->U32{RECT r{};if(arg(q,1)){q.memory.copy_out(arg(q,1),std::span(reinterpret_cast<std::uint8_t*>(&r),16));}auto result=::InvalidateRect(owned_window(q,arg(q,0))->hwnd,arg(q,1)?&r:nullptr,arg(q,2)!=0);if(!result)q.set_error(::GetLastError());return result!=FALSE;});
     add("BeginPaint",2,[](auto& q)->U32{auto w=owned_window(q,arg(q,0));auto out=arg(q,1);q.memory.check(out,64,Memory::Write);if(w->paint)unsupported(q,"nested BeginPaint on the same window");GuiWindow::Paint paint;paint.pointer=out;auto dc=::BeginPaint(w->hwnd,&paint.native);if(!dc){q.set_error(::GetLastError());return 0;}paint.dc=token(gui(q),Kind::dc,reinterpret_cast<std::uintptr_t>(dc));w->paint=paint;rethrow(gui(q));std::vector<std::uint8_t> zero(64);q.memory.copy_in(out,zero);q.memory.store(out,paint.dc,32);q.memory.store(out+4,U32(paint.native.fErase),32);q.memory.copy_in(out+8,std::span(reinterpret_cast<const std::uint8_t*>(&paint.native.rcPaint),16));q.memory.store(out+24,U32(paint.native.fRestore),32);q.memory.store(out+28,U32(paint.native.fIncUpdate),32);q.memory.copy_in(out+32,std::span(paint.native.rgbReserved,32));++gui(q).paints;return paint.dc;});
     add("EndPaint",2,[](auto& q)->U32{auto w=owned_window(q,arg(q,0));if(!w->paint || w->paint->pointer!=arg(q,1))unsupported(q,"EndPaint does not match an active BeginPaint");if(q.memory.load(arg(q,1),32)!=w->paint->dc)unsupported(q,"modified PAINTSTRUCT HDC");auto value=::EndPaint(w->hwnd,&w->paint->native);w->paint.reset();return value!=FALSE;});
+    add("GetClassNameA",3,[](auto& q)->U32{auto w=owned_window(q,arg(q,0));auto cap=arg(q,2);if(!cap){q.set_error(ERROR_INVALID_PARAMETER);return 0;}if(cap>32768)unsupported(q,"GetClassName buffer bound");q.memory.check(arg(q,1),cap,Memory::Write);const auto& name=w->cls->guest_name;auto n=std::min<std::size_t>(name.size(),cap-1);q.memory.copy_in(arg(q,1),std::span(reinterpret_cast<const std::uint8_t*>(name.data()),n));q.memory.store(arg(q,1)+U32(n),0,8);return U32(n);});
     add("SetWindowTextA",2,[](auto& q)->U32{const auto text=q.read_string(arg(q,1));return ::SetWindowTextA(owned_window(q,arg(q,0))->hwnd,text.c_str())!=FALSE;});
     add("GetWindowTextA",3,[](auto& q)->U32{auto cap=arg(q,2);if(!cap)return 0;if(cap>32768)unsupported(q,"GetWindowText buffer bound");q.memory.check(arg(q,1),cap,Memory::Write);std::vector<char> b(cap);auto n=::GetWindowTextA(owned_window(q,arg(q,0))->hwnd,b.data(),int(cap));rethrow(gui(q));q.memory.copy_in(arg(q,1),std::span(reinterpret_cast<const std::uint8_t*>(b.data()),std::size_t(n)+1));return U32(n);});
     for(bool set:{false,true})add(set?"SetWindowLongA":"GetWindowLongA",set?3:2,[set](auto& q)->U32{auto w=owned_window(q,arg(q,0));auto index=signed32(arg(q,1));U32* at=index==GWLP_USERDATA?&w->userdata:index==GWLP_WNDPROC?&w->proc:nullptr;if(!at)unsupported(q,"unsupported guest window-long field");auto old=*at;if(set){if(index==GWLP_WNDPROC)q.memory.check(arg(q,2),1,Memory::Execute);*at=arg(q,2);}return old;});
@@ -320,7 +328,7 @@ void install_gui(Process& p){
     p.register_api("gdi32.dll","GetStockObject",1,[](auto& q)->U32{auto& g=gui(q);auto which=arg(q,0);if(which>5 && which!=18)unsupported(q,"only stock brushes are currently exposed");auto h=::GetStockObject(signed32(which));if(!h){q.set_error(::GetLastError());return 0;}return token(g,Kind::brush,reinterpret_cast<std::uintptr_t>(h));});
 #else
     // The non-Windows backend stays explicitly unsupported, not a fake desktop.
-    for(auto [name,count]:{std::pair{"LoadIconA",2u},{"LoadCursorA",2u},{"RegisterClassExA",1u},{"RegisterClassA",1u},{"UnregisterClassA",2u},{"CreateWindowExA",12u},{"DefWindowProcA",4u},{"DestroyWindow",1u},{"IsWindow",1u},{"ShowWindow",2u},{"UpdateWindow",1u},{"EnableWindow",2u},{"PostQuitMessage",1u},{"PostMessageA",4u},{"SendMessageA",4u},{"PeekMessageA",5u},{"GetMessageA",4u},{"TranslateMessage",1u},{"DispatchMessageA",1u},{"GetClientRect",2u},{"GetWindowRect",2u},{"InvalidateRect",3u},{"BeginPaint",2u},{"EndPaint",2u},{"SetWindowTextA",2u},{"GetWindowTextA",3u},{"SetWindowLongA",3u},{"GetWindowLongA",2u},{"SetWindowPos",7u},{"GetSystemMetrics",1u},{"GetKeyState",1u},{"GetAsyncKeyState",1u},{"ShowCursor",1u},{"SetCursor",1u},{"GetCursorPos",1u},{"SetFocus",1u},{"GetActiveWindow",0u},{"GetForegroundWindow",0u}})add(name,count,[](auto&)->U32{return 0;});
+    for(auto [name,count]:{std::pair{"LoadIconA",2u},{"LoadCursorA",2u},{"RegisterClassExA",1u},{"RegisterClassA",1u},{"UnregisterClassA",2u},{"CreateWindowExA",12u},{"DefWindowProcA",4u},{"DestroyWindow",1u},{"IsWindow",1u},{"ShowWindow",2u},{"UpdateWindow",1u},{"EnableWindow",2u},{"PostQuitMessage",1u},{"PostMessageA",4u},{"SendMessageA",4u},{"PeekMessageA",5u},{"GetMessageA",4u},{"TranslateMessage",1u},{"DispatchMessageA",1u},{"GetClientRect",2u},{"GetWindowRect",2u},{"InvalidateRect",3u},{"BeginPaint",2u},{"EndPaint",2u},{"SetWindowTextA",2u},{"GetWindowTextA",3u},{"GetClassNameA",3u},{"SetWindowLongA",3u},{"GetWindowLongA",2u},{"SetWindowPos",7u},{"GetSystemMetrics",1u},{"GetKeyState",1u},{"GetAsyncKeyState",1u},{"ShowCursor",1u},{"SetCursor",1u},{"GetCursorPos",1u},{"SetFocus",1u},{"GetActiveWindow",0u},{"GetForegroundWindow",0u}})add(name,count,[](auto&)->U32{return 0;});
 #endif
 }
 void shutdown_gui(Process& p) noexcept {

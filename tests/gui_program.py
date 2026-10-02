@@ -22,7 +22,7 @@ def fixture():
     user=['LoadIconA','LoadCursorA','RegisterClassExA','CreateWindowExA','DefWindowProcA',
           'ShowWindow','UpdateWindow','BeginPaint','EndPaint','PostMessageA','PostQuitMessage',
           'GetMessageA','TranslateMessage','DispatchMessageA','DestroyWindow','UnregisterClassA',
-          'GetClientRect','IsWindow','SetWindowTextA','GetWindowTextA']
+          'GetClientRect','IsWindow','SetWindowTextA','GetWindowTextA','GetClassNameA']
     iats={name:0x402200+4*n for n,name in enumerate(kernel)}
     iats.update({name:0x402220+4*n for n,name in enumerate(user)})
     data=bytearray(4096)
@@ -44,7 +44,7 @@ def fixture():
     # record = signature, observed callback mask, WM_APP payload sum, paint flag
     struct.pack_into('<IIII',data,STATE-0x402000,0x32495547,0,0,0)
     struct.pack_into('<12I',data,WC-0x402000,48,3,WNDPROC,0,0,0x400000,0,0,6,0,CLASS,0)
-    code=bytearray();labels={};fixups=[]
+    code=bytearray();labels={};fixups=[];failures=[]
     def emit(text):code.extend(bytes.fromhex(text))
     def u32(value):code.extend(struct.pack('<I',value))
     def push(value):emit('68');u32(value)
@@ -52,9 +52,11 @@ def fixture():
     def label(name):labels[name]=len(code)
     def branch(name,condition=None):
         emit('e9' if condition is None else '0f'+condition);fixups.append((len(code),name));u32(0)
-    def boolean():emit('85c0');branch('fail','84')
+    def fail_if(condition):
+        name=f'failure_{len(failures)}';failures.append(name);branch(name,condition)
+    def boolean():emit('85c0');fail_if('84')
     def abs_mov(reg,at):emit({'eax':'a1','ebx':'8b1d'}[reg]);u32(at)
-    def check_eax(value):emit('3d');u32(value);branch('fail','85')
+    def check_eax(value):emit('3d');u32(value);fail_if('85')
     def store(at):emit('a3');u32(at)
     push(32512);push(0);call('LoadIconA');boolean();store(WC+24)
     push(32512);push(0);call('LoadCursorA');boolean();store(WC+28)
@@ -65,6 +67,8 @@ def fixture():
     abs_mov('eax',STATE+16);emit('50');call('UpdateWindow');boolean()
     push(TITLE);abs_mov('eax',STATE+16);emit('50');call('SetWindowTextA');boolean()
     push(64);push(TEXT);abs_mov('eax',STATE+16);emit('50');call('GetWindowTextA');check_eax(len(b'WinRecomp native GUI acceptance'))
+    push(64);push(TEXT);abs_mov('eax',STATE+16);emit('50');call('GetClassNameA');check_eax(len(b'WinRecompAcceptance'))
+    abs_mov('eax',TEXT);check_eax(int.from_bytes(b'WinR','little'))
     push(RECT);abs_mov('eax',STATE+16);emit('50');call('GetClientRect');boolean()
     push(456);push(123);push(0x8001);abs_mov('eax',STATE+16);emit('50');call('PostMessageA');boolean()
     label('loop')
@@ -80,6 +84,7 @@ def fixture():
     push(0);push(WRITTEN);push(16);push(STATE);emit('53');call('WriteFile');boolean()
     emit('53');call('CloseHandle');boolean();push(0);call('ExitProcess');emit('c3')
     label('fail');push(99);call('ExitProcess');emit('c3')
+    for n,target in enumerate(failures):label(target);push(10+n);call('ExitProcess');emit('c3')
     assert len(code)<0x600
     code.extend(b'\xcc'*(0x600-len(code)))
     label('wndproc');emit('5589e5')
@@ -88,7 +93,7 @@ def fixture():
     label('default');emit('ff7514ff7510ff750cff7508');call('DefWindowProcA');emit('5dc21000')
     def mask(bit):emit('830d');u32(STATE+4);code.append(bit)
     def ret(value):emit('b8');u32(value);emit('5dc21000')
-    label('nccreate');emit('8b45148138');u32(0x11223344);branch('badcreate','85');emit('817804');u32(0x400000);branch('badcreate','85');emit('817828');u32(CLASS);branch('badcreate','85');mask(1);branch('default')
+    label('nccreate');emit('8b45148138');u32(0x11223344);branch('badcreate','85');emit('817804');u32(0x400000);branch('badcreate','85');emit('83782800');branch('badcreate','84');mask(1);branch('default')
     label('badcreate');ret(0)
     label('create');emit('8b45148138');u32(0x11223344);branch('bad','85');mask(2);ret(0)
     label('minmax');emit('8b4514c74018c8000000c7401c96000000');mask(4);ret(0)
