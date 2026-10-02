@@ -24,6 +24,20 @@ int main(){try{
     // Reserved MXCSR and incorrectly aligned operands are rejected before native execution.
     cpu.fp.put32(24,0x10000);fault([&]{wr::sse_execute(cpu,wr_sse_243_94_r1,&dummy);},wr::FaultKind::unsupported);
     fault([&]{wr::sse_memory(cpu,memory,wr_sse_243_94_r1,0x10001,16,false,16);},wr::FaultKind::memory);
+    // Legacy environment pointers are guest addresses; host selector values
+    // must not leak in or be silently discarded on restore.
+    wr::x87_init(cpu);cpu.fp.put64(8,0x412345);cpu.fp.put64(16,0x501234);cpu.fp.put16(6,0x321);
+    wr::x87_env(cpu,memory,0x10100,false,false);
+    CHECK(memory.load(0x1010c,32)==0x412345 && memory.load(0x10114,32)==0x501234);
+    CHECK(memory.load(0x10110,16)==0 && memory.load(0x10118,16)==0);
+    CHECK(memory.load(0x10112,16)==0x321 && memory.load(0x1011a,16)==0xffff);
+    for(auto offset:{16u,24u}) {
+        before=cpu;memory.store(0x10100+offset,0x2b,16);
+        fault([&]{wr::x87_env(cpu,memory,0x10100,true,false);},wr::FaultKind::unsupported);
+        CHECK(cpu.fp.bytes==before.fp.bytes);memory.store(0x10100+offset,0,16);
+    }
+    wr::x87_env(cpu,memory,0x10100,true,false);
+    CHECK(cpu.fp.get64(8)==0x412345 && cpu.fp.get64(16)==0x501234 && cpu.fp.get16(6)==0x321);
     std::cout<<"unmasked/pending FP faults, masked recovery, state preservation and alignment checks passed\n";
     return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

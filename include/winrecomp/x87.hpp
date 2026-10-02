@@ -46,7 +46,11 @@ inline void x87_env(Cpu& s,Memory& m,U32 address,bool restore,bool registers) {
     auto get16=[&](unsigned off){return std::uint16_t(U32(buffer[off])|(U32(buffer[off+1])<<8));};
     auto get32=[&](unsigned off){return U32(get16(off))|(U32(get16(off+2))<<16);};
     if(restore) {
-        m.copy_out(address,std::span(buffer.data(),size));auto next=s.fp;
+        m.copy_out(address,std::span(buffer.data(),size));
+        // This flat guest profile stores zero FCS/FDS. Do not silently discard
+        // nonzero legacy selector state supplied by a different environment.
+        if(get16(16) || get16(24))throw GuestFault(FaultKind::unsupported,s.eip,"nonzero x87 environment selectors require a segmented guest profile");
+        auto next=s.fp;
         next.put16(0,get16(0));next.put16(2,get16(4));next.bytes[4]=0;const auto tag=get16(8);
         for(unsigned k=0;k<8;++k)if(((tag>>(k*2))&3u)!=3u)next.bytes[4]|=std::uint8_t(1u<<k);
         next.put64(8,get32(12));next.put16(6,std::uint16_t(get16(18)&0x7ff));next.put64(16,get32(20));

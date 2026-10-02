@@ -5,6 +5,7 @@
 #include <random>
 #include <fstream>
 #include <stdexcept>
+#include <cstdlib>
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
@@ -14,6 +15,9 @@ namespace {
 wr::Image image(){wr::Image x;x.base=0x400000;x.entry=0x401000;x.size=0x4000;x.headers_size=512;x.bytes.resize(1536);x.sections={{".text",0x1000,512,512,512,0x60000020},{".data",0x2000,0x1800,1024,512,0xc0000040}};x.bytes[512]=0xc3;return x;}
 bool step(wr::Cpu& cpu,wr::Memory& memory,std::uint64_t&) {if(cpu.eip==0x401000){wr::check_code(memory,cpu.eip,{0xc3});cpu.eip=wr::pop(cpu,memory);return true;}return false;}
 wr::U32 call(wr::Process& p,const std::string& name,std::initializer_list<wr::U32> args={}) {
+    // Flush the API boundary before calling host code so native CI faults retain
+    // their last known operation rather than leaving an empty test log.
+    std::cerr<<"process API: "<<name<<'\n';
     const auto sp=p.cpu.r[wr::ESP],pc=p.cpu.eip;auto nonvolatile=p.cpu.r;
     for(auto it=args.end();it!=args.begin();)wr::push(p.cpu,p.memory,*--it);wr::push(p.cpu,p.memory,pc);p.cpu.eip=p.resolve("kernel32.dll",name);
     CHECK(p.cpu.eip!=0);CHECK(p.dispatch_api());CHECK(p.cpu.r[wr::ESP]==sp);CHECK(p.cpu.eip==pc);
@@ -21,7 +25,15 @@ wr::U32 call(wr::Process& p,const std::string& name,std::initializer_list<wr::U3
 }
 template<class F> void fault(F&& f,wr::FaultKind kind){bool caught=false;try{f();}catch(const wr::GuestFault& e){caught=true;CHECK(e.kind==kind);}CHECK(caught);}
 }
-int main(){try{
+int main(){
+#ifdef _WIN32
+    SetErrorMode(SEM_FAILCRITICALERRORS|SEM_NOGPFAULTERRORBOX);
+    _set_thread_local_invalid_parameter_handler([](const wchar_t*,const wchar_t*,const wchar_t*,unsigned,uintptr_t){
+        std::cerr<<"CRT rejected a native argument in process fixture\n";std::abort();
+    });
+#endif
+try{
+    std::cerr<<"process fixture started\n";
     CHECK(wr::sha256({})=="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
     const std::string abc="abc";CHECK(wr::sha256(std::span(reinterpret_cast<const std::uint8_t*>(abc.data()),abc.size()))=="ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
     std::vector<std::uint8_t> million(1000000,'a');CHECK(wr::sha256(million)=="cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0");

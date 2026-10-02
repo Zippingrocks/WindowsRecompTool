@@ -1,7 +1,7 @@
 """Generated C++ x87 vs uninterrupted original FP instructions on native x64.
 
-This is a hardware x87 oracle, not an IA-32 whole-program oracle. Only our own
-FP-only, dual-mode instruction fixtures are accepted. Pointer-bearing environment
+This is a hardware x87 oracle, not an IA-32 whole-program oracle. Author-written fixtures or SHA-bound, conservatively selected
+FP-only target sequences are accepted. Pointer-bearing environment
 fields and undefined empty-register payloads are excluded, explicitly. The main
 integer suite independently compares against Unicorn and native i386 on CI.
 """
@@ -37,6 +37,8 @@ def original_asm(name,code,masm):
 
 def inputs(fmt,k,rng):
     b=bytearray(128)
+    if fmt.startswith('target_'):
+        return inputs('simd64' if fmt=='target_f64' else 'simd32',k,rng)
     if fmt.startswith('simd'):
         if fmt=='simd_integer':
             b[:]=rng.randbytes(128)
@@ -65,9 +67,14 @@ def inputs(fmt,k,rng):
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--tool',type=Path,required=True);ap.add_argument('--out',type=Path,required=True);ap.add_argument('--native-lib',type=Path,required=True);ap.add_argument('--cxx',default='c++');ap.add_argument('--vectors',type=int,default=192)
-    ap.add_argument('--simd',action='store_true');a=ap.parse_args();a.out=a.out.resolve();a.out.mkdir(parents=True,exist_ok=True);a.tool=a.tool.resolve();a.native_lib=a.native_lib.resolve()
+    ap.add_argument('--simd',action='store_true');ap.add_argument('--target',type=Path);ap.add_argument('--contract',type=Path);a=ap.parse_args();a.out=a.out.resolve();a.out.mkdir(parents=True,exist_ok=True);a.tool=a.tool.resolve();a.native_lib=a.native_lib.resolve()
     started=time.perf_counter()
-    if a.simd:
+    target_metadata=None
+    if a.target:
+        if a.simd or not a.contract:raise RuntimeError('Target x87 corpus requires --contract and cannot use --simd')
+        from target_fp import load
+        items,target_metadata=load(a.tool,a.target,a.contract)
+    elif a.simd:
         from simd_cases import cases as simd_cases
         items=simd_cases()
     else:items=cases()
@@ -128,7 +135,9 @@ try {
             src=inputs(case['format'],v,rng);ints=[rng.getrandbits(32),0x202|(rng.getrandbits(12)&c.STATUS)]
             values=[]
             for original in [False,True]:
-                state=(ct.c_ubyte*512).from_buffer_copy(fp);source=(ct.c_ubyte*128).from_buffer_copy(src);dest=(ct.c_ubyte*128)();integers=(ct.c_uint32*2)(*ints)
+                state=(ct.c_ubyte*512).from_buffer_copy(fp);source=(ct.c_ubyte*128).from_buffer_copy(src)
+                initial_destination=inputs(case['format'],v+17,random.Random(k*100000+v)) if a.target else bytes(128)
+                dest=(ct.c_ubyte*128).from_buffer_copy(initial_destination);integers=(ct.c_uint32*2)(*ints)
                 status=dll.fp_run(k,state,source,dest,integers,img,len(image),original)
                 if status:raise RuntimeError(f'{case["name"]}/{v}: '+dll.fp_error().decode())
                 values.append((bytes(state),bytes(dest),list(integers)))
@@ -145,7 +154,11 @@ try {
             am,em=bytearray(actual[1]),bytearray(expected[1])
             if case['environment']:
                 # Original native pointers cannot equal the generated guest pointers.
-                am[12:24]=em[12:24]=bytes(12)
+                # Offsets 12..25 contain FIP, FCS, FOP, FDP and FDS in the
+                # 28-byte legacy environment. FDS (24..25) is nonzero on some
+                # Windows hosts, even though the flat guest profile uses zero.
+                # Reserved bytes 26..27, control/status/tags and data remain checked.
+                am[12:26]=em[12:26]=bytes(14)
                 # Payload of empty x87 registers is undefined after INIT/stack faults.
                 if case['name']=='save_restore':
                     tagword=struct.unpack_from('<H',em,8)[0];saved_top=(struct.unpack_from('<H',em,4)[0]>>11)&7
@@ -155,6 +168,7 @@ try {
                 off=next(n for n,(x,y) in enumerate(zip(am,em)) if x!=y)
                 raise RuntimeError(f'{case["name"]}/{v} memory mismatch at {off}: {am.hex()} != {em.hex()}')
         results.append({'name':case['name'],'vectors':a.vectors,'result':'pass'});print('PASS native '+('SSE2' if a.simd else 'x87'),case['name'],a.vectors,flush=True)
-    report={'schema':'winrecomp.'+('sse2' if a.simd else 'x87')+'-conformance.v1','oracle':'native x86-64 hardware, uninterrupted original '+('SSE/SSE2' if a.simd else 'x87')+' byte fixtures in long mode','native_pointer_bits':ct.sizeof(ct.c_void_p)*8,'cases':results,'total_vectors':len(results)*a.vectors,'control_modes':16 if a.simd else 12,'elapsed_seconds':round(time.perf_counter()-started,3),'exclusions':['FIP/FDP/FOP host-versus-guest environment fields','empty-register payloads'],'not_a_native_i386_whole_program_oracle':True}
+    report={'schema':'winrecomp.'+('sse2' if a.simd else 'x87')+'-conformance.v1','oracle':'native x86-64 hardware, uninterrupted original '+('SSE/SSE2' if a.simd else 'x87')+' byte fixtures in long mode','native_pointer_bits':ct.sizeof(ct.c_void_p)*8,'cases':results,'total_vectors':len(results)*a.vectors,'control_modes':16 if a.simd else 12,'elapsed_seconds':round(time.perf_counter()-started,3),'exclusions':['FIP/FCS/FOP/FDP/FDS host-versus-flat-guest environment fields (legacy bytes 12..25)','empty-register payloads'],'not_a_native_i386_whole_program_oracle':True}
+    if target_metadata:report['target_corpus']=target_metadata
     (a.out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps({k:v for k,v in report.items() if k!='cases'},indent=2))
 if __name__=='__main__':main()
