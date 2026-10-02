@@ -1,0 +1,30 @@
+name: Recoverable source checkpoint
+on:
+  push:
+    branches: [work/runtime-checkpoint]
+    paths: ['.github/workflows/source-checkpoint.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+      - name: Preserve all fetched source history
+        run: |
+          git bundle create WinRecomp.bundle --all
+          git bundle verify WinRecomp.bundle
+          sha256sum WinRecomp.bundle > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: recoverable-source
+          path: |
+            WinRecomp.bundle
+            SHA256SUMS
+          retention-days: 30
+          if-no-files-found: error
