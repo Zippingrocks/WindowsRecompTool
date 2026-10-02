@@ -1,4 +1,5 @@
 #include "winrecomp/process.hpp"
+#include "winrecomp/gui.hpp"
 #include "winrecomp/hash.hpp"
 #include "winrecomp/win32_state.hpp"
 #include <cctype>
@@ -26,11 +27,14 @@ Process::Process(StepFunction step,ProcessOptions opts):win32_(std::make_unique<
     if(!budget)throw std::runtime_error("instruction budget must be nonzero");
     options.data_root=std::filesystem::canonical(options.data_root);
     install_win32(*this);
+    install_gui(*this);
 }
-Process::~Process()=default;
+Process::~Process(){shutdown_gui(*this);}
 Win32State& Process::state(){return *win32_;}
+const Win32State& Process::state() const{return *win32_;}
 void Process::load(const Image& image) {
     if(loaded_)throw std::runtime_error("process already has an image");
+    auto resources=ResourceTable::parse(image);
     if(image.base%4096 || image.size%4096)throw std::runtime_error("runtime requires page-aligned image base and size");
     if(image.directories[13].rva)throw std::runtime_error("delay imports not supported by this loader");
     if(image.directories[14].rva)throw std::runtime_error("managed PE runtime not supported");
@@ -61,6 +65,7 @@ void Process::load(const Image& image) {
         const std::array<std::uint8_t,4> bytes{std::uint8_t(thunk),std::uint8_t(thunk>>8),std::uint8_t(thunk>>16),std::uint8_t(thunk>>24)};
         memory.initialize(item.iat,bytes);
     }
+    state().resources=std::move(resources);
     loaded_=true;set_error(0);
 }
 void Process::register_api(const std::string& dll,const std::string& name,unsigned arguments,std::function<U32(Process&)> fn,bool caller_cleans_stack) {
@@ -179,14 +184,15 @@ U32 Process::put_string(const std::string& string){auto p=allocate_bytes(string.
 U32 Process::put_wstring(const std::u16string& string){auto p=allocate_bytes((string.size()+1)*2);for(std::size_t n=0;n<=string.size();++n)memory.store(p+U32(n*2),n==string.size()?0:U32(string[n]),16);return p;}
 std::string Process::report() const {
     std::ostringstream out;out<<"{\"schema\":\"winrecomp.process.v1\",\"input_sha256\":"<<quote(input_sha256)<<",\"exited\":"<<(exited_?"true":"false")<<",\"exit_code\":"<<exit_code_<<",\"eip\":"<<cpu.eip<<",\"esp\":"<<cpu.r[ESP]<<",\"native_instructions\":"<<executed_instructions<<",\"api_calls\":"<<api_calls<<",\"budget_left\":"<<budget<<",\"recent_transfers\":[";
-    bool first=true;for(const auto& x:recent_transfers){if(!first)out<<',';first=false;out<<"{\"pc\":"<<x.pc<<",\"return\":"<<x.return_address<<",\"api\":"<<quote(x.api)<<",\"arguments\":[";for(std::size_t n=0;n<x.arguments.size();++n){if(n)out<<',';out<<x.arguments[n];}out<<"],\"detail\":"<<quote(x.detail)<<"}";}out<<"]}";return out.str();
+    bool first=true;for(const auto& x:recent_transfers){if(!first)out<<',';first=false;out<<"{\"pc\":"<<x.pc<<",\"return\":"<<x.return_address<<",\"api\":"<<quote(x.api)<<",\"arguments\":[";for(std::size_t n=0;n<x.arguments.size();++n){if(n)out<<',';out<<x.arguments[n];}out<<"],\"detail\":"<<quote(x.detail)<<"}";}out<<"],\"gui\":"<<gui_report(*this)<<"}";return out.str();
 }
 int run_program(int argc,char** argv,StepFunction step,const char* expected_sha256) {
     std::unique_ptr<Process> process;std::string report_path;
     try {
-        if(argc<2)throw std::runtime_error("usage: recompiled_program original.exe [--root data-directory] [--budget N] [--report report.json] [--allow-write]");
+        if(argc<2)throw std::runtime_error("usage: recompiled_program original.exe [--root data-directory] [--budget N] [--report report.json] [--allow-write] [--gui]");
         ProcessOptions options;options.image_name=std::filesystem::path(argv[1]).filename().string();options.command_line='"'+std::filesystem::path(argv[1]).filename().string()+'"';
         for(int n=2;n<argc;++n){const std::string arg=argv[n];if(arg=="--allow-write"){options.allow_file_write=true;continue;}
+            if(arg=="--gui"){options.enable_gui=true;continue;}
             if(n+1>=argc)throw std::runtime_error("missing option value");const std::string value=argv[++n];
             if(arg=="--root")options.data_root=value;else if(arg=="--report")report_path=value;else if(arg=="--command-line")options.command_line=value;
             else if(arg=="--budget"){std::size_t used{};options.instruction_budget=std::stoull(value,&used);if(used!=value.size() || value.empty() || value[0]=='-')throw std::runtime_error("invalid budget");}

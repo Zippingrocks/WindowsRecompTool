@@ -1,5 +1,6 @@
 #pragma once
 #include "winrecomp/runtime.hpp"
+#include "winrecomp/resources.hpp"
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
@@ -7,7 +8,10 @@
 #include <map>
 #include <set>
 namespace wr {
+struct GuiState;
 struct Win32State {
+    ResourceTable resources;
+    std::shared_ptr<GuiState> gui;
     struct Heap {U32 maximum{};std::map<U32,U32> blocks;};
     struct File { std::FILE* stream{};bool owned{},read{},write{};U32 type{1};std::filesystem::path path;U32 share{7}; };
     struct Find {

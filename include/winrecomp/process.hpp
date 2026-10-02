@@ -13,6 +13,7 @@ struct ProcessOptions {
     std::filesystem::path data_root{"."};
     std::string command_line{"program.exe"},image_name{"program.exe"};
     bool allow_file_write{false};
+    bool enable_gui{false}; // Explicit opt-in; real native Windows backend only.
     std::string user_name{"WinRecomp"};
 };
 class Process {
@@ -62,6 +63,7 @@ public:
     U32 put_wstring(const std::u16string& string);
     void set_error(U32 value);
     Win32State& state();
+    const Win32State& state() const;
     std::string report() const;
 };
 void install_win32(Process& process);

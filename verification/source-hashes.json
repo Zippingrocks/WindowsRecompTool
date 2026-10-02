@@ -3,7 +3,7 @@
   "note": "Exact owned-source/measurement bytes of the locally tested runtime candidate; raw Git blobs avoid platform newline conversion. No game binary/source included.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "2a800e3753423392825ac75a3b3947be575a2bac29899622195123fe06e4edd4",
+    "CMakeLists.txt": "0fb55bf1d06e5ad61388e7e29b62a8d79c515444235ef0da85da64be5bdebe54",
     "include/winrecomp/compiled.hpp": "2142de2df49af250cbdab8b3c7346d01f3ca1d2d9f329c5c5ed409b8c65f32aa",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
@@ -11,16 +11,16 @@
     "include/winrecomp/integer.hpp": "10777e00720fc8b00d40c808dac4bc90ee234d404297d4076ec1721ef73666a7",
     "include/winrecomp/memory.hpp": "e3472005eb3bc17e04947b0e9a409c369ef76c9d1f57a8f260ed59261bbe92fd",
     "include/winrecomp/nls_reference.hpp": "7adced99976b988e3adaa654089aa89dad0ea3f67f42c2c9cc81e9437ab0800b",
-    "include/winrecomp/process.hpp": "289f86212e83998903260310b7308c41b3a91a58df6ce3e8b618f20793f63f63",
+    "include/winrecomp/process.hpp": "f528ae446ab3ab0e85c9bb5ebc44720af345f04c4dbcd1655449ab30d46df3ed",
     "include/winrecomp/runtime.hpp": "1b9b5f292090263021881c70d45c7428b93b755621173f79870d822cc702399f",
     "include/winrecomp/sse.hpp": "edf9b6d8e6284160e8576f5d4887bd64e8a96736c7cd47514fbb9fab01bfdfc8",
-    "include/winrecomp/win32_state.hpp": "fd3bddcc125cd92d3154f0bbfb22e9b353d11eea5330eeed13ba5a106baea1be",
+    "include/winrecomp/win32_state.hpp": "da1cd296108ea3a1868e3744cfd26c8db5648dee8d54ddf671bc6398773392b3",
     "include/winrecomp/x87.hpp": "5d03e1ff93484bb68769ea19129c7a55b70d0a66e041d63d3e88376e8d965d05",
     "src/cfg.cpp": "1c116ba448dd1933c2561db3d19b1e9a76c9afbed0da91da36bf373d0ced25ae",
     "src/lift.cpp": "2bfa9299f020ee4af90b7c3206e954e54a218d56e0b8520ba800e88e04ca12f7",
     "src/main.cpp": "2d4d97d2b932dbb37bcc1b23083c1d0a2d14a7ad91ebba5148dec66c4d811ac7",
     "src/pe.cpp": "889313ff14249f272a983ae177286e3f51abc04d2b3c1fcbc24a9e698c13c148",
-    "src/runtime/process.cpp": "f5cae7d0f4f17244338994c7c597b12a51e3e78b747727e44ca73b22f1221225",
+    "src/runtime/process.cpp": "6ef3f8532136c025645f387ca898c1a8b6dec96a516d5b6b696d11ca4d9768b3",
     "src/runtime/win32.cpp": "147d1e4622896478184714287508e4e52cc84867f94833c780b8fae6ea5dc3ae",
     "src/x86.cpp": "e0142766b0362ec456aa09717cd364a0b5d219d2bb2727118c5909f92c6693bf",
     "tests/abi_callbacks.py": "41084cade380e5f2d3b078108b1083d06281264f9c5fd7561aad17664e17460d",
@@ -48,6 +48,13 @@
     "tools/validate_target.py": "5072c45f1b1cc4dae6a29f55d1b18cb0f6ca32f26007cc39bf446919a3340a3f",
     "verification/windows-nls-observations.json": "d3827e315a5f8e8c02c9963ed0f088a6d2a68aac9bfa0c251c40242d77a04f5d",
     "tests/target_fp.py": "66349082ea7b99ccb0df905ec3c463bb329ee4c7827a86687e419668b3f55a43",
-    "tests/target_fp_selector.py": "ad674e96f2a07ee56bc02b33726512cc6d9724bbc951f0285a3f8e2f2e984784"
+    "tests/target_fp_selector.py": "ad674e96f2a07ee56bc02b33726512cc6d9724bbc951f0285a3f8e2f2e984784",
+    "include/winrecomp/gui.hpp": "b808ca7de50cd49b204eccb829a60145824b8604e20a45344c24fc952a14216b",
+    "include/winrecomp/resources.hpp": "00a9f70af012ced583b10227f351f3ee846e9648a67ebe9541029e97a12968fc",
+    "src/runtime/gui.cpp": "b9ef6737cfb17036eb840021f49ae15f1e37a7e44e46353629daa99939e7cfcf",
+    "src/runtime/resources.cpp": "92bb0193b6e73c725aa6c86f382eeeee0c2f8011f9219b71543d4c52ed800820",
+    "tests/gui.cpp": "2382dc947125e32b97304607382e0ac675ec31c7f607191addc2b21c2072c957",
+    "tests/gui_program.py": "4560f3d2a483b801b110bad56c2508a2e5b003cd2801d92b707b55e8b28ef8af",
+    "tests/resources.cpp": "02e49aaea671fa209934716cd5e855222935b88538a1e15cd8e9241952f32c6e"
   }
 }
