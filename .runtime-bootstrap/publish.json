@@ -1,8 +1,0 @@
-{
-  "base": "43497cf7ef28e7655fc26331c6cccbf0254f96da",
-  "patch_sha256": "508277c3aedfdc13ee9e533dd3c16b19cdc8a2aa89f1c7ad763950726f49f65a",
-  "sha256": {
-    "src/runtime/win32.cpp": "147d1e4622896478184714287508e4e52cc84867f94833c780b8fae6ea5dc3ae",
-    "tests/process.cpp": "c37f49d58159899168decfc0f07fee923b88ad4f7a827a0f9fc36716e8fbc22e"
-  }
-}

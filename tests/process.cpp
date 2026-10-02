@@ -93,6 +93,20 @@ try{
     auto drive=p.put_string("C:\\"),volume=p.allocate_bytes(1024);
     CHECK(call(p,"GetLogicalDrives")==4);CHECK(call(p,"GetDriveTypeA",{drive})>=2);
     CHECK(call(p,"GetVolumeInformationA",{drive,volume,256,volume+512,volume+516,volume+520,volume+256,256})==1);CHECK(p.memory.load(volume+516,32)>0);CHECK(!p.read_string(volume+256).empty());
+#ifdef _WIN32
+    // Compare the marshalled virtual C: information against its actual host root.
+    // The native API documents MAX_PATH+1 as its maximum output buffer size.
+    char native_label[MAX_PATH+1]{},native_fs[MAX_PATH+1]{};DWORD serial{},max_component{},volume_flags{};
+    auto host_root=p.options.data_root.root_path().string();
+    CHECK(::GetVolumeInformationA(host_root.c_str(),native_label,sizeof(native_label),&serial,&max_component,&volume_flags,native_fs,sizeof(native_fs)));
+    CHECK(p.read_string(volume)==native_label && p.read_string(volume+256)==native_fs);
+    CHECK(p.memory.load(volume+512,32)==serial && p.memory.load(volume+516,32)==max_component && p.memory.load(volume+520,32)==volume_flags);
+#endif
+    // Optional buffers stay optional; a size error cannot corrupt guest outputs.
+    CHECK(call(p,"GetVolumeInformationA",{drive,0,0,0,0,0,0,0})==1);
+    p.memory.store(volume,0x12345678,32);
+    CHECK(call(p,"GetVolumeInformationA",{drive,volume,0,0,0,0,0,0})==0);
+    CHECK(call(p,"GetLastError")==122 && p.memory.load(volume,32)==0x12345678);
     auto message=p.put_string("WinRecomp plain message");CHECK(call(p,"FormatMessageA",{0x600,message,0,0,volume,256,0})==23);CHECK(p.read_string(volume)=="WinRecomp plain message");
     CHECK(call(p,"FormatMessageA",{0x600,message,0,0,volume,1,0})==0);CHECK(call(p,"GetLastError")==122);
     CHECK(call(p,"FormatMessageA",{0x700,message,0,0,volume,256,0})==23);auto allocated_message=p.memory.load(volume,32);CHECK(p.read_string(allocated_message)=="WinRecomp plain message");CHECK(call(p,"LocalFree",{allocated_message})==0);

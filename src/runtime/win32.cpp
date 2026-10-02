@@ -556,7 +556,11 @@ void install_win32(Process& p) {
         const auto label=arg(q,1),label_size=arg(q,2),serial=arg(q,3),length=arg(q,4),flags=arg(q,5),fs=arg(q,6),fs_size=arg(q,7);
         std::string volume="WinRecomp",filesystem="POSIX";U32 number=0x57524350u,max_component=255,attributes=3;
 #ifdef _WIN32
-        char native_label[32768]{},native_fs[32768]{};DWORD native_serial{},native_max{},native_flags{};
+        // GetVolumeInformation limits BOTH buffers to MAX_PATH+1 characters.
+        // Passing 32768 was outside that contract and triggered a heap overflow
+        // inside the Windows ANSI wrapper before a later, unrelated heap free.
+        // Host buffer bounds are fixed here, never copied from guest capacities.
+        char native_label[MAX_PATH+1]{},native_fs[MAX_PATH+1]{};DWORD native_serial{},native_max{},native_flags{};
         auto hostroot=q.options.data_root.root_path().string();if(!::GetVolumeInformationA(hostroot.c_str(),native_label,sizeof(native_label),&native_serial,&native_max,&native_flags,native_fs,sizeof(native_fs))){q.set_error(::GetLastError());return 0;}
         volume=native_label;filesystem=native_fs;number=native_serial;max_component=native_max;attributes=native_flags;
 #else
