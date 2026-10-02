@@ -51,7 +51,7 @@
     "tests/target_fp_selector.py": "ad674e96f2a07ee56bc02b33726512cc6d9724bbc951f0285a3f8e2f2e984784",
     "include/winrecomp/gui.hpp": "b808ca7de50cd49b204eccb829a60145824b8604e20a45344c24fc952a14216b",
     "include/winrecomp/resources.hpp": "00a9f70af012ced583b10227f351f3ee846e9648a67ebe9541029e97a12968fc",
-    "src/runtime/gui.cpp": "b9ef6737cfb17036eb840021f49ae15f1e37a7e44e46353629daa99939e7cfcf",
+    "src/runtime/gui.cpp": "4dfae4dffc8305fa24f6e8345465e3715d3d584d43824297d7a5c3b299a8ab83",
     "src/runtime/resources.cpp": "92bb0193b6e73c725aa6c86f382eeeee0c2f8011f9219b71543d4c52ed800820",
     "tests/gui.cpp": "2382dc947125e32b97304607382e0ac675ec31c7f607191addc2b21c2072c957",
     "tests/gui_program.py": "4560f3d2a483b801b110bad56c2508a2e5b003cd2801d92b707b55e8b28ef8af",

@@ -21,7 +21,7 @@ struct GuiWindow {
     struct Paint {PAINTSTRUCT native{};U32 pointer{},dc{};};
     std::optional<Paint> paint;
 };
-struct GuiFrame;
+namespace { struct GuiFrame; }
 #endif
 struct GuiState {
     std::thread::id owner=std::this_thread::get_id();
@@ -136,7 +136,7 @@ struct GuiFrame {
     U32 raw(void* pointer,std::size_t size){
         const auto at=alloc(size);
         into_guest.push_back([this,pointer,size,at]{p.memory.copy_in(at,std::span(reinterpret_cast<const std::uint8_t*>(pointer),size));});
-        into_native.push_back([this,pointer,size,at]{auto bytes=p.memory.copy_out(at,size);std::memcpy(pointer,bytes.data(),size);});
+        into_native.push_back([this,pointer,size,at]{p.memory.copy_out(at,std::span(reinterpret_cast<std::uint8_t*>(pointer),size));});
         return at;
     }
     U32 position(WINDOWPOS* v){
@@ -159,7 +159,7 @@ struct GuiFrame {
             if(!nw)lp=raw(reinterpret_cast<void*>(nl),16);
             else {auto* c=reinterpret_cast<NCCALCSIZE_PARAMS*>(nl);lp=alloc(52);auto pos=position(c->lppos);
                 into_guest.push_back([this,c,pos]{p.memory.copy_in(lp,std::span(reinterpret_cast<const std::uint8_t*>(c->rgrc),48));p.memory.store(lp+48,pos,32);});
-                into_native.push_back([this,c,pos]{if(p.memory.load(lp+48,32)!=pos)unsupported(p,"NCCALCSIZE pointer mutation is not supported");auto bytes=p.memory.copy_out(lp,48);std::memcpy(c->rgrc,bytes.data(),48);});}
+                into_native.push_back([this,c,pos]{if(p.memory.load(lp+48,32)!=pos)unsupported(p,"NCCALCSIZE pointer mutation is not supported");p.memory.copy_out(lp,std::span(reinterpret_cast<std::uint8_t*>(c->rgrc),48));});}
             break;
         case WM_SETTEXT:{auto* text=reinterpret_cast<const char*>(nl);std::size_t length{};if(text){while(length<32768 && text[length])++length;if(length==32768)unsupported(p,"oversized native window text");lp=alloc(length+1);p.memory.copy_in(lp,std::span(reinterpret_cast<const std::uint8_t*>(text),length+1));}break;}
         case WM_GETTEXT:{if(nw>32768)unsupported(p,"oversized native window text request");if(nw)std::memset(reinterpret_cast<void*>(nl),0,std::size_t(nw));lp=nw?raw(reinterpret_cast<void*>(nl),std::size_t(nw)):0;break;}
@@ -301,12 +301,12 @@ void install_gui(Process& p){
     add("TranslateMessage",1,[](auto& q)->U32{auto msg=read_msg(q,arg(q,0));return ::TranslateMessage(&msg)!=FALSE;});
     add("DispatchMessageA",1,[](auto& q)->U32{auto msg=read_msg(q,arg(q,0));++gui(q).dispatched;auto result=::DispatchMessageA(&msg);rethrow(gui(q));return scalar(q,std::uintptr_t(result));});
     for(bool client:{false,true})add(client?"GetClientRect":"GetWindowRect",2,[client](auto& q)->U32{auto out=arg(q,1);q.memory.check(out,16,Memory::Write);auto h=owned_window(q,arg(q,0))->hwnd;RECT r{};auto result=client?::GetClientRect(h,&r) : ::GetWindowRect(h,&r);if(!result){q.set_error(::GetLastError());return 0;}q.memory.copy_in(out,std::span(reinterpret_cast<const std::uint8_t*>(&r),16));return 1;});
-    add("InvalidateRect",3,[](auto& q)->U32{RECT r{};if(arg(q,1)){auto bytes=q.memory.copy_out(arg(q,1),16);std::memcpy(&r,bytes.data(),16);}auto result=::InvalidateRect(owned_window(q,arg(q,0))->hwnd,arg(q,1)?&r:nullptr,arg(q,2)!=0);if(!result)q.set_error(::GetLastError());return result!=FALSE;});
+    add("InvalidateRect",3,[](auto& q)->U32{RECT r{};if(arg(q,1)){q.memory.copy_out(arg(q,1),std::span(reinterpret_cast<std::uint8_t*>(&r),16));}auto result=::InvalidateRect(owned_window(q,arg(q,0))->hwnd,arg(q,1)?&r:nullptr,arg(q,2)!=0);if(!result)q.set_error(::GetLastError());return result!=FALSE;});
     add("BeginPaint",2,[](auto& q)->U32{auto w=owned_window(q,arg(q,0));auto out=arg(q,1);q.memory.check(out,64,Memory::Write);if(w->paint)unsupported(q,"nested BeginPaint on the same window");GuiWindow::Paint paint;paint.pointer=out;auto dc=::BeginPaint(w->hwnd,&paint.native);if(!dc){q.set_error(::GetLastError());return 0;}paint.dc=token(gui(q),Kind::dc,reinterpret_cast<std::uintptr_t>(dc));w->paint=paint;rethrow(gui(q));std::vector<std::uint8_t> zero(64);q.memory.copy_in(out,zero);q.memory.store(out,paint.dc,32);q.memory.store(out+4,U32(paint.native.fErase),32);q.memory.copy_in(out+8,std::span(reinterpret_cast<const std::uint8_t*>(&paint.native.rcPaint),16));q.memory.store(out+24,U32(paint.native.fRestore),32);q.memory.store(out+28,U32(paint.native.fIncUpdate),32);q.memory.copy_in(out+32,std::span(paint.native.rgbReserved,32));++gui(q).paints;return paint.dc;});
     add("EndPaint",2,[](auto& q)->U32{auto w=owned_window(q,arg(q,0));if(!w->paint || w->paint->pointer!=arg(q,1))unsupported(q,"EndPaint does not match an active BeginPaint");if(q.memory.load(arg(q,1),32)!=w->paint->dc)unsupported(q,"modified PAINTSTRUCT HDC");auto value=::EndPaint(w->hwnd,&w->paint->native);w->paint.reset();return value!=FALSE;});
     add("SetWindowTextA",2,[](auto& q)->U32{const auto text=q.read_string(arg(q,1));return ::SetWindowTextA(owned_window(q,arg(q,0))->hwnd,text.c_str())!=FALSE;});
     add("GetWindowTextA",3,[](auto& q)->U32{auto cap=arg(q,2);if(!cap)return 0;if(cap>32768)unsupported(q,"GetWindowText buffer bound");q.memory.check(arg(q,1),cap,Memory::Write);std::vector<char> b(cap);auto n=::GetWindowTextA(owned_window(q,arg(q,0))->hwnd,b.data(),int(cap));rethrow(gui(q));q.memory.copy_in(arg(q,1),std::span(reinterpret_cast<const std::uint8_t*>(b.data()),std::size_t(n)+1));return U32(n);});
-    for(bool set:{false,true})add(set?"SetWindowLongA":"GetWindowLongA",set?3:2,[set](auto& q)->U32{auto w=owned_window(q,arg(q,0));auto index=signed32(arg(q,1));U32* at=index==GWL_USERDATA?&w->userdata:index==GWL_WNDPROC?&w->proc:nullptr;if(!at)unsupported(q,"unsupported guest window-long field");auto old=*at;if(set){if(index==GWL_WNDPROC)q.memory.check(arg(q,2),1,Memory::Execute);*at=arg(q,2);}return old;});
+    for(bool set:{false,true})add(set?"SetWindowLongA":"GetWindowLongA",set?3:2,[set](auto& q)->U32{auto w=owned_window(q,arg(q,0));auto index=signed32(arg(q,1));U32* at=index==GWLP_USERDATA?&w->userdata:index==GWLP_WNDPROC?&w->proc:nullptr;if(!at)unsupported(q,"unsupported guest window-long field");auto old=*at;if(set){if(index==GWLP_WNDPROC)q.memory.check(arg(q,2),1,Memory::Execute);*at=arg(q,2);}return old;});
     add("SetWindowPos",7,[](auto& q)->U32{auto result=::SetWindowPos(owned_window(q,arg(q,0))->hwnd,zorder(q,arg(q,1)),signed32(arg(q,2)),signed32(arg(q,3)),signed32(arg(q,4)),signed32(arg(q,5)),arg(q,6));if(!result)q.set_error(::GetLastError());return result!=FALSE;});
     add("GetSystemMetrics",1,[](auto& q)->U32{return U32(::GetSystemMetrics(signed32(arg(q,0))));});
     add("GetKeyState",1,[](auto& q)->U32{return U32(std::int32_t(::GetKeyState(signed32(arg(q,0)))));});
