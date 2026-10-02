@@ -1,0 +1,36 @@
+name: Decoder dependency snapshot
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/decoder-dependency.yml'
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Fetch pinned Zydis with its pinned Zycore submodule
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init zydis
+          git -C zydis remote add origin https://github.com/zyantific/zydis.git
+          git -C zydis fetch --depth 1 origin a2278f1d254e492f6a6b39f6cb5d1f5d515659dc
+          git -C zydis checkout --detach FETCH_HEAD
+          test "$(git -C zydis rev-parse HEAD)" = a2278f1d254e492f6a6b39f6cb5d1f5d515659dc
+          git -C zydis submodule update --init --recursive --depth 1
+          git -C zydis submodule status --recursive > submodules.txt
+          tar --exclude=.git -czf zydis-source.tar.gz zydis
+          sha256sum zydis-source.tar.gz > SHA256SUMS
+      - name: Preserve sources and original licenses for offline builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: zydis-source-a2278f1
+          path: |
+            zydis-source.tar.gz
+            SHA256SUMS
+            submodules.txt
+          retention-days: 14
+          if-no-files-found: error
