@@ -1,0 +1,26 @@
+name: Windows NLS reference
+on:
+  push:
+    branches: [main]
+    paths:
+      - tests/windows_nls_probe.py
+      - .github/workflows/windows-nls-reference.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: windows-2022
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python tests/windows_nls_probe.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-nls-reference
+          path: windows-nls-reference.json
+          retention-days: 14
+          if-no-files-found: error
