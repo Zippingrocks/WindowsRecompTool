@@ -24,7 +24,7 @@ jobs:
           spec=json.loads(pathlib.Path('.window-bootstrap/patch.json').read_text())
           assert spec['schema']=='winrecomp.window-patch.v1'
           assert 0<spec['size']<1048576
-          encoded=''.join(pathlib.Path(f'.window-bootstrap/part{k}.txt').read_text().strip() for k in range(4))
+          encoded=spec.get('data') or ''.join(pathlib.Path(f'.window-bootstrap/part{k}.txt').read_text().strip() for k in range(4))
           decoder=zlib.decompressobj()
           patch=decoder.decompress(base64.b64decode(encoded,validate=True),1048577)
           assert decoder.eof and not decoder.unconsumed_tail and not decoder.unused_data
@@ -46,7 +46,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m 'feat: native window boundary candidate and original/generated GUI tests'
+          git commit -m 'fix: publish hash-checked native window candidate'
           git push origin HEAD:work/native-window
           echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   verify:
