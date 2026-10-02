@@ -3,15 +3,40 @@
   "edits": [
     {
       "path": "src/runtime/gui.cpp",
-      "before": "b9ef6737cfb17036eb840021f49ae15f1e37a7e44e46353629daa99939e7cfcf",
-      "after": "4dfae4dffc8305fa24f6e8345465e3715d3d584d43824297d7a5c3b299a8ab83",
+      "before": "4dfae4dffc8305fa24f6e8345465e3715d3d584d43824297d7a5c3b299a8ab83",
+      "after": "32818797e0e70024b6b6dfe8fec31cbb2e7c87fbe305ece8c2b72296434310e3",
       "replacements": [
-        ["struct GuiFrame;", "namespace { struct GuiFrame; }"],
-        ["auto bytes=p.memory.copy_out(at,size);std::memcpy(pointer,bytes.data(),size);", "p.memory.copy_out(at,std::span(reinterpret_cast<std::uint8_t*>(pointer),size));"],
-        ["auto bytes=p.memory.copy_out(lp,48);std::memcpy(c->rgrc,bytes.data(),48);", "p.memory.copy_out(lp,std::span(reinterpret_cast<std::uint8_t*>(c->rgrc),48));"],
-        ["auto bytes=q.memory.copy_out(arg(q,1),16);std::memcpy(&r,bytes.data(),16);", "q.memory.copy_out(arg(q,1),std::span(reinterpret_cast<std::uint8_t*>(&r),16));"],
-        ["index==GWL_USERDATA", "index==GWLP_USERDATA"],
-        ["index==GWL_WNDPROC", "index==GWLP_WNDPROC"]
+        ["std::map<std::pair<U32,U32>,U32> shared_icons;", "std::map<std::pair<U32,ResourceName>,U32> shared_icons;"],
+        ["auto& g=gui(p);U32 module=arg(p,0),name=arg(p,1);const auto key=std::pair{module,name};", "auto& g=gui(p);U32 module=arg(p,0),name=arg(p,1);\n    const auto resolved_name=module?resource_name(p,name):ResourceName{name};\n    const auto key=std::pair{module,resolved_name};"],
+        ["p.state().resources.find(14u,resource_name(p,name))", "p.state().resources.find(14u,resolved_name)"],
+        ["LRESULT CALLBACK bridge(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) noexcept {", "void retire_window(GuiState& g,GuiWindow& w) noexcept {\n    w.dead=true;auto it=g.handles.find(w.id);if(it!=g.handles.end())it->second.native=0;\n    if(w.hwnd)::SetWindowLongPtrA(w.hwnd,GWLP_USERDATA,0);\n}\nLRESULT CALLBACK bridge(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) noexcept {"],
+        ["w->dead=true;::SetWindowLongPtrA(hwnd,GWLP_USERDATA,0);", "retire_window(g,*w);"],
+        ["w->id=g.next_handle;g.next_handle+=16;", "if(g.next_handle>=0xbf000000u)unsupported(p,\"GUI handle table exhausted\");\n    w->id=g.next_handle;g.next_handle+=16;"],
+        ["    add(\"SetWindowTextA\",2,", "    add(\"GetClassNameA\",3,[](auto& q)->U32{auto w=owned_window(q,arg(q,0));auto cap=arg(q,2);if(!cap){q.set_error(ERROR_INVALID_PARAMETER);return 0;}if(cap>32768)unsupported(q,\"GetClassName buffer bound\");q.memory.check(arg(q,1),cap,Memory::Write);const auto& name=w->cls->guest_name;auto n=std::min<std::size_t>(name.size(),cap-1);q.memory.copy_in(arg(q,1),std::span(reinterpret_cast<const std::uint8_t*>(name.data()),n));q.memory.store(arg(q,1)+U32(n),0,8);return U32(n);});\n    add(\"SetWindowTextA\",2,"],
+        ["{\"GetWindowTextA\",3u}", "{\"GetWindowTextA\",3u},{\"GetClassNameA\",3u}"]
+      ]
+    },
+    {
+      "path": "tests/gui.cpp",
+      "before": "2382dc947125e32b97304607382e0ac675ec31c7f607191addc2b21c2072c957",
+      "after": "7c744ba3a8eda186cc98db342acde36a8c120a5452edf950040b38937ed495a1",
+      "replacements": [
+        ["bool step(wr::Cpu&,wr::Memory&,std::uint64_t&)", "wr::Image icon_image(){\n    auto i=image();i.directories[2]={0x2000,512};\n    auto w16=[&](unsigned at,unsigned value){i.bytes[1024+at]=std::uint8_t(value);i.bytes[1025+at]=std::uint8_t(value>>8);};\n    auto w32=[&](unsigned at,unsigned value){w16(at,value);w16(at+2,value>>16);};\n    w16(14,2);w32(16,3);w32(20,0x80000020);w32(24,14);w32(28,0x80000038);\n    w16(0x20+14,1);w32(0x30,1);w32(0x34,0x80000058);\n    w16(0x38+12,1);w16(0x38+14,1);w32(0x48,0x80000100);w32(0x4c,0x80000070);w32(0x50,101);w32(0x54,0x80000070);\n    w16(0x58+14,1);w32(0x68,0x409);w32(0x6c,0x88);\n    w16(0x70+14,1);w32(0x80,0x409);w32(0x84,0x98);\n    w32(0x88,0x20a8);w32(0x8c,48);w32(0x98,0x20d8);w32(0x9c,20);\n    // One authored opaque-red 1x1 BGRA icon with a DWORD AND mask.\n    w32(0xa8,40);w32(0xac,1);w32(0xb0,2);w16(0xb4,1);w16(0xb6,32);w32(0xbc,4);w32(0xd0,0xffff0000);\n    w16(0xda,1);w16(0xdc,1);w16(0xde,0x0101);w16(0xe2,1);w16(0xe4,32);w32(0xe6,48);w16(0xea,1);\n    w16(0x100,4);unsigned pos=0x102;for(auto c:std::u16string(u\"icon\")){w16(pos,c);pos+=2;}\n    return i;\n}\nbool step(wr::Cpu&,wr::Memory&,std::uint64_t&)"],
+        ["    auto icon=call(p,\"LoadIconA\",{0,32512});", "    {wr::Process resource_process(step,options);resource_process.load(icon_image());\n     auto id=call(resource_process,\"LoadIconA\",{resource_process.image_base,101});CHECK(id);\n     auto name=resource_process.put_string(\"icon\");auto named=call(resource_process,\"LoadIconA\",{resource_process.image_base,name});CHECK(named);\n     CHECK(named==call(resource_process,\"LoadIconA\",{resource_process.image_base,name}));\n     const std::array<std::uint8_t,5> missing{'g','o','n','e',0};resource_process.memory.copy_in(name,missing);\n     CHECK(!call(resource_process,\"LoadIconA\",{resource_process.image_base,name}));CHECK(resource_process.last_error==1814);}\n    auto icon=call(p,\"LoadIconA\",{0,32512});"]
+      ]
+    },
+    {
+      "path": "tests/gui_program.py",
+      "before": "4560f3d2a483b801b110bad56c2508a2e5b003cd2801d92b707b55e8b28ef8af",
+      "after": "d7c5cd9ffb509e317cc6b35fb044a41e1c7420c532ff3bbd4b948ecbdf8dca50",
+      "replacements": [
+        ["'GetClientRect','IsWindow','SetWindowTextA','GetWindowTextA']", "'GetClientRect','IsWindow','SetWindowTextA','GetWindowTextA','GetClassNameA']"],
+        ["code=bytearray();labels={};fixups=[]", "code=bytearray();labels={};fixups=[];failures=[]"],
+        ["    def boolean():emit('85c0');branch('fail','84')", "    def fail_if(condition):\n        name=f'failure_{len(failures)}';failures.append(name);branch(name,condition)\n    def boolean():emit('85c0');fail_if('84')"],
+        ["def check_eax(value):emit('3d');u32(value);branch('fail','85')", "def check_eax(value):emit('3d');u32(value);fail_if('85')"],
+        ["    push(RECT);abs_mov('eax',STATE+16);emit('50');call('GetClientRect');boolean()", "    push(64);push(TEXT);abs_mov('eax',STATE+16);emit('50');call('GetClassNameA');check_eax(len(b'WinRecompAcceptance'))\n    abs_mov('eax',TEXT);check_eax(int.from_bytes(b'WinR','little'))\n    push(RECT);abs_mov('eax',STATE+16);emit('50');call('GetClientRect');boolean()"],
+        ["    assert len(code)<0x600", "    for n,target in enumerate(failures):label(target);push(10+n);call('ExitProcess');emit('c3')\n    assert len(code)<0x600"],
+        ["emit('817828');u32(CLASS);branch('badcreate','85');", "emit('83782800');branch('badcreate','84');"]
       ]
     }
   ]
