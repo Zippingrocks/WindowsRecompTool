@@ -91,3 +91,32 @@ jobs:
             build/Zycore.bundle
           retention-days: 14
           if-no-files-found: warn
+  windows_memory:
+    needs: hydrate
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.hydrate.outputs.source_sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Configure all native C++ boundaries with ASan
+        run: cmake -S . -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=OFF "-DCMAKE_C_FLAGS=/fsanitize=address /Zi" "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO /DEBUG"
+      - name: Compile native process and NLS regressions
+        run: cmake --build build-asan --target winrecomp_process_tests winrecomp_nls_tests --parallel 2
+      - name: Execute native process and NLS regressions
+        run: ctest --test-dir build-asan -R '^(process|nls)$' --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-memory-diagnostics
+          path: build-asan/Testing/Temporary/LastTest.log
+          retention-days: 14
+          if-no-files-found: warn
