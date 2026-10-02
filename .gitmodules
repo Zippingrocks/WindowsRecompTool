@@ -1,0 +1,27 @@
+[submodule "zydis"]
+	path = third_party/zydis
+	url = https://github.com/zyantific/zydis.git
+[submodule "xboxrecomp"]
+	path = research/repos/xboxrecomp
+	url = https://github.com/sp00nznet/xboxrecomp.git
+[submodule "recomp-kit"]
+	path = research/repos/recomp-kit
+	url = https://github.com/veritr1x/recomp-kit.git
+[submodule "remill"]
+	path = research/repos/remill
+	url = https://github.com/lifting-bits/remill.git
+[submodule "pe-parse"]
+	path = research/repos/pe-parse
+	url = https://github.com/trailofbits/pe-parse.git
+[submodule "lief"]
+	path = research/repos/lief
+	url = https://github.com/lief-project/LIEF.git
+[submodule "wine"]
+	path = research/repos/wine
+	url = https://github.com/wine-mirror/wine.git
+[submodule "reactos"]
+	path = research/repos/reactos
+	url = https://github.com/reactos/reactos.git
+[submodule "unicorn"]
+	path = research/repos/unicorn
+	url = https://github.com/unicorn-engine/unicorn.git

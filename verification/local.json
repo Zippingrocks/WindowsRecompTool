@@ -1,0 +1,156 @@
+{
+  "schema": "winrecomp.foundation-evidence.v1",
+  "source_state": "local tested source; remote CI results recorded separately",
+  "frontend_unittest_cases": 32,
+  "builds": [
+    "GCC Debug",
+    "GCC Release",
+    "GCC ASan+UBSan"
+  ],
+  "ctest": "passed",
+  "e3_cfg_asan_ubsan": "passed",
+  "synthetic_conformance": {
+    "schema": "winrecomp.conformance.v1",
+    "oracle": "Unicorn 2.1.2",
+    "native_pointer_bits": 64,
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "compiler": "/usr/bin/c++",
+    "total_vectors": 15360,
+    "compared": "8 GPRs, EIP, defined status flags, complete 64 KiB stack",
+    "elapsed_seconds": 3.985,
+    "case_count": 60,
+    "all_cases_passed": true,
+    "case_names": [
+      "add32",
+      "adc32",
+      "sub32",
+      "sbb32",
+      "add16",
+      "adc16",
+      "sub16",
+      "sbb16",
+      "add8",
+      "adc8",
+      "sub8",
+      "sbb8",
+      "high8",
+      "subregisters",
+      "logic",
+      "logic16",
+      "logic8",
+      "cmp32",
+      "cmp16",
+      "cmp8",
+      "test",
+      "neg32",
+      "neg16",
+      "neg8",
+      "not",
+      "inc_dec",
+      "inc16",
+      "dec8",
+      "stack",
+      "push_imm8",
+      "push16",
+      "prologue",
+      "stack_memory",
+      "nop",
+      "movzx",
+      "movsx",
+      "lea",
+      "lea16",
+      "flags",
+      "direct_call",
+      "bounded_loop",
+      "ret_imm",
+      "jcc_70",
+      "jcc_71",
+      "jcc_72",
+      "jcc_73",
+      "jcc_74",
+      "jcc_75",
+      "jcc_76",
+      "jcc_77",
+      "jcc_78",
+      "jcc_79",
+      "jcc_7a",
+      "jcc_7b",
+      "jcc_7c",
+      "jcc_7d",
+      "jcc_7e",
+      "jcc_7f",
+      "jecxz",
+      "jcxz"
+    ]
+  },
+  "e3_validation": {
+    "input_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+    "imports": 155,
+    "cfg": {
+      "instructions": 101542,
+      "blocks": 21063,
+      "function_candidates": 1234,
+      "unresolved_indirect_transfers": 371,
+      "jump_table_candidates": 103
+    },
+    "manifest_sha256": "42a01281da18ee3ae974e13ff16d708c5cd2f0e7e4b6c1ae8a421ebd8e676f71",
+    "deterministic": true,
+    "whole_program_complete": false,
+    "elapsed_seconds": 1.966,
+    "conformance": {
+      "schema": "winrecomp.conformance.v1",
+      "oracle": "Unicorn 2.1.2",
+      "native_pointer_bits": 64,
+      "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+      "compiler": "c++",
+      "cases": [
+        {
+          "name": "target_004ae3c3",
+          "entry": "0x4ae3c3",
+          "vectors": 1024,
+          "result": "pass"
+        },
+        {
+          "name": "target_004ae455",
+          "entry": "0x4ae455",
+          "vectors": 1024,
+          "result": "pass"
+        },
+        {
+          "name": "target_004b2d61",
+          "entry": "0x4b2d61",
+          "vectors": 1024,
+          "result": "pass"
+        },
+        {
+          "name": "target_004b3218",
+          "entry": "0x4b3218",
+          "vectors": 1024,
+          "result": "pass"
+        },
+        {
+          "name": "target_004b7eb5",
+          "entry": "0x4b7eb5",
+          "vectors": 1024,
+          "result": "pass"
+        }
+      ],
+      "total_vectors": 5120,
+      "compared": "8 GPRs, EIP, defined status flags, complete 64 KiB stack",
+      "elapsed_seconds": 2.718,
+      "target_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda"
+    }
+  },
+  "local_hardware_oracle": {
+    "status": "unsupported",
+    "exit_code": 77,
+    "reason": "local kernel refuses ELF32 execution"
+  },
+  "not_proven": [
+    "Windows build until CI result",
+    "full E3 boot",
+    "full instruction semantics",
+    "Win32 runtime",
+    "gameplay"
+  ]
+}

@@ -1,0 +1,74 @@
+#pragma once
+#include <Zydis/Zydis.h>
+#include <array>
+#include <cstdint>
+#include <filesystem>
+#include <map>
+#include <optional>
+#include <set>
+#include <span>
+#include <string>
+#include <vector>
+
+namespace wr {
+using Address = std::uint32_t;
+struct Section {
+    std::string name;
+    std::uint32_t rva{}, virtual_size{}, raw_offset{}, raw_size{}, characteristics{};
+    std::uint64_t span() const;
+};
+struct Directory { std::uint32_t rva{}, size{}; };
+struct Import { std::string dll, name; Address iat{}; std::optional<std::uint16_t> ordinal; };
+struct Image {
+    std::vector<std::uint8_t> bytes;
+    Address base{}, entry{};
+    std::uint32_t size{}, headers_size{};
+    std::array<Directory,16> directories{};
+    std::vector<Section> sections;
+    std::vector<Import> imports;
+    std::set<Address> exports, tls_callbacks;
+    static Image parse(std::vector<std::uint8_t> bytes);
+    static Image load(const std::filesystem::path& path);
+    std::optional<std::size_t> offset(Address address, std::size_t count=1) const;
+    std::span<const std::uint8_t> code(Address address) const;
+    const Import* import_at(Address address) const;
+    std::vector<std::uint8_t> mapped() const;
+    std::string json() const;
+};
+enum class Flow { normal, call, jump, conditional, ret, stop };
+struct Instruction {
+    Address address{};
+    ZydisDecodedInstruction decoded{};
+    std::array<ZydisDecodedOperand,ZYDIS_MAX_OPERAND_COUNT> operands{};
+    std::vector<std::uint8_t> bytes;
+    std::string text;
+    Flow flow{Flow::normal};
+    std::optional<Address> target, absolute_slot;
+    Address next() const { return address + decoded.length; }
+};
+class Decoder {
+    ZydisDecoder decoder_{};
+    ZydisFormatter formatter_{};
+public:
+    Decoder();
+    std::optional<Instruction> decode(std::span<const std::uint8_t> bytes, Address address) const;
+};
+struct Edge { Address from{}; std::optional<Address> to; std::string kind, detail; };
+struct Block { Address start{}, end{}; std::vector<Address> instructions; };
+struct Graph {
+    Address entry{};
+    std::map<Address,Instruction> instructions;
+    std::map<Address,Block> blocks;
+    std::set<Address> function_candidates, roots;
+    std::vector<Edge> edges;
+    std::vector<std::string> diagnostics;
+    std::vector<Address> jump_table_candidates;
+    bool budget_exhausted{};
+    std::string json(const Image& image) const;
+};
+Graph discover(const Image& image, Address entry, std::size_t budget=1000000, bool include_image_roots=true);
+std::string emit_cpp(const Graph& graph, const std::string& name="recompiled");
+std::string hex(std::uint64_t value);
+std::string quote(const std::string& value);
+void write_file(const std::filesystem::path& path, const std::string& content);
+}

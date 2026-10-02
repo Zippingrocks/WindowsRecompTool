@@ -1,0 +1,95 @@
+{
+  "schema": "winrecomp.upstreams.v1",
+  "entries": [
+    {
+      "name": "zydis",
+      "repository": "zyantific/zydis",
+      "url": "https://github.com/zyantific/zydis.git",
+      "commit": "a2278f1d254e492f6a6b39f6cb5d1f5d515659dc",
+      "path": "third_party/zydis",
+      "role": "build dependency",
+      "license_policy": "MIT",
+      "reason": "In-process decoder; transitive Zycore pin is upstream-managed."
+    },
+    {
+      "name": "xboxrecomp",
+      "repository": "sp00nznet/xboxrecomp",
+      "url": "https://github.com/sp00nznet/xboxrecomp.git",
+      "commit": "1409a7d7801d3e931fb1074be6104209ddd9a33e",
+      "path": "research/repos/xboxrecomp",
+      "role": "reference only",
+      "license_policy": "mixed; inspect per-file notices",
+      "reason": "Static translation and conformance architecture, not Xbox kernel reuse."
+    },
+    {
+      "name": "recomp-kit",
+      "repository": "veritr1x/recomp-kit",
+      "url": "https://github.com/veritr1x/recomp-kit.git",
+      "commit": "eb32cc42623e0e9e868b9d27423a57d5a5cba56b",
+      "path": "research/repos/recomp-kit",
+      "role": "reference only",
+      "license_policy": "review required before reuse",
+      "reason": "Win32 guest/runtime and API-boundary architecture."
+    },
+    {
+      "name": "remill",
+      "repository": "lifting-bits/remill",
+      "url": "https://github.com/lifting-bits/remill.git",
+      "commit": "56918a8c2554088e93389e97d292f4035286506c",
+      "path": "research/repos/remill",
+      "role": "reference only",
+      "license_policy": "review required before reuse",
+      "reason": "Instruction semantics and explicit state model; no LLVM dependency added."
+    },
+    {
+      "name": "pe-parse",
+      "repository": "trailofbits/pe-parse",
+      "url": "https://github.com/trailofbits/pe-parse.git",
+      "commit": "9e4e3587969ea2410dadda1ccfa909aec1121d09",
+      "path": "research/repos/pe-parse",
+      "role": "reference only",
+      "license_policy": "review required before reuse",
+      "reason": "PE edge cases and parser comparison."
+    },
+    {
+      "name": "lief",
+      "repository": "lief-project/LIEF",
+      "url": "https://github.com/lief-project/LIEF.git",
+      "commit": "f002145a99603526479660d0af461d8e823c7da9",
+      "path": "research/repos/lief",
+      "role": "reference only",
+      "license_policy": "review required before reuse",
+      "reason": "Independent PE inventory and format coverage reference."
+    },
+    {
+      "name": "wine",
+      "repository": "wine-mirror/wine",
+      "url": "https://github.com/wine-mirror/wine.git",
+      "commit": "13625e51fd62639c8a60d7c2774ae70d93eaf446",
+      "path": "research/repos/wine",
+      "role": "reference only; not linked",
+      "license_policy": "per-file license review required",
+      "reason": "Win32 behavior/tests reference; do not copy implementations into the core."
+    },
+    {
+      "name": "reactos",
+      "repository": "reactos/reactos",
+      "url": "https://github.com/reactos/reactos.git",
+      "commit": "cf0f1a67c78c8596189f75c02a1dbb6c30007213",
+      "path": "research/repos/reactos",
+      "role": "reference only; not linked",
+      "license_policy": "per-file license review required",
+      "reason": "Windows structures and behavior reference; do not copy implementations into the core."
+    },
+    {
+      "name": "unicorn",
+      "repository": "unicorn-engine/unicorn",
+      "url": "https://github.com/unicorn-engine/unicorn.git",
+      "commit": "e2915c978a9430a497e97f6974c0e9df34853c85",
+      "path": "research/repos/unicorn",
+      "role": "optional external test oracle",
+      "license_policy": "GPL-2.0; inspect upstream notices",
+      "reason": "Independent x86 execution for differential tests; not a WinRecomp runtime dependency."
+    }
+  ]
+}

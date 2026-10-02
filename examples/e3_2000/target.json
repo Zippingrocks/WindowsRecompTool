@@ -1,0 +1,30 @@
+{
+  "schema": "winrecomp.target.v1",
+  "name": "E3 2000 uploaded blam.exe",
+  "sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+  "image_base": 4194304,
+  "entry": 4911384,
+  "image_size": 1249280,
+  "import_count": 155,
+  "sections": [
+    ".text",
+    ".rdata",
+    ".data",
+    ".rsrc"
+  ],
+  "expected_cfg": {
+    "instructions": 101542,
+    "blocks": 21063,
+    "function_candidates": 1234,
+    "unresolved_indirect_transfers": 371,
+    "jump_table_candidates": 103
+  },
+  "validated_entries": [
+    4907971,
+    4908117,
+    4926817,
+    4928024,
+    4947637
+  ],
+  "note": "Routine names and gameplay purpose are unverified. No game bytes included."
+}
