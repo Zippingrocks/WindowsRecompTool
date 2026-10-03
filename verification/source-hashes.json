@@ -3,13 +3,13 @@
   "note": "Exact owned source bytes for the windowing candidate; source transfer verified before independent native Windows tests. No game material.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "1650a13681e6f803721111ba2cb4084404d2cde96c514c67ae1f3015f940753d",
+    "CMakeLists.txt": "bb580b9a31e3b25059764ffc2271d72c1b7e83e13149a9e912ac74ebb7d03208",
     "include/winrecomp/compiled.hpp": "2142de2df49af250cbdab8b3c7346d01f3ca1d2d9f329c5c5ed409b8c65f32aa",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
     "include/winrecomp/hash.hpp": "1b9fab53aa6619e25adca0c923c68a108d9db49a3db8eb0364e4fe0151756ea5",
     "include/winrecomp/integer.hpp": "10777e00720fc8b00d40c808dac4bc90ee234d404297d4076ec1721ef73666a7",
-    "include/winrecomp/memory.hpp": "e3472005eb3bc17e04947b0e9a409c369ef76c9d1f57a8f260ed59261bbe92fd",
+    "include/winrecomp/memory.hpp": "e80f6e71306c8176e6a3a5421c79c2c7241a4d14841c610ac78e02f866621fa9",
     "include/winrecomp/nls_reference.hpp": "7adced99976b988e3adaa654089aa89dad0ea3f67f42c2c9cc81e9437ab0800b",
     "include/winrecomp/process.hpp": "d822ce7d59ecc9343a3cf0e7a782c027362db127f60a4e7fb83b8251bc8d3f47",
     "include/winrecomp/runtime.hpp": "1b9b5f292090263021881c70d45c7428b93b755621173f79870d822cc702399f",
@@ -60,6 +60,7 @@
     "src/runtime/gui_apis.hpp": "d0830b96e5321ccc6b65654201f749b36cbb0749de66f8ef71fb58da24ae4611",
     "src/runtime/gui_messages.hpp": "6f6abb3634b835359f4dfc0efb901dd16ef6cc4d8fff38746379cf4f723e7380",
     "tests/gui_boundary.cpp": "05fe612b7f69ba37235b8217d3f6e861f50666a3841f6f393b5c7cfb85ec74b1",
-    ".github/workflows/windowing.yml": "29ae6a7accaf954ebf963bcef532f8100806d5c68265764c0baf6846eb90e2ec"
+    ".github/workflows/windowing.yml": "3bc079f58fa059bc8a343faf34fc7af03337907d4a5c24494a0242eaaf392ddf",
+    "tests/exception_unwind.cpp": "3576dcdb5f9ace11e66ef7efbb230364a7d5802d8aa2af541a8cd39ac274a9ca"
   }
 }

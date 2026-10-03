@@ -95,9 +95,9 @@ jobs:
       - name: Configure native boundary with Windows AddressSanitizer
         run: cmake -S . -B asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
       - name: Compile native GUI boundary tests
-        run: cmake --build asan --target winrecomp_gui_boundary winrecomp_resource_tests --parallel 2
+        run: cmake --build asan --target winrecomp_exception_unwind winrecomp_gui_boundary winrecomp_resource_tests --parallel 2
       - name: Run native window failure-path and resource tests
-        run: ctest --test-dir asan -R "^(gui_boundary|resources)$" --output-on-failure
+        run: ctest --test-dir asan -R "^(exception_unwind|gui_boundary|resources)$" --output-on-failure
       - uses: actions/upload-artifact@v4
         if: always()
         with:

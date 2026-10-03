@@ -35,6 +35,12 @@ add_library(winrecomp_core src/pe.cpp src/resources.cpp src/x86.cpp src/cfg.cpp 
 target_include_directories(winrecomp_core PUBLIC include)
 target_link_libraries(winrecomp_core PUBLIC Zydis)
 if(MSVC)
+  # Correct guest faults depend on C++ stack unwinding (locks, scratch pages,
+  # and callback scopes). Keep this a transitive requirement, not a default
+  # CMAKE_CXX_FLAGS value that an ASan or parent-project configuration can erase.
+  target_compile_options(winrecomp_core PUBLIC
+    "$<$<COMPILE_LANGUAGE:CXX>:/EHsc>"
+    "$<$<COMPILE_LANGUAGE:CXX>:/we4530>")
   target_compile_options(winrecomp_core PRIVATE /W4 /permissive-)
 else()
   target_compile_options(winrecomp_core PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
@@ -70,6 +76,10 @@ if(BUILD_TESTING)
   add_test(NAME target_fp_selector COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/target_fp_selector.py)
   add_test(NAME nls_data COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nls.py --check)
   find_package(Threads REQUIRED)
+  add_executable(winrecomp_exception_unwind tests/exception_unwind.cpp)
+  target_link_libraries(winrecomp_exception_unwind PRIVATE winrecomp_core Threads::Threads)
+  add_test(NAME exception_unwind COMMAND winrecomp_exception_unwind)
+  set_tests_properties(exception_unwind PROPERTIES TIMEOUT 30)
   add_executable(winrecomp_nls_tests tests/nls.cpp)
   target_link_libraries(winrecomp_nls_tests PRIVATE winrecomp_guest)
   add_test(NAME nls COMMAND winrecomp_nls_tests)

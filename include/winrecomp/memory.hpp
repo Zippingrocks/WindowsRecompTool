@@ -1,4 +1,9 @@
 #pragma once
+// Header-only consumers must use the same exception model as the runtime.
+// Without C++ unwinding, a handled GuestFault can silently retain a mutex lock.
+#if defined(_MSC_VER) && !defined(_CPPUNWIND)
+#error "WinRecomp requires C++ stack unwinding; compile with /EHsc (including sanitizer builds)."
+#endif
 #include <algorithm>
 #include <array>
 #include <cstdint>
