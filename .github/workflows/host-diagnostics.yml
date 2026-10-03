@@ -1,0 +1,57 @@
+name: Optional offline Windows-host tools
+on:
+  push:
+    branches: [work/host-diagnostics]
+    paths: [.github/workflows/host-diagnostics.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Download checksum-pinned official cross compiler
+        shell: bash
+        run: |
+          mkdir -p snapshot
+          curl --fail --location --retry 3 'https://github.com/mstorsjo/llvm-mingw/releases/download/20260908/llvm-mingw-20260908-ucrt-ubuntu-22.04-x86_64.tar.xz' -o snapshot/llvm-mingw.tar.xz
+          echo '2258c745e3155870c80793f3e8c80b28fbde11b9ff73c4c78783635b3440b092  snapshot/llvm-mingw.tar.xz' | sha256sum --check
+      - name: Retain unmodified Wine64 distribution packages for local diagnostics
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          mkdir -p snapshot/wine
+          cd snapshot/wine
+          apt-get download 'wine64=9.0~repack-4build3' 'libwine=9.0~repack-4build3'
+          for package in *.deb; do
+            echo "FILE $package"
+            dpkg-deb --field "$package" Package Version Architecture Source Depends
+          done > packages.txt
+          sha256sum *.deb > SHA256SUMS
+      - name: Describe testing boundary
+        shell: bash
+        run: |
+          cat > snapshot/README.txt <<'EOF'
+          Optional private development tools, not WinRecomp runtime dependencies.
+          LLVM-MinGW: upstream 20260908, LLVM 23.1.1, Linux x86_64 to Windows.
+          Source and license: https://github.com/mstorsjo/llvm-mingw
+          Original archive and included third-party notices are preserved.
+          Wine64: Ubuntu noble 9.0~repack-4build3, original .deb packages.
+          Source and notices: Ubuntu wine source package and package copyright files.
+          https://packages.ubuntu.com/noble/wine64
+          https://packages.ubuntu.com/noble/libwine
+          https://archive.ubuntu.com/ubuntu/pool/universe/w/wine/
+          Wine-based runs are compatibility-host diagnostics, not proof of native
+          Windows behavior. Neither this workflow nor this snapshot contains game
+          binaries, assets, disassembly or generated game source. An unavailable
+          host, failing test, or skipped test must not be counted as a pass.
+          EOF
+          sha256sum snapshot/llvm-mingw.tar.xz > snapshot/LLVM-SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: optional-offline-windows-host
+          path: snapshot/
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
