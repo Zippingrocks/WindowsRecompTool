@@ -59,7 +59,7 @@
     "src/runtime/gui_lifecycle.hpp": "fc3cc179ca085625288822df5a98946065a8d74695c0442efbae62f3359b7b33",
     "src/runtime/gui_apis.hpp": "d0830b96e5321ccc6b65654201f749b36cbb0749de66f8ef71fb58da24ae4611",
     "src/runtime/gui_messages.hpp": "6f6abb3634b835359f4dfc0efb901dd16ef6cc4d8fff38746379cf4f723e7380",
-    "tests/gui_boundary.cpp": "4c8ae9e115bcd590d317e541b8e8f77dc317293bcb62fff1a96adcc182edbd21",
+    "tests/gui_boundary.cpp": "05fe612b7f69ba37235b8217d3f6e861f50666a3841f6f393b5c7cfb85ec74b1",
     ".github/workflows/windowing.yml": "29ae6a7accaf954ebf963bcef532f8100806d5c68265764c0baf6846eb90e2ec"
   }
 }

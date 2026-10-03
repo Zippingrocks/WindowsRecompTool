@@ -36,6 +36,7 @@ bool step(wr::Cpu& cpu,wr::Memory& memory,std::uint64_t&){
     cpu.eip=current->resolve("user32.dll","DefWindowProcA");return true;
 }
 wr::U32 invoke(wr::Process& p,const char* name,std::initializer_list<wr::U32> args={},const char* dll="user32.dll"){
+    std::cerr<<"API "<<dll<<"!"<<name<<std::endl;
     auto saved=p.cpu;
     try{
         for(auto it=args.end();it!=args.begin();)wr::push(p.cpu,p.memory,*--it);
@@ -161,6 +162,8 @@ void callback_errors(){
 }
 }
 int main(){SetErrorMode(SEM_FAILCRITICALERRORS|SEM_NOGPFAULTERRORBOX);try{
-    basic();class_errors();callback_errors();
+    std::cerr<<"basic boundary tests"<<std::endl;basic();
+    std::cerr<<"class rejection tests"<<std::endl;class_errors();
+    std::cerr<<"callback failure tests"<<std::endl;callback_errors();
     std::cout<<checks<<" native GUI boundary assertions passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
