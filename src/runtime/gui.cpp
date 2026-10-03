@@ -95,7 +95,12 @@ public:
         if(it==handles.end() || it->second.kind!=kind)throw InvalidHandle{kind==Kind::window?1400u:6u};
         return reinterpret_cast<T>(it->second.native);
     }
-    HWND hwnd(U32 id,bool null_ok=false){return get<HWND>(id,Kind::window,null_ok);}
+    HWND hwnd(U32 id,bool null_ok=false){
+        if(!id && null_ok)return nullptr;
+        auto w=windows.find(id);
+        if(w==windows.end() || !w->second->alive)throw InvalidHandle{1400};
+        return get<HWND>(id,Kind::window);
+    }
     U32 window_token(HWND w){
         if(!w)return 0;
         if(auto it=window_owners.find(w);it!=window_owners.end())if(auto owned=it->second.lock())if(owned->gui==this)return owned->id;

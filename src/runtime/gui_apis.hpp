@@ -58,7 +58,14 @@ void Gui::install(){
     wgl("wglDeleteContext",1,[this](Args a){auto context=get<HGLRC>(a[0],Kind::gl);auto value=wglDeleteContext(context);if(value){if(current_gl==a[0])current_gl=current_dc=0;handles.erase(a[0]);for(auto it=strings.begin();it!=strings.end();)if(it->first.first==a[0]){p.memory.release(it->second);it=strings.erase(it);}else ++it;}return native_bool(value);});
     wgl("wglGetCurrentContext",0,[this](Args){return current_gl;});
     wgl("wglGetCurrentDC",0,[this](Args){return current_dc;});
-    wgl("wglGetProcAddress",1,[this](Args a){ensure_gl();auto name=p.read_string(a[0],256);return p.resolve("opengl32.dll",name);});
+    wgl("wglGetProcAddress",1,[this](Args a){
+        ensure_gl();auto name=p.read_string(a[0],256);
+        const auto address=reinterpret_cast<std::uintptr_t>(wglGetProcAddress(name.c_str()));
+        if(address<=3 || address==~std::uintptr_t(0)){p.set_error(GetLastError());return 0u;}
+        const auto target=p.resolve("opengl32.dll",name);
+        if(!target)unsupported("driver exposes an unmodelled WGL export: "+name);
+        return target; // Never expose the driver's native function pointer.
+    });
     gl("glClearColor",4,[](Args a){glClearColor(real32(a[0]),real32(a[1]),real32(a[2]),real32(a[3]));return 0u;});
     gl("glClear",1,[](Args a){glClear(a[0]);return 0u;});
     gl("glViewport",4,[](Args a){glViewport(signed32(a[0]),signed32(a[1]),signed32(a[2]),signed32(a[3]));return 0u;});

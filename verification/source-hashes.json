@@ -3,7 +3,7 @@
   "note": "Exact owned source bytes for the windowing candidate; source transfer verified before independent native Windows tests. No game material.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "6902c9253ae0b4210f5e732c65f7c57ca485d084016ebd97c23b05ff5d56d9c3",
+    "CMakeLists.txt": "1650a13681e6f803721111ba2cb4084404d2cde96c514c67ae1f3015f940753d",
     "include/winrecomp/compiled.hpp": "2142de2df49af250cbdab8b3c7346d01f3ca1d2d9f329c5c5ed409b8c65f32aa",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
@@ -51,14 +51,15 @@
     "tests/target_fp_selector.py": "ad674e96f2a07ee56bc02b33726512cc6d9724bbc951f0285a3f8e2f2e984784",
     "include/winrecomp/gui.hpp": "5e031cfacafee1f26919fc1e57e11d191aa7ef685243ac28770e5be741b47a99",
     "include/winrecomp/resources.hpp": "158e0b69ab94bc51363292e8c744b53ce90c2845337bcd0e5ded1ae2b59e9c3d",
-    "src/runtime/gui.cpp": "3424c71e529a747837ad267fb3bca13ba1b53a2855a5cb97ec32616326383de9",
+    "src/runtime/gui.cpp": "24a7c2ed9310cbb6fa5480b16d5516a78fcfb8fff435a2081fb030bdf8e4b331",
     "src/resources.cpp": "c01416e9cf670fc76f29a806f68d98b2da281aa616303d7fc434cd427a5be169",
     "tests/resources.cpp": "fb34e2f3da361ce88008f06e6208f6586bf130e89965a77c3d7ac96f16412224",
     "tests/window_program.py": "eaf42dfe22e3d94fd4ea148fd2adb94db357cb26f4b3237de7e189aa1e66b903",
     "src/runtime/gui_callbacks.hpp": "fd2a982165c1676b76a60f209d4075b422eff1016e7411eda680ed561a159953",
     "src/runtime/gui_lifecycle.hpp": "fc3cc179ca085625288822df5a98946065a8d74695c0442efbae62f3359b7b33",
-    "src/runtime/gui_apis.hpp": "6bdb0a80358d4054faaf9f3c12ccf9d81cd8340deb46ef16c0af5de0db7157b5",
-    "tools/windowing_integrate.py": "0c56d8ab67c1907a4edc3fa2d5624a0e6473cf2fe064cfffc6892d4b70c3dff8",
-    "src/runtime/gui_messages.hpp": "6f6abb3634b835359f4dfc0efb901dd16ef6cc4d8fff38746379cf4f723e7380"
+    "src/runtime/gui_apis.hpp": "d0830b96e5321ccc6b65654201f749b36cbb0749de66f8ef71fb58da24ae4611",
+    "src/runtime/gui_messages.hpp": "6f6abb3634b835359f4dfc0efb901dd16ef6cc4d8fff38746379cf4f723e7380",
+    "tests/gui_boundary.cpp": "4c8ae9e115bcd590d317e541b8e8f77dc317293bcb62fff1a96adcc182edbd21",
+    ".github/workflows/windowing.yml": "29ae6a7accaf954ebf963bcef532f8100806d5c68265764c0baf6846eb90e2ec"
   }
 }

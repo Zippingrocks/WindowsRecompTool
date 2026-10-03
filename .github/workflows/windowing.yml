@@ -9,32 +9,7 @@ concurrency:
   group: native-windowing
   cancel-in-progress: false
 jobs:
-  integrate:
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    outputs:
-      source_sha: ${{ steps.source.outputs.sha }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-      - name: Integrate exact source and retain the implementation commit
-        id: source
-        shell: bash
-        run: |
-          python tools/windowing_integrate.py
-          git add src/runtime/process.cpp
-          if ! git diff --cached --quiet; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -m "feat: integrate checked native GUI lifecycle source"
-            git push origin HEAD:refs/heads/work/windowing
-          fi
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   verify:
-    needs: integrate
     strategy:
       fail-fast: false
       matrix:
@@ -44,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.integrate.outputs.source_sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           submodules: false
       - name: Initialize pinned decoder
@@ -62,11 +37,13 @@ jobs:
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=ON
       - name: Compile
+        id: compile
         run: cmake --build build --parallel 2
       - name: Original PE32 versus generated x64 window and OpenGL frame
         if: runner.os == 'Windows'
         run: ctest --test-dir build -R "^window_program$" --output-on-failure
       - name: Complete runtime and conformance regressions
+        if: ${{ !cancelled() && steps.compile.outcome == 'success' }}
         run: ctest --test-dir build -E "^window_program$" --output-on-failure
       - name: Native i386 integer oracle
         if: runner.os == 'Linux'
@@ -98,5 +75,33 @@ jobs:
             build/WinRecomp.bundle
             build/Zydis.bundle
             build/Zycore.bundle
+          retention-days: 14
+          if-no-files-found: warn
+  windows_gui_memory:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Configure native boundary with Windows AddressSanitizer
+        run: cmake -S . -B asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
+      - name: Compile native GUI boundary tests
+        run: cmake --build asan --target winrecomp_gui_boundary winrecomp_resource_tests --parallel 2
+      - name: Run native window failure-path and resource tests
+        run: ctest --test-dir asan -R "^(gui_boundary|resources)$" --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windowing-windows-asan
+          path: asan/Testing/Temporary/LastTest.log
           retention-days: 14
           if-no-files-found: warn
