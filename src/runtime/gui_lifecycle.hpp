@@ -59,7 +59,7 @@ U32 Gui::send_message(Args a,bool post){
     return result32(SendMessageA(h,a[1],a[2],signed_param(a[3])));
 }
 void Gui::write_message(U32 at,const MSG& m){
-    if(!scalar_message(m.message) || (m.message==WM_TIMER && m.lParam))unsupported("queued message contains unsupported native data");
+    if(!scalar_message(m.message) || (m.message==WM_TIMER && m.lParam))unsupported("queued message contains unsupported native data: "+hex(m.message));
     // Legacy public MSG32 is 28 bytes. Host-private lPrivate is not exposed.
     const std::array<U32,7> v{window_token(m.hwnd),m.message,scalar(m.wParam),scalar(std::uintptr_t(m.lParam)),m.time,U32(m.pt.x),U32(m.pt.y)};
     p.memory.check(at,28,Memory::Write);for(unsigned i=0;i<7;++i)p.memory.store(at+4*i,v[i],32);
