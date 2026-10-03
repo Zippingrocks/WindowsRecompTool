@@ -17,10 +17,19 @@ analyzer, guarded switch recovery, broad tested integer execution, 80-bit x87
 and SSE/SSE2 helpers, sparse guest memory, fixed-image loading, checked import
 marshalling, heap/file/text APIs and compiled guest callbacks.
 
-With user-owned E3 data kept locally, compiled execution reaches the first
-`USER32!LoadIconA` request. No window or rendered frame exists yet. This is NOT
-a working game port or complete Windows compatibility. Read `docs/runtime-scope.md`
-and `docs/status.md` for exact validation and explicit unsupported boundaries.
+The Windows host now has a tested, bounded USER32/GDI/WGL backend: native window
+creation, compiled window callbacks, checked icon resources and an OpenGL
+bootstrap. An author-written original PE32 and its generated x64 version create
+real windows and produce identical triangle framebuffers. Windows, Linux and
+native Windows GUI AddressSanitizer checks passed. See `docs/windowing.md` and
+`verification/windowing-ci.json` for the exact source and acceptance evidence.
+
+**E3 is not playable yet.** The last verified full E3 startup was on the Linux
+diagnostic host, which still stops at `USER32!LoadIconA` because no non-Windows
+GUI backend is provided. The new Windows synthetic frame is not an E3 frame;
+actual E3 Windows initialization, rendering and player control remain unverified
+by this checkpoint. Read `docs/runtime-scope.md` and `docs/status.md` for the
+historical runtime evidence and explicit unsupported boundaries.
 
 ## Build
 

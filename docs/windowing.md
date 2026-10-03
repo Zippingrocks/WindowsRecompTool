@@ -1,6 +1,6 @@
-# Native windowing candidate
+# Verified native Windows windowing checkpoint
 
-This branch adds a Windows-host USER32/GDI/WGL boundary. It does not add a
+This implementation adds a Windows-host USER32/GDI/WGL boundary. It does not add a
 headless pretend-window backend, an x86 interpreter, or game-specific API
 success stubs. Non-Windows GUI calls remain unsupported.
 
@@ -45,8 +45,51 @@ callbacks, load a resource icon, render a triangle, and produce identical pixel
 output. Creation and destruction counts and output canaries are checked. The
 result is a synthetic driver/window test, never evidence that E3 is playable.
 
-Native acceptance is pending until the branch's Windows CI actually passes.
-The 50-point checkpoint on main is not raised by this candidate documentation.
+## Completed acceptance
+
+Implementation `b02db47c2dcd5a073679dcf90e2ad99fb0d7133c` passed run
+`37162230094`: Windows/MSVC 18 suites (one window fixture plus 17 runtime
+suites), Linux/GCC 16 suites, and all three native Windows ASan suites.
+The original PE32 and generated x64 framebuffers match exactly (SHA-256
+`df59acf2780167d7a0c7192876c77242d1f1694ca4902fd60437f96fe925c69c`).
+The fixture created and destroyed one actual window, executed 22 compiled
+window callbacks, created one WGL context, and swapped one frame. These counts
+belong to the controlled fixture, not the game.
+
+The previous Windows ASan hang was fixed by preserving `/EHsc` even when a
+caller replaces `CMAKE_CXX_FLAGS`. Without C++ unwinding, handled memory faults
+could retain recursive mutex locks. The public compile requirement, an MSVC
+header guard, and 70 nonblocking exception-unwind assertions prevent silent
+recurrence. The 60-second GUI timeout and all fault tests remain intact;
+527 GUI and 28 resource assertions also passed under Windows ASan.
+
+See `verification/windowing-ci.json` for source/artifact hashes and test scope.
+The 50/100 planning checkpoint is unchanged: this is progress within the later
+GUI/graphics gate, not acceptance of the entire graphics/audio/input system.
+
+## What will count as playable
+
+A synthetic window or triangle does not qualify. The actual SHA-identified E3
+build must load its game content, display a game-generated scene, and sustain
+an interactive loop in which player input produces the corresponding in-game
+movement/actions. Record the tested host, input identity, duration/scenario,
+and remaining defects. An early playable build can still have documented
+fidelity or sound defects; that is separate from a complete port.
+
+**E3 is not demonstrated playable here.** This pass reran its deterministic
+CFG contract and five isolated routine checks locally (5,120 comparisons), not
+its full startup on Windows. The earlier Linux `LoadIconA` stop remains a
+non-Windows-backend limitation, not evidence that Windows `LoadIconA` is still
+missing. The Windows GUI implementation now has independent synthetic tests;
+actual E3 window creation, its selected renderer, game frames and controls
+need their own execution evidence. The binary's DirectDraw/DirectInput/DirectSound
+imports also mean this OpenGL fixture cannot establish whole-game rendering.
+
+No E3 input or game-derived code is sent to CI. For a private Windows run, use
+the SHA-bound `tools/create_project.py` profile with a new output directory,
+build that generated CMake project, and retain its process report locally.
+Only observed executable callback/indirect targets should inform new seeds;
+do not turn unknown APIs into successful no-ops to advance a milestone.
 
 ## Primary specifications
 

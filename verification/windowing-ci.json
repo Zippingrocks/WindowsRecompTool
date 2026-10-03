@@ -1,0 +1,191 @@
+{
+  "schema": "winrecomp.windowing-evidence.v1",
+  "source_commit": "b02db47c2dcd5a073679dcf90e2ad99fb0d7133c",
+  "source_tree": "5062c186a3834f9fd9bf9f930f2e5043b5598a89",
+  "workflow_run_id": 37162230094,
+  "source_hash_count": 60,
+  "jobs": [
+    {
+      "name": "verify (windows-2022)",
+      "id": 111317864596,
+      "conclusion": "success"
+    },
+    {
+      "name": "verify (ubuntu-24.04)",
+      "id": 111317864671,
+      "conclusion": "success"
+    },
+    {
+      "name": "windows_gui_memory",
+      "id": 111317864718,
+      "conclusion": "success"
+    }
+  ],
+  "windows_ctest": {
+    "window_program": 1,
+    "other_suites": 17,
+    "total_passed": 18
+  },
+  "linux_ctest": {
+    "total_passed": 16
+  },
+  "windows_frame": {
+    "original": "Windows native PE32 loader",
+    "generated": "native x64 compiled dispatch",
+    "framebuffer_sha256": "df59acf2780167d7a0c7192876c77242d1f1694ca4902fd60437f96fe925c69c",
+    "identical_framebuffers": true,
+    "aligned_readback_sha256": "460ea8c9a25d8697eb3a8881ee564fa4600486e1cfdd2b87937e1ed2990dbd07",
+    "original_callback_record": [
+      827475799,
+      1,
+      1,
+      99,
+      1,
+      2,
+      1,
+      0
+    ],
+    "generated_callback_record": [
+      827475799,
+      1,
+      1,
+      99,
+      1,
+      2,
+      1,
+      0
+    ],
+    "scope": "Author-created window and OpenGL fixture. Not E3 startup, game rendering, gameplay, or full Win32 message coverage."
+  },
+  "windows_frame_execution": {
+    "input_sha256": "fb9387fd27e7cb5dac5a35753133f03a15dbb90ea5785bd272e1dbe4ab6c1b73",
+    "exited": true,
+    "exit_code": 0,
+    "native_instructions": 772,
+    "api_calls": 81,
+    "gui": {
+      "backend": "native-win32",
+      "windows_created": 1,
+      "windows_destroyed": 1,
+      "window_callbacks": 22,
+      "messages_dispatched": 2,
+      "gl_contexts_created": 1,
+      "swaps": 1,
+      "host_only_notifications": 2,
+      "host_only_message_ids": [
+        144,
+        799
+      ]
+    }
+  },
+  "conformance_per_platform": {
+    "windows": {
+      "conformance": {
+        "comparisons": 58880,
+        "cases": 230
+      },
+      "floating": {
+        "comparisons": 18240,
+        "cases": 95
+      },
+      "simd": {
+        "comparisons": 29952,
+        "cases": 156
+      },
+      "controlflow": {
+        "comparisons": 1024,
+        "cases": 4
+      },
+      "abi_callbacks": {
+        "comparisons": 256
+      }
+    },
+    "linux": {
+      "conformance": {
+        "comparisons": 58880,
+        "cases": 230
+      },
+      "floating": {
+        "comparisons": 18240,
+        "cases": 95
+      },
+      "simd": {
+        "comparisons": 29952,
+        "cases": 156
+      },
+      "controlflow": {
+        "comparisons": 1024,
+        "cases": 4
+      },
+      "abi_callbacks": {
+        "comparisons": 256
+      }
+    }
+  },
+  "windows_address_sanitizer": {
+    "suites_passed": [
+      "gui_boundary",
+      "resources",
+      "exception_unwind"
+    ],
+    "assertions": {
+      "gui_boundary": 527,
+      "resources": 28,
+      "exception_unwind": 70
+    },
+    "scope": "Native C++ boundary tests only, not a whole-game sanitizer claim."
+  },
+  "repair": {
+    "previous_failed_run": 37117688294,
+    "issue": "ASan CMAKE_CXX_FLAGS replaced defaults and omitted MSVC C++ unwinding. C4530 warnings preceded the post-fault cross-thread hang.",
+    "changes": [
+      "Propagate /EHsc and /we4530 through the core CXX target, including generated projects.",
+      "Reject MSVC memory-header consumers without _CPPUNWIND.",
+      "Nonblocking regression checks automatic destruction and 14 post-fault cross-thread paths."
+    ],
+    "gui_timeout_changed": false,
+    "fault_tests_removed": false
+  },
+  "local": {
+    "platform": "Linux x64",
+    "release_suites_passed": 16,
+    "gcc_asan_ubsan_suites_passed": 10,
+    "e3_input_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+    "e3_cfg_contract_passed": true,
+    "e3_cfg_deterministic": true,
+    "e3_original_routine_comparisons_passed": 5120,
+    "e3_original_routine_count": 5,
+    "scope": "Real E3 identity/CFG/routine regressions only in this pass; not a fresh full startup run."
+  },
+  "artifacts": {
+    "windows": {
+      "id": 11288391720,
+      "sha256": "3a1b2775db4e940968ffe45eb7c474f833f82b0a088913822d662e17122215dd"
+    },
+    "linux": {
+      "id": 11288495085,
+      "sha256": "d68a290c348a391f95fe4124865b2909c2cd521228d358d2f5cb8322673e3484"
+    },
+    "windows_asan": {
+      "id": 11288376425,
+      "sha256": "cf11b39f9524da5c322e359510c23e3ed798592558dbd290a9ff9c5cd7f5b37c"
+    }
+  },
+  "game_status": {
+    "playable": false,
+    "synthetic_native_window_and_triangle": "passed",
+    "e3_native_windows_window": "not verified by this pass",
+    "e3_game_frame": "not demonstrated",
+    "e3_player_control": "not demonstrated",
+    "planning_points_accepted": 50,
+    "new_planning_points_awarded": 0
+  },
+  "limitations": [
+    "This accepts a bounded Windows GUI lifecycle and driver bootstrap, not the entire graphics/audio/input gate.",
+    "No E3 executable, assets, disassembly or generated game code was uploaded to CI or committed.",
+    "Original-vs-generated window/frame evidence is for an author-written synthetic PE32, not E3.",
+    "Non-Windows GUI remains explicitly unsupported.",
+    "DirectDraw/Direct3D, complete GL texture/buffer/extension coverage, guest threading, SEH, audio/input and playable E3 remain unfinished."
+  ],
+  "linux_native_i386_comparisons": 14720
+}
