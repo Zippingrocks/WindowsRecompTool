@@ -26,8 +26,10 @@ Process::Process(StepFunction step,ProcessOptions opts):win32_(std::make_unique<
     if(!budget)throw std::runtime_error("instruction budget must be nonzero");
     options.data_root=std::filesystem::canonical(options.data_root);
     install_win32(*this);
+    gui_=install_gui(*this);
 }
-Process::~Process()=default;
+Process::~Process(){if(gui_)gui_->shutdown();}
+const Image& Process::source_image() const {if(!source_image_)throw std::runtime_error("no loaded source image");return *source_image_;}
 Win32State& Process::state(){return *win32_;}
 void Process::load(const Image& image) {
     if(loaded_)throw std::runtime_error("process already has an image");
@@ -61,6 +63,7 @@ void Process::load(const Image& image) {
         const std::array<std::uint8_t,4> bytes{std::uint8_t(thunk),std::uint8_t(thunk>>8),std::uint8_t(thunk>>16),std::uint8_t(thunk>>24)};
         memory.initialize(item.iat,bytes);
     }
+    source_image_=std::make_unique<Image>(image);
     loaded_=true;set_error(0);
 }
 void Process::register_api(const std::string& dll,const std::string& name,unsigned arguments,std::function<U32(Process&)> fn,bool caller_cleans_stack) {
@@ -179,7 +182,7 @@ U32 Process::put_string(const std::string& string){auto p=allocate_bytes(string.
 U32 Process::put_wstring(const std::u16string& string){auto p=allocate_bytes((string.size()+1)*2);for(std::size_t n=0;n<=string.size();++n)memory.store(p+U32(n*2),n==string.size()?0:U32(string[n]),16);return p;}
 std::string Process::report() const {
     std::ostringstream out;out<<"{\"schema\":\"winrecomp.process.v1\",\"input_sha256\":"<<quote(input_sha256)<<",\"exited\":"<<(exited_?"true":"false")<<",\"exit_code\":"<<exit_code_<<",\"eip\":"<<cpu.eip<<",\"esp\":"<<cpu.r[ESP]<<",\"native_instructions\":"<<executed_instructions<<",\"api_calls\":"<<api_calls<<",\"budget_left\":"<<budget<<",\"recent_transfers\":[";
-    bool first=true;for(const auto& x:recent_transfers){if(!first)out<<',';first=false;out<<"{\"pc\":"<<x.pc<<",\"return\":"<<x.return_address<<",\"api\":"<<quote(x.api)<<",\"arguments\":[";for(std::size_t n=0;n<x.arguments.size();++n){if(n)out<<',';out<<x.arguments[n];}out<<"],\"detail\":"<<quote(x.detail)<<"}";}out<<"]}";return out.str();
+    bool first=true;for(const auto& x:recent_transfers){if(!first)out<<',';first=false;out<<"{\"pc\":"<<x.pc<<",\"return\":"<<x.return_address<<",\"api\":"<<quote(x.api)<<",\"arguments\":[";for(std::size_t n=0;n<x.arguments.size();++n){if(n)out<<',';out<<x.arguments[n];}out<<"],\"detail\":"<<quote(x.detail)<<"}";}out<<"],\"gui\":"<<(gui_?gui_->report():"null")<<"}";return out.str();
 }
 int run_program(int argc,char** argv,StepFunction step,const char* expected_sha256) {
     std::unique_ptr<Process> process;std::string report_path;
