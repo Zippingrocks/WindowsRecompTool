@@ -1,0 +1,102 @@
+name: Native windowing verification
+on:
+  push:
+    branches: [work/windowing]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-windowing
+  cancel-in-progress: false
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Integrate exact source and retain the implementation commit
+        id: source
+        shell: bash
+        run: |
+          python tools/windowing_integrate.py
+          git add src/runtime/process.cpp
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "feat: integrate checked native GUI lifecycle source"
+            git push origin HEAD:refs/heads/work/windowing
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  verify:
+    needs: integrate
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.integrate.outputs.source_sha }}
+          fetch-depth: 0
+          submodules: false
+      - name: Initialize pinned decoder
+        run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - run: python -m pip install unicorn==2.1.2
+      - name: Verify exact implementation source and upstream pins
+        run: python tools/check_repository.py
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=ON
+      - name: Compile
+        run: cmake --build build --parallel 2
+      - name: Original PE32 versus generated x64 window and OpenGL frame
+        if: runner.os == 'Windows'
+        run: ctest --test-dir build -R "^window_program$" --output-on-failure
+      - name: Complete runtime and conformance regressions
+        run: ctest --test-dir build -E "^window_program$" --output-on-failure
+      - name: Native i386 integer oracle
+        if: runner.os == 'Linux'
+        run: python tests/hardware_oracle.py --tool build/winrecomp --out build/hardware --vectors 64
+      - name: Retain source for reproducible workspaces
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p build
+          git bundle create build/WinRecomp.bundle --all
+          git -C third_party/zydis bundle create "$GITHUB_WORKSPACE/build/Zydis.bundle" --all
+          git -C third_party/zydis/dependencies/zycore bundle create "$GITHUB_WORKSPACE/build/Zycore.bundle" --all
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windowing-${{ matrix.os }}
+          path: |
+            build/window_program/acceptance.json
+            build/window_program/process.json
+            build/window_program/synthetic-frame.ppm
+            build/conformance/report.json
+            build/controlflow/report.json
+            build/floating/report.json
+            build/simd/report.json
+            build/abi_callbacks/report.json
+            build/program/acceptance.json
+            build/hardware/hardware-report.json
+            build/Testing/Temporary/LastTest.log
+            build/WinRecomp.bundle
+            build/Zydis.bundle
+            build/Zycore.bundle
+          retention-days: 14
+          if-no-files-found: warn

@@ -1,9 +1,9 @@
 {
   "schema": "winrecomp.source-snapshot.v1",
-  "note": "Exact owned-source/measurement bytes of the locally tested runtime candidate; raw Git blobs avoid platform newline conversion. No game binary/source included.",
+  "note": "Exact owned source bytes for the windowing candidate; source transfer verified before independent native Windows tests. No game material.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "2a800e3753423392825ac75a3b3947be575a2bac29899622195123fe06e4edd4",
+    "CMakeLists.txt": "6902c9253ae0b4210f5e732c65f7c57ca485d084016ebd97c23b05ff5d56d9c3",
     "include/winrecomp/compiled.hpp": "2142de2df49af250cbdab8b3c7346d01f3ca1d2d9f329c5c5ed409b8c65f32aa",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
@@ -11,7 +11,7 @@
     "include/winrecomp/integer.hpp": "10777e00720fc8b00d40c808dac4bc90ee234d404297d4076ec1721ef73666a7",
     "include/winrecomp/memory.hpp": "e3472005eb3bc17e04947b0e9a409c369ef76c9d1f57a8f260ed59261bbe92fd",
     "include/winrecomp/nls_reference.hpp": "7adced99976b988e3adaa654089aa89dad0ea3f67f42c2c9cc81e9437ab0800b",
-    "include/winrecomp/process.hpp": "289f86212e83998903260310b7308c41b3a91a58df6ce3e8b618f20793f63f63",
+    "include/winrecomp/process.hpp": "d822ce7d59ecc9343a3cf0e7a782c027362db127f60a4e7fb83b8251bc8d3f47",
     "include/winrecomp/runtime.hpp": "1b9b5f292090263021881c70d45c7428b93b755621173f79870d822cc702399f",
     "include/winrecomp/sse.hpp": "edf9b6d8e6284160e8576f5d4887bd64e8a96736c7cd47514fbb9fab01bfdfc8",
     "include/winrecomp/win32_state.hpp": "fd3bddcc125cd92d3154f0bbfb22e9b353d11eea5330eeed13ba5a106baea1be",
@@ -20,7 +20,7 @@
     "src/lift.cpp": "2bfa9299f020ee4af90b7c3206e954e54a218d56e0b8520ba800e88e04ca12f7",
     "src/main.cpp": "2d4d97d2b932dbb37bcc1b23083c1d0a2d14a7ad91ebba5148dec66c4d811ac7",
     "src/pe.cpp": "889313ff14249f272a983ae177286e3f51abc04d2b3c1fcbc24a9e698c13c148",
-    "src/runtime/process.cpp": "f5cae7d0f4f17244338994c7c597b12a51e3e78b747727e44ca73b22f1221225",
+    "src/runtime/process.cpp": "e6d4dbb098bdf693309b5c66ab8dacf50b54c72c1edb73f584ac13d87039fddb",
     "src/runtime/win32.cpp": "147d1e4622896478184714287508e4e52cc84867f94833c780b8fae6ea5dc3ae",
     "src/x86.cpp": "e0142766b0362ec456aa09717cd364a0b5d219d2bb2727118c5909f92c6693bf",
     "tests/abi_callbacks.py": "41084cade380e5f2d3b078108b1083d06281264f9c5fd7561aad17664e17460d",
@@ -48,6 +48,16 @@
     "tools/validate_target.py": "5072c45f1b1cc4dae6a29f55d1b18cb0f6ca32f26007cc39bf446919a3340a3f",
     "verification/windows-nls-observations.json": "d3827e315a5f8e8c02c9963ed0f088a6d2a68aac9bfa0c251c40242d77a04f5d",
     "tests/target_fp.py": "66349082ea7b99ccb0df905ec3c463bb329ee4c7827a86687e419668b3f55a43",
-    "tests/target_fp_selector.py": "ad674e96f2a07ee56bc02b33726512cc6d9724bbc951f0285a3f8e2f2e984784"
+    "tests/target_fp_selector.py": "ad674e96f2a07ee56bc02b33726512cc6d9724bbc951f0285a3f8e2f2e984784",
+    "include/winrecomp/gui.hpp": "5e031cfacafee1f26919fc1e57e11d191aa7ef685243ac28770e5be741b47a99",
+    "include/winrecomp/resources.hpp": "158e0b69ab94bc51363292e8c744b53ce90c2845337bcd0e5ded1ae2b59e9c3d",
+    "src/runtime/gui.cpp": "6c332dc167890400ecfc6e4f13312adf93cf40590685ff2d3179088d1fe09735",
+    "src/resources.cpp": "c01416e9cf670fc76f29a806f68d98b2da281aa616303d7fc434cd427a5be169",
+    "tests/resources.cpp": "fb34e2f3da361ce88008f06e6208f6586bf130e89965a77c3d7ac96f16412224",
+    "tests/window_program.py": "eaf42dfe22e3d94fd4ea148fd2adb94db357cb26f4b3237de7e189aa1e66b903",
+    "src/runtime/gui_callbacks.hpp": "fd2a982165c1676b76a60f209d4075b422eff1016e7411eda680ed561a159953",
+    "src/runtime/gui_lifecycle.hpp": "09e6525b4dedaf42a62dfb3fad39c1ffa6ca57b4f04979471bd212549bd657b8",
+    "src/runtime/gui_apis.hpp": "6bdb0a80358d4054faaf9f3c12ccf9d81cd8340deb46ef16c0af5de0db7157b5",
+    "tools/windowing_integrate.py": "0c56d8ab67c1907a4edc3fa2d5624a0e6473cf2fe064cfffc6892d4b70c3dff8"
   }
 }

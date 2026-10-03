@@ -1,6 +1,7 @@
 #pragma once
 #include "winrecomp/core.hpp"
 #include "winrecomp/compiled.hpp"
+#include "winrecomp/gui.hpp"
 #include <functional>
 #include <memory>
 #include <deque>
@@ -21,6 +22,8 @@ public:
     struct Transfer { U32 pc{},return_address{};std::string api;std::vector<U32> arguments;std::string detail; };
 private:
     std::unique_ptr<struct Win32State> win32_;
+    std::unique_ptr<GuiBackend> gui_;
+    std::unique_ptr<Image> source_image_;
     std::map<U32,Api> apis_;
     std::map<std::string,U32> api_names_;
     std::map<std::string,U32> modules_;
@@ -62,6 +65,8 @@ public:
     U32 put_wstring(const std::u16string& string);
     void set_error(U32 value);
     Win32State& state();
+    const Image& source_image() const;
+    const GuiBackend* gui() const {return gui_.get();}
     std::string report() const;
 };
 void install_win32(Process& process);
