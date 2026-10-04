@@ -65,10 +65,10 @@
     "include/winrecomp/directdraw.hpp": "c5a07b238734fa0dc2fdbdd1a7c17ecaa0d106ce59c9a240df7032f67098cce5",
     "src/runtime/directdraw.cpp": "b6028b5178212efb7b137412f20b5eecb099daa5d70e8251867db33b403fb7e4",
     "tests/directdraw_boundary.cpp": "7d8debbc996b6debd6b46478e2275f6a9ec414cad2e508726e536ee83be7f9bf",
-    "tests/directdraw_program.py": "1ff6f1fc1600291f30f4a9190fb7cb25f549571687a756c8f433d883904b6eee",
+    "tests/directdraw_program.py": "223f94ca5e5b23514227316946e642234c22483b7bbd0bc2bf4fbece3181ebfe",
     ".github/workflows/directdraw.yml": "8bb41c0f02e2b7a6ae6a6da637772f25d9f88d795e37c2eb96c796ec7f13262d",
     ".github/workflows/mingw.yml": "0c6d1d2d2c93fe584cf30ad7c69a80ee1ac213f3bd48bfd973c92120b3d0ddde",
-    "tests/legacy_modes.cpp": "2eab836542738109d44edf4492173751c1f5e982c8aa3f03690c74b158d73abd",
+    "tests/legacy_modes.cpp": "20f5c7bf84baa93e0b57787501ced21775c4e7323c4d40ed9cfb47e0ac0b5230",
     ".github/workflows/windows-startup.yml": "3a4488e217fa444a1009ab5120c18d278ce341d10de6c5a3a9136ae1fd718d58"
   }
 }

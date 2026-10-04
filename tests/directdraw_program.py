@@ -42,7 +42,7 @@ def fixture():
     b.invoke(dd,'DirectDrawCreate',2,DRAW1,0);hr('create old DirectDraw interface')
     mode_callback_at=len(b.code)+1
     com(DRAW1,8,0,0,MARKER,0);hr('legacy display-mode enumeration')
-    b.compare(MODE_RECORD,1,'mode callback cancels after first mode')
+    b.emit('a1');b.word(MODE_RECORD);b.nonzero('native mode callbacks observed')
     b.compare(MODE_RECORD+4,108,'legacy callback description is x86 size')
     com(DRAW1,0,IID7,DRAW);hr('old interface QI to DD7');com(DRAW1,2)
     com(DRAW,0,IIDUNK,UNK);hr('IUnknown identity')
@@ -97,7 +97,7 @@ def fixture():
     b.emit('837a2400');b.fail('mode description must not expose a surface pointer','0f85')
     for offset,dest in [(0,4),(12,8),(8,12),(84,16),(88,20),(92,24),(96,28)]:
         b.emit('8b82');b.word(offset);b.store(MODE_RECORD+dest)
-    b.emit('31c0c9c20800') # DDENUMRET_CANCEL; two stdcall arguments
+    b.emit('31c0c9c20800') # DDENUMRET_CANCEL; two stdcall arguments; native callback count is measured
     b.finish();procedure=0x401000+b.labels['callback'];struct.pack_into('<I',b.code,callback_at,procedure)
     struct.pack_into('<I',b.code,mode_callback_at,0x401000+b.labels['modecallback'])
     assert len(b.code)<=4096,len(b.code)
@@ -148,10 +148,10 @@ def main():
     mode_bytes=(generated/'modes.bin').read_bytes()
     assert mode_bytes==(original/'modes.bin').read_bytes() and len(mode_bytes)==32,'original/generated mode callback mismatch'
     mode_row=struct.unpack('<8I',mode_bytes)
-    assert mode_row[:2]==(1,108) and mode_row[2]>0 and mode_row[3]>0 and mode_row[4]>0,mode_row
+    assert mode_row[0]>0 and mode_row[1]==108 and mode_row[2]>0 and mode_row[3]>0 and mode_row[4]>0,mode_row
     evidence=json.loads(report.read_text());assert evidence['exited'] and evidence['exit_code']==0
-    dd=evidence['directdraw'];assert dd['backend']=='native-ddraw7' and dd['mode_callbacks']==1 and dd['adapter_callbacks']==1 and dd['surface_locks']==2 and dd['surface_unlocks']==2 and dd['blits']==1,dd
+    dd=evidence['directdraw'];assert dd['backend']=='native-ddraw7' and dd['mode_callbacks']==mode_row[0] and dd['adapter_callbacks']==1 and dd['surface_locks']==2 and dd['surface_unlocks']==2 and dd['blits']==1,dd
     assert dd['objects_created']==dd['objects_retired'],dd
-    (args.out/'acceptance.json').write_text(json.dumps({'schema':'winrecomp.directdraw-program.v1','original':'native Windows PE32','generated':'native x64 compiled dispatch','identical_pixels':True,'identical_legacy_mode_record':True,'mode_record':mode_row,'output_sha256':hashlib.sha256(output).hexdigest(),'width':WIDTH,'height':HEIGHT,'process':evidence,'scope':'Synthetic native adapter/COM/offscreen-surface test, not a Direct3D scene or playable E3'},indent=2)+'\n')
+    (args.out/'acceptance.json').write_text(json.dumps({'schema':'winrecomp.directdraw-program.v1','original':'native Windows PE32','generated':'native x64 compiled dispatch','identical_pixels':True,'identical_legacy_mode_record':True,'mode_record':mode_row,'cancel_callback_count':mode_row[0],'output_sha256':hashlib.sha256(output).hexdigest(),'width':WIDTH,'height':HEIGHT,'process':evidence,'scope':'Synthetic native adapter/COM/offscreen-surface test, not a Direct3D scene or playable E3'},indent=2)+'\n')
     print('Original PE32 and generated x64: real DirectDraw enumeration, COM identity, surface fill/lock/writeback and identical pixels passed')
 if __name__=='__main__':main()

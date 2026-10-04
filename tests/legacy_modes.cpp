@@ -62,10 +62,15 @@ void run(){
     const auto object=p.memory.load(data,32),filter=data+256;
     auto enumerate=[&](wr::U32 at=0,wr::U32 flags=0){return method(p,object,8,{object,flags,at,Context,Callback});};
     NativeRows expected;CHECK(native.value->EnumDisplayModes(0,nullptr,&expected,original)==DD_OK);
-    CHECK(!expected.rows.empty());guest_rows.clear();CHECK(enumerate()==DD_OK);CHECK(guest_rows==expected.rows);
+    CHECK(!expected.rows.empty());const auto full_count=expected.rows.size();guest_rows.clear();CHECK(enumerate()==DD_OK);CHECK(guest_rows==expected.rows);
     fault([&]{p.memory.load(expired,32);},wr::FaultKind::memory);
     expected.rows.clear();expected.cancel=true;CHECK(native.value->EnumDisplayModes(0,nullptr,&expected,original)==DD_OK);
-    CHECK(expected.rows.size()==1);guest_rows.clear();reply=DDENUMRET_CANCEL;CHECK(enumerate()==DD_OK);CHECK(guest_rows==expected.rows);
+    // Measure the native callback sequence instead of assuming Wine's count.
+    // The guest still returns CANCEL every time; all returned rows must match.
+    std::cout<<"Native mode callbacks: continue="<<full_count<<", cancel="<<expected.rows.size()<<std::endl;
+    CHECK(!expected.rows.empty() && expected.rows.size()<=full_count);
+    const auto cancelled_rows=expected.rows;
+    guest_rows.clear();reply=DDENUMRET_CANCEL;CHECK(enumerate()==DD_OK);CHECK(guest_rows==cancelled_rows);
     reply=DDENUMRET_OK;expected.cancel=false;
     // Same native/guest width filter. The guest input is a 108-byte structure
     // against a read-only page; no native callback may write back to it.
@@ -90,7 +95,7 @@ void run(){
     p.memory.store(filter+36,0,32);p.memory.store(filter+4,DDSD_PIXELFORMAT,32);p.memory.store(filter+72,31,32);fault([&]{enumerate(filter);},wr::FaultKind::unsupported);
     p.memory.protect(data+4096,4096,wr::Memory::Read);
     fault([&]{enumerate(data+8192-104);},wr::FaultKind::memory);
-    guest_rows.clear();CHECK(enumerate()==DD_OK);CHECK(guest_rows.size()==1);
+    guest_rows.clear();CHECK(enumerate()==DD_OK);CHECK(guest_rows==cancelled_rows);
     method(p,object,2,{object});fault([&]{enumerate();},wr::FaultKind::unsupported);
     // Guest process exit cancels enumeration instead of invoking more callbacks.
     wr::Process exiting(step);current=&exiting;exiting.load(image());auto out=exiting.allocate_bytes(4);
