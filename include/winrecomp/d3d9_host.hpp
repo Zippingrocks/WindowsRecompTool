@@ -51,9 +51,6 @@ public:
     // Copy the owned render target to the device swap chain and display it.
     // Presentation is legal only outside BeginScene/EndScene.
     virtual Status present()=0;
-    // Diagnostic front-buffer readback for acceptance tests and capture tools.
-    // Coordinates are desktop/screen pixels after a successful Present.
-    virtual Status front_pixel(std::uint32_t x,std::uint32_t y,std::uint32_t& rgb)=0;
 };
 class Factory {
 public:
