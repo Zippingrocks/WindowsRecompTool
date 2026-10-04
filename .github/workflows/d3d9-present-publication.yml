@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: d4c7bee78eb9659eaec584abb41a4808bef9c20c
+          ref: b6c51dab430854c5deda4878c71d064d711f0788
           fetch-depth: 0
           submodules: false
       - run: git submodule update --init --recursive third_party/zydis
@@ -44,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: d4c7bee78eb9659eaec584abb41a4808bef9c20c
+          ref: b6c51dab430854c5deda4878c71d064d711f0788
           submodules: false
       - run: git submodule update --init --recursive third_party/zydis
       - uses: actions/setup-python@v5
