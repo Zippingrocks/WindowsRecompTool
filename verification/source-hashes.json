@@ -63,7 +63,7 @@
     ".github/workflows/windowing.yml": "3bc079f58fa059bc8a343faf34fc7af03337907d4a5c24494a0242eaaf392ddf",
     "tests/exception_unwind.cpp": "3576dcdb5f9ace11e66ef7efbb230364a7d5802d8aa2af541a8cd39ac274a9ca",
     "include/winrecomp/directdraw.hpp": "c5a07b238734fa0dc2fdbdd1a7c17ecaa0d106ce59c9a240df7032f67098cce5",
-    "src/runtime/directdraw.cpp": "d20a6659c3d65d5c581d498a7feeab9eecd52f70f81e756927d2012e4278cc44",
+    "src/runtime/directdraw.cpp": "e0c9f660f9d5ef9aad96a33946081594c32aa37df5cbaeee6e8b4f686db43c72",
     "tests/directdraw_boundary.cpp": "7d8debbc996b6debd6b46478e2275f6a9ec414cad2e508726e536ee83be7f9bf",
     "tests/directdraw_program.py": "223f94ca5e5b23514227316946e642234c22483b7bbd0bc2bf4fbece3181ebfe",
     ".github/workflows/directdraw.yml": "8bb41c0f02e2b7a6ae6a6da637772f25d9f88d795e37c2eb96c796ec7f13262d",
@@ -91,11 +91,11 @@
     "tests/dialog_template.cpp": "130ef0fb96076446148b4e819a21df365088a01242718bbb4b7d4710bf023cd1",
     ".github/workflows/dialog-fixes.yml": "b6c37f8b887d13e69dafddfb1b2acb692cb9f3ff297edbf5ccf8adec99bbab14",
     "include/winrecomp/d3d9_host.hpp": "7ef6506c11fcded8e967f02f64fde0f5bca45fa0006b27ee4265e23b8fcc7685",
-    "src/runtime/d3d9_host.cpp": "3e6aac1e9c04d44d8f4338796fe4169501442f6e403ac56dcc8f13d8dbd8948f",
-    "src/runtime/directdraw_d3d9.hpp": "553deecc182be705d988dde1a1b83e332c7daabbf4da4c9a9eb0c635ae50b6f3",
+    "src/runtime/d3d9_host.cpp": "08d03833c8fcd16365e4bc4b604448883c07982f5f80285f8f69430de8a08cd1",
+    "src/runtime/directdraw_d3d9.hpp": "0a6343364d740526f43ab38db192413916df1c7cf0d7c092101c5d67bfdae7a6",
     "tests/d3d9_boundary.cpp": "8b1e84465baa108048ba7947c19d46b8535a091b1e1d0696551098d9647b1ceb",
     "tests/d3d9_program.py": "879cb7a80496d6462193205d5fe5f11ff7224dfdfb8be36642d077a015954880",
     "tests/d3d9_texture_program.py": "5d63f7969c2eca95bffb49652a0cea028cf4ce6c98a96e1e1ce3e344e5318b65",
-    "tests/d3d9_textures.cpp": "b8f50d99680b2dd9e6ee28a90d30a31512a5a4dec62929da97fbca54ae00e711"
+    "tests/d3d9_textures.cpp": "5d110953998b7544962732c92a9f58462638328894aa1656622106fac5366c96"
   }
 }

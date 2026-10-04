@@ -34,7 +34,7 @@ void textures(){
         for(U32 n=0;n<124;n+=4)p.memory.store(desc+n,0,32);
         for(auto [off,value]:{std::pair<U32,U32>{0,124},{4,0x1007},{8,height},{12,width},{72,32},{76,U32(DDPF_RGB|(alpha?DDPF_ALPHAPIXELS:0))},
             {84,32},{88,0xff0000},{92,0xff00},{96,0xff},{100,alpha?0xff000000u:0u},{104,caps}})p.memory.store(desc+off,value,32);
-        CHECK(com(p,dd,6,{dd,desc,out,0})==0);return p.memory.load(out,32);
+        auto result=com(p,dd,6,{dd,desc,out,0});if(result)std::cerr<<"CreateSurface caps="<<std::hex<<caps<<" flags="<<p.memory.load(desc+76,32)<<" HRESULT="<<result<<std::dec<<"\n";CHECK(result==0);return p.memory.load(out,32);
     };
     auto target=surface(DDSCAPS_OFFSCREENPLAIN|DDSCAPS_3DDEVICE,64,64);
     guid(p,base,IID_IDirect3DHALDevice);CHECK(com(p,root,4,{root,base,target,out})==0);auto device=p.memory.load(out,32);
@@ -52,6 +52,22 @@ void textures(){
         fault([&]{p.memory.load(format_expired,32);},wr::FaultKind::memory);
     }
     auto texture=surface(DDSCAPS_TEXTURE|DDSCAPS_SYSTEMMEMORY,8,8,true);
+    auto check_model=[&](U32 surface){
+        p.memory.store(desc,124,32);CHECK(com(p,surface,22,{surface,desc})==0);
+        CHECK(p.memory.load(desc+104,32)==(DDSCAPS_TEXTURE|DDSCAPS_SYSTEMMEMORY));
+        CHECK(p.memory.load(desc+76,32)==(DDPF_RGB|DDPF_ALPHAPIXELS));
+        CHECK(p.memory.load(desc+100,32)==0xff000000);
+        p.memory.store(out+16,0xfeedcafe,32);CHECK(com(p,surface,14,{surface,out})==0);
+        CHECK(p.memory.load(out,32)==(DDSCAPS_TEXTURE|DDSCAPS_SYSTEMMEMORY) && p.memory.load(out+16,32)==0xfeedcafe);
+        p.memory.store(out,32,32);CHECK(com(p,surface,21,{surface,out})==0);
+        CHECK(p.memory.load(out+4,32)==(DDPF_RGB|DDPF_ALPHAPIXELS) && p.memory.load(out+28,32)==0xff000000);
+    };
+    check_model(texture);
+    // QueryInterface aliases retain guest texture identity rather than exposing
+    // the native OFFSCREENPLAIN allocation used only as CPU storage.
+    guid(p,base,IID_IUnknown);CHECK(com(p,texture,0,{texture,base,out})==0);auto unknown=p.memory.load(out,32);
+    guid(p,base,IID_IDirectDrawSurface7);CHECK(com(p,unknown,0,{unknown,base,out})==0);auto alias=p.memory.load(out,32);
+    check_model(alias);com(p,alias,2,{alias});com(p,unknown,2,{unknown});
     fill(texture,[](U32 x,U32 y){return y<4?(x<4?0xffff0000u:0xff00ff00u):(x<4?0xff0000ffu:0xffffffffu);});
     CHECK(com(p,device,34,{device,0,out})==0 && !p.memory.load(out,32));
     CHECK(com(p,device,35,{device,0,texture})==0);
@@ -97,7 +113,7 @@ void textures(){
     CHECK(com(p,texture,32,{texture,0})==0);CHECK(com(p,device,25,{device,4,0x144,verts,3,0})==0);CHECK(com(p,device,6,{device})==0);
     com(p,texture,2,{texture});fault([&]{com(p,texture,24,{texture});},wr::FaultKind::unsupported);
     CHECK(draw(.125f,.125f)==0x345678);
-    CHECK(com(p,device,34,{device,0,out})==0);auto held=p.memory.load(out,32);CHECK(held && held!=texture);
+    CHECK(com(p,device,34,{device,0,out})==0);auto held=p.memory.load(out,32);CHECK(held && held!=texture);check_model(held);
     CHECK(com(p,device,35,{device,0,0})==0);CHECK(com(p,device,34,{device,0,out})==0 && p.memory.load(out,32)==0);
     com(p,held,2,{held});
     CHECK(com(p,device,5,{device})==0);CHECK(com(p,device,25,{device,4,0x144,verts,3,0})!=0);CHECK(com(p,device,6,{device})==0);

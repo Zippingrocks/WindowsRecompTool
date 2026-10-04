@@ -23,8 +23,8 @@ template<class T> struct Com {
     ~Com(){if(p)p->Release();}
 };
 constexpr unsigned MaxSize=2048,MaxTriangles=65536;
-// This initial profile deliberately advertises no textures, depth, lights,
-// transform pipeline, blending or unsupported vertex formats.
+// The geometry subset excludes depth, lights, transforms and blending.
+// Single-stage texture capabilities are separately checked against the host.
 Capabilities bounded(const D3DCAPS9& c){return {
     c.PrimitiveMiscCaps&(D3DPMISCCAPS_CULLNONE|D3DPMISCCAPS_CULLCW|D3DPMISCCAPS_CULLCCW),
     c.ShadeCaps&D3DPSHADECAPS_COLORGOURAUDRGB,

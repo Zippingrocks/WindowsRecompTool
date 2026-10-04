@@ -74,6 +74,7 @@
         const auto requested=guid(a[1]);p.memory.check(a[3],4,Memory::Write);
         if(!IsEqualIID(requested,IID_IDirect3DHALDevice))return U32(DDERR_INVALIDPARAMS);
         auto& target=object(a[2],Interface::surface7);if(target.locked)stop("CreateDevice with locked D3D9 target");
+        if(target.texture_model)stop("texture render targets are outside this profile");
         for(const auto& [at,o]:objects){(void)at;if(o.compat && o.compat->target==target.native)stop("one live D3D9 device per render target is supported");}
         const auto pos=cooperative_windows.find(identity9(root));
         if(pos==cooperative_windows.end() || !pos->second)stop("D3D9 creation needs an application-owned cooperative window");
@@ -125,10 +126,11 @@
         }
         return U32(S_OK);
     }
-    U32 texture_upload9(CompatDevice& d,IDirectDrawSurface7* source){
+    U32 texture_upload9(CompatDevice& d,IDirectDrawSurface7* source,const TextureModel& model){
         if(source==d.target)stop("render-target texture feedback is not supported");
         if(target_locked9(source))stop("texture upload while the guest surface is locked");
         DDSURFACEDESC2 desc{};desc.dwSize=sizeof(desc);auto hr=source->GetSurfaceDesc(&desc);if(FAILED(hr))return U32(hr);
+        desc.ddsCaps=model.caps;desc.dwFlags|=DDSD_CAPS;
         auto& f=desc.ddpfPixelFormat;
         const bool alpha=f.dwFlags==(DDPF_RGB|DDPF_ALPHAPIXELS);
         if((desc.dwFlags&(DDSD_CAPS|DDSD_PIXELFORMAT|DDSD_WIDTH|DDSD_HEIGHT))!=(DDSD_CAPS|DDSD_PIXELFORMAT|DDSD_WIDTH|DDSD_HEIGHT) ||
@@ -153,16 +155,16 @@
     }
     U32 set_texture9(Args a){
         auto d=object(a[0],Interface::compatdevice7).compat;if(a[1])stop("only texture stage zero is implemented");
-        if(!a[2]){auto hr=d->gpu->unbind_texture();if(!host9::failed(hr))d->texture.reset();return hr;}
-        auto& texture=object(a[2],Interface::surface7);if(texture.locked)stop("SetTexture with a locked guest surface");
+        if(!a[2]){auto hr=d->gpu->unbind_texture();if(!host9::failed(hr)){d->texture.reset();d->texture_model.reset();}return hr;}
+        auto& texture=object(a[2],Interface::surface7);if(!texture.texture_model)stop("SetTexture requires an owned guest texture surface");if(texture.locked)stop("SetTexture with a locked guest surface");
         auto native=static_cast<IDirectDrawSurface7*>(texture.native);native->AddRef();NativeOwner owner{native};
         auto retained=std::shared_ptr<IDirectDrawSurface7>(static_cast<IDirectDrawSurface7*>(owner.keep()),[](auto* p){p->Release();});
-        auto hr=texture_upload9(*d,native);if(!host9::failed(hr))d->texture=std::move(retained);return hr;
+        auto model=texture.texture_model;auto hr=texture_upload9(*d,native,*model);if(!host9::failed(hr)){d->texture=std::move(retained);d->texture_model=std::move(model);}return hr;
     }
     U32 get_texture9(Args a){
         auto d=object(a[0],Interface::compatdevice7).compat;if(a[1])stop("only texture stage zero is implemented");
         p.memory.check(a[2],4,Memory::Write);if(!d->texture){p.memory.store(a[2],0,32);return U32(S_OK);}
-        d->texture->AddRef();auto at=wrap(d->texture.get(),Interface::surface7);p.memory.store(a[2],at,32);return U32(S_OK);
+        d->texture->AddRef();auto at=wrap(d->texture.get(),Interface::surface7,d->texture_model);p.memory.store(a[2],at,32);return U32(S_OK);
     }
     U32 stage9(Args a,bool set){
         auto d=object(a[0],Interface::compatdevice7).compat;if(a[1])stop("only texture stage zero is implemented");
@@ -183,7 +185,7 @@
             std::vector<host9::TexturedVertex> vertices(a[4]);p.memory.copy_out(a[3],std::span(reinterpret_cast<std::uint8_t*>(vertices.data()),bytes));
             // Re-upload for each draw so guest edits after SetTexture are visible.
             // This correctness path is intentionally not the final caching strategy.
-            hr=texture_upload9(*d,d->texture.get());if(host9::failed(hr))return hr;
+            hr=texture_upload9(*d,d->texture.get(),*d->texture_model);if(host9::failed(hr))return hr;
             hr=d->gpu->textured_triangles(vertices);
         }else{
             if(d->texture)stop("a bound texture requires explicit TEX1 vertices in this profile");
