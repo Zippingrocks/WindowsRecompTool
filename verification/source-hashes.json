@@ -1,9 +1,9 @@
 {
   "schema": "winrecomp.source-snapshot.v1",
-  "note": "Exact owned source bytes for the windowing candidate; source transfer verified before independent native Windows tests. No game material.",
+  "note": "Exact owned source bytes for the DirectDraw and MinGW candidate; no game material.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "ecdb0e0ea00979e679e2cbe550fbb63dbc7756b8e88dd4f3167be7b15097a9b7",
+    "CMakeLists.txt": "5609f648595e041ef05ef35c2e85ded8495698d78c2fffeadf8f233d5804e167",
     "include/winrecomp/compiled.hpp": "2142de2df49af250cbdab8b3c7346d01f3ca1d2d9f329c5c5ed409b8c65f32aa",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
@@ -35,13 +35,13 @@
     "tests/hardware_oracle.py": "a74cbec7c67083d77af23413a735bec8aa55c25f8b2c02f6ba77479ee746662d",
     "tests/integer_cases.py": "cd65632dffd8bef133634dd94e72e6298ebb0676e250479a67d3938fd6498afd",
     "tests/nls.cpp": "a5ee6f2d88f7387614a10eecfd3705faf8c6b0a1fb86afbaac88b5e3792711c8",
-    "tests/process.cpp": "c37f49d58159899168decfc0f07fee923b88ad4f7a827a0f9fc36716e8fbc22e",
+    "tests/process.cpp": "59d98737e169c9546e9e4a93300d5194e4a0751e2f3ed9625650257bdc2838a3",
     "tests/program.py": "76f5e7735d9aea8d6329bb4186a392b6d7378571164ee06e936aa66f74d563f8",
     "tests/runtime.cpp": "11dc97bc6c626b8975f3d6dfb833380e355967cefac746ce81a9c4775ece145e",
     "tests/simd_cases.py": "3ffa3c8339b11f9410c4df2f12530bf204a0c64c56e1fd5159cf4f6719b4ec34",
     "tools/check_repository.py": "da089a09f3a8586e46d4395ce21c6e3d3b13b25359f06015f5f105796aa9b74b",
     "tools/create_project.py": "768571c2cfd5bc957a195346cc83fd3fd422c7356b1745c7ae94925b2173866c",
-    "tools/generate_fp_asm.py": "aa3d51fbd7e4b46cc0d1e4f8629af33870b81fc743f79b1714b1ae7a2b217be6",
+    "tools/generate_fp_asm.py": "85abaa73bc4bf8df1b8b4b2fe031529c374d8eb5a0897eb2446471873c8fa381",
     "tools/generate_nls.py": "413e07d00e74c8c6c6108d5cd066b7f071f7171f124661b339930cffa79d7243",
     "tools/references.py": "5ba5f506b267447f56c695362d05978331fff0e9046c62037af8b4a727ca34be",
     "tools/sse_recipes.py": "bf0e3cfc3f9ff1bf3ad058987a42f9f9446ca0e4b197fb53ae1d18e8d97f0243",
@@ -66,6 +66,7 @@
     "src/runtime/directdraw.cpp": "a70b212cedf922969506226dfae1cfc94bc69908750e3bfccdd411ebe1522a7f",
     "tests/directdraw_boundary.cpp": "7d8debbc996b6debd6b46478e2275f6a9ec414cad2e508726e536ee83be7f9bf",
     "tests/directdraw_program.py": "356e5bef506acd4ba4a6fdca64ed24eab81b394e7b7ad0a93a9e3cce7348e3c3",
-    ".github/workflows/directdraw.yml": "8bb41c0f02e2b7a6ae6a6da637772f25d9f88d795e37c2eb96c796ec7f13262d"
+    ".github/workflows/directdraw.yml": "8bb41c0f02e2b7a6ae6a6da637772f25d9f88d795e37c2eb96c796ec7f13262d",
+    ".github/workflows/mingw.yml": "0c6d1d2d2c93fe584cf30ad7c69a80ee1ac213f3bd48bfd973c92120b3d0ddde"
   }
 }

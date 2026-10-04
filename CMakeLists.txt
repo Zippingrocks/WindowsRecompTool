@@ -18,8 +18,12 @@ if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8 OR NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD6
   message(FATAL_ERROR "The current native runtime requires an x64 host")
 endif()
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(WR_GAS_ABI sysv)
+if(WIN32)
+  set(WR_GAS_ABI win64)
+endif()
 execute_process(COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_fp_asm.py
-  --out ${CMAKE_CURRENT_BINARY_DIR}/native RESULT_VARIABLE WR_FP_GEN)
+  --out ${CMAKE_CURRENT_BINARY_DIR}/native --gas-abi ${WR_GAS_ABI} RESULT_VARIABLE WR_FP_GEN)
 if(NOT WR_FP_GEN EQUAL 0)
   message(FATAL_ERROR "Native FP helper generation failed")
 endif()

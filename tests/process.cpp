@@ -28,7 +28,14 @@ template<class F> void fault(F&& f,wr::FaultKind kind){bool caught=false;try{f()
 int main(){
 #ifdef _WIN32
     SetErrorMode(SEM_FAILCRITICALERRORS|SEM_NOGPFAULTERRORBOX);
-    _set_thread_local_invalid_parameter_handler([](const wchar_t*,const wchar_t*,const wchar_t*,unsigned,uintptr_t){
+    // MSVC/UCRT offers a thread-local handler; the MinGW CRT exposes the
+    // process-wide form. This single-fixture executable aborts on either path.
+#if defined(_MSC_VER)
+    _set_thread_local_invalid_parameter_handler(
+#else
+    _set_invalid_parameter_handler(
+#endif
+    [](const wchar_t*,const wchar_t*,const wchar_t*,unsigned,uintptr_t){
         std::cerr<<"CRT rejected a native argument in process fixture\n";std::abort();
     });
 #endif
