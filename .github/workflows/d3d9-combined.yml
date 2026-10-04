@@ -1,4 +1,5 @@
 name: Native Windows combined renderer verification
+# rerun after source-hash manifest repair
 on:
   push:
     branches: [work/d3d9-combined]
