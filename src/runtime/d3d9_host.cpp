@@ -24,7 +24,7 @@ template<class T> struct Com {
     ~Com(){if(p)p->Release();}
 };
 constexpr unsigned MaxSize=2048,MaxTriangles=65536;
-// The geometry subset excludes depth, lights, transforms and blending.
+// The geometry subset excludes stencil, lights, transforms and blending.
 // Single-stage texture capabilities are separately checked against the host.
 Capabilities bounded(const D3DCAPS9& c){return {
     c.PrimitiveMiscCaps&(D3DPMISCCAPS_CULLNONE|D3DPMISCCAPS_CULLCW|D3DPMISCCAPS_CULLCCW),
@@ -47,6 +47,23 @@ Status texture_limits(IDirect3D9* api,const D3DCAPS9& c,TextureLimits& out){
     if(out.alpha)out.caps|=D3DPTEXTURECAPS_ALPHA;
     return Ok;
 }
+void depth_limits(IDirect3D9* api,const D3DCAPS9& c,Capabilities& out){
+    D3DDISPLAYMODE mode{};
+    if(FAILED(api->GetAdapterDisplayMode(0,&mode)))return;
+    if(FAILED(api->CheckDeviceFormat(0,D3DDEVTYPE_HAL,mode.Format,D3DUSAGE_DEPTHSTENCIL,
+                                    D3DRTYPE_SURFACE,D3DFMT_D16)))return;
+    if(FAILED(api->CheckDepthStencilMatch(0,D3DDEVTYPE_HAL,mode.Format,
+                                         D3DFMT_X8R8G8B8,D3DFMT_D16)))return;
+    out.depth_compare=c.ZCmpCaps&0xffu;
+    out.depth16=(out.depth_compare&D3DPCMPCAPS_LESSEQUAL)!=0;
+    if(!out.depth16)out.depth_compare=0;
+}
+struct NativeDepth final:Depth {
+    Com<IDirect3DSurface9> surface;
+    // The surface retains the device. This pointer is identity only and is
+    // never dereferenced; a resource from another device must be rejected.
+    IDirect3DDevice9* owner{};
+};
 bool texture_size(const TextureLimits& c,unsigned w,unsigned h,bool alpha){
     return w && h && w<=c.width && h<=c.height && !(w&(w-1)) && !(h&(h-1)) &&
         (!c.aspect || (std::uint64_t(w)<=std::uint64_t(h)*c.aspect && std::uint64_t(h)<=std::uint64_t(w)*c.aspect)) &&
@@ -55,15 +72,21 @@ bool texture_size(const TextureLimits& c,unsigned w,unsigned h,bool alpha){
 class NativeDevice final:public Device {
     Com<IDirect3DDevice9> device;Com<IDirect3DSurface9> target,staging;
     Com<IDirect3DTexture9> texture_image;
+    std::shared_ptr<NativeDepth> depth;
     DWORD thread=GetCurrentThreadId();unsigned width{},height{};bool scene{};
     Capabilities caps{};DWORD max_index{};
     bool valid() const{return device.p && GetCurrentThreadId()==thread;}
+    bool depth_ready() const {
+        DWORD enabled{};
+        return SUCCEEDED(device.p->GetRenderState(D3DRS_ZENABLE,&enabled)) && (!enabled || depth);
+    }
 public:
     Status initialize(IDirect3D9* factory,HWND window,unsigned w,unsigned h){
         if(!window || !IsWindow(window) || GetWindowThreadProcessId(window,nullptr)!=thread ||
            !w || !h || w>MaxSize || h>MaxSize)return Invalid;
         D3DCAPS9 c{};auto hr=factory->GetDeviceCaps(0,D3DDEVTYPE_HAL,&c);if(FAILED(hr))return Status(hr);
         max_index=c.MaxVertexIndex;caps=bounded(c);auto texture_hr=texture_limits(factory,c,caps.texture);if(failed(texture_hr))return texture_hr;
+        depth_limits(factory,c,caps);
         if(!caps.max_primitives || !(caps.misc&D3DPMISCCAPS_CULLNONE))return Unavailable;
         D3DPRESENT_PARAMETERS pp{};pp.Windowed=TRUE;pp.hDeviceWindow=window;
         pp.BackBufferWidth=w;pp.BackBufferHeight=h;pp.BackBufferFormat=D3DFMT_UNKNOWN;
@@ -78,7 +101,7 @@ public:
         hr=device.p->SetRenderTarget(0,target.p);if(FAILED(hr))return Status(hr);
         hr=device.p->SetDepthStencilSurface(nullptr);if(FAILED(hr))return Status(hr);
         for(auto [state,value]:{std::pair{D3DRS_ZENABLE,DWORD(FALSE)},
-            {D3DRS_ZWRITEENABLE,DWORD(FALSE)},{D3DRS_LIGHTING,DWORD(FALSE)},
+            {D3DRS_ZWRITEENABLE,DWORD(FALSE)},{D3DRS_ZFUNC,DWORD(D3DCMP_LESSEQUAL)},{D3DRS_LIGHTING,DWORD(FALSE)},
             {D3DRS_FOGENABLE,DWORD(FALSE)},{D3DRS_ALPHABLENDENABLE,DWORD(FALSE)},
             {D3DRS_SPECULARENABLE,DWORD(FALSE)},{D3DRS_CULLMODE,DWORD(D3DCULL_CCW)},
             {D3DRS_SHADEMODE,DWORD(D3DSHADE_GOURAUD)}}){
@@ -103,7 +126,33 @@ public:
     bool in_scene() const override{return scene;}
     Status begin() override{if(!valid() || scene)return Invalid;auto hr=device.p->BeginScene();if(SUCCEEDED(hr))scene=true;return Status(hr);}
     Status end() override{if(!valid() || !scene)return Invalid;auto hr=device.p->EndScene();if(SUCCEEDED(hr))scene=false;return Status(hr);}
-    Status clear(std::uint32_t color) override{if(!valid())return Invalid;return Status(device.p->Clear(0,nullptr,D3DCLEAR_TARGET,color,1,0));}
+    Status clear(std::uint32_t color) override{return clear_buffers(D3DCLEAR_TARGET,color,1);}
+    Status create_depth(std::shared_ptr<Depth>& out) override {
+        if(!valid() || scene)return Invalid;
+        if(!caps.depth16)return Unavailable;
+        auto pending=std::make_shared<NativeDepth>();
+        // Discard=FALSE is required: detaching/rebinding must not invalidate Z.
+        auto hr=device.p->CreateDepthStencilSurface(width,height,D3DFMT_D16,
+            D3DMULTISAMPLE_NONE,0,FALSE,&pending->surface.p,nullptr);
+        if(FAILED(hr))return Status(hr);
+        if(!pending->surface.p)return Invalid;
+        pending->owner=device.p;out=std::move(pending);return Ok;
+    }
+    Status bind_depth(const std::shared_ptr<Depth>& value) override {
+        if(!valid() || scene)return Invalid;
+        auto pending=std::dynamic_pointer_cast<NativeDepth>(value);
+        if(value && (!pending || pending->owner!=device.p))return Invalid;
+        auto hr=device.p->SetDepthStencilSurface(pending?pending->surface.p:nullptr);
+        if(SUCCEEDED(hr))depth=std::move(pending);
+        return Status(hr);
+    }
+    Status clear_buffers(std::uint32_t flags,std::uint32_t color,float z) override {
+        if(!valid() || !flags || (flags&~DWORD(D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER)))return Invalid;
+        if((flags&D3DCLEAR_ZBUFFER) && (!depth || !std::isfinite(z) || z<0 || z>1))return Invalid;
+        // Z is unused for a color-only clear, including NaN inputs. Do not
+        // reject inactive parameters, and do not change render state to clear.
+        return Status(device.p->Clear(0,nullptr,flags,color,(flags&D3DCLEAR_ZBUFFER)?z:1.f,0));
+    }
     Status set_viewport(const Viewport& v) override{
         if(!valid() || !v.width || !v.height || std::uint64_t(v.x)+v.width>width ||
            std::uint64_t(v.y)+v.height>height || !std::isfinite(v.min_z) || !std::isfinite(v.max_z) ||
@@ -117,7 +166,12 @@ public:
     Status set_state(std::uint32_t state,std::uint32_t value) override{
         if(!valid())return Invalid;
         switch(state){
-        case D3DRS_ZENABLE:case D3DRS_ZWRITEENABLE:case D3DRS_LIGHTING:
+        case D3DRS_ZENABLE:case D3DRS_ZWRITEENABLE:
+            if(value>1 || (value && !depth))return Status(E_NOTIMPL);break;
+        case D3DRS_ZFUNC:
+            if(value<1 || value>8)return Invalid;
+            if(!(caps.depth_compare&(1u<<(value-1))))return Status(E_NOTIMPL);break;
+        case D3DRS_LIGHTING:
         case D3DRS_ALPHABLENDENABLE:case D3DRS_FOGENABLE:case D3DRS_SPECULARENABLE:
             if(value!=FALSE)return Status(E_NOTIMPL);break;
         case D3DRS_CULLMODE:
@@ -134,19 +188,19 @@ public:
         if(!valid())return Invalid;
         switch(state){case D3DRS_ZENABLE:case D3DRS_ZWRITEENABLE:case D3DRS_LIGHTING:
         case D3DRS_ALPHABLENDENABLE:case D3DRS_FOGENABLE:case D3DRS_SPECULARENABLE:
-        case D3DRS_CULLMODE:case D3DRS_SHADEMODE:break;default:return Status(E_NOTIMPL);}
+        case D3DRS_CULLMODE:case D3DRS_SHADEMODE:case D3DRS_ZFUNC:break;default:return Status(E_NOTIMPL);}
         DWORD result{};auto hr=device.p->GetRenderState(D3DRENDERSTATETYPE(state),&result);
         if(SUCCEEDED(hr))value=result;return Status(hr);
     }
     Status triangles(std::span<const Vertex> vertices) override{
-        if(!valid() || !scene || vertices.empty() || vertices.size()%3 || vertices.size()/3>caps.max_primitives)return Invalid;
+        if(!valid() || !scene || !depth_ready() || vertices.empty() || vertices.size()%3 || vertices.size()/3>caps.max_primitives)return Invalid;
         for(const auto& v:vertices)if(!std::isfinite(v.x) || !std::isfinite(v.y) || !std::isfinite(v.z) ||
             !std::isfinite(v.rhw) || v.rhw<=0)return Invalid;
         auto hr=device.p->SetFVF(D3DFVF_XYZRHW|D3DFVF_DIFFUSE);if(FAILED(hr))return Status(hr);
         return Status(device.p->DrawPrimitiveUP(D3DPT_TRIANGLELIST,UINT(vertices.size()/3),vertices.data(),sizeof(Vertex)));
     }
     template<class V> Status indexed(std::span<const V> vertices,std::span<const std::uint16_t> indices,DWORD fvf){
-        if(!valid() || !scene)return Invalid;
+        if(!valid() || !scene || !depth_ready())return Invalid;
         const auto range=geometry::index_range(vertices.size(),indices,max_index,caps.max_primitives);
         if(!range || !geometry::referenced_vertices_valid(vertices,indices))return Invalid;
         auto hr=device.p->SetFVF(fvf);if(FAILED(hr))return Status(hr);
@@ -221,7 +275,7 @@ public:
         if(SUCCEEDED(hr))value=out;return Status(hr);
     }
     Status textured_triangles(std::span<const TexturedVertex> vertices)override{
-        if(!valid() || !scene || !texture_image.p || vertices.empty() || vertices.size()%3 || vertices.size()/3>caps.max_primitives)return Invalid;
+        if(!valid() || !scene || !depth_ready() || !texture_image.p || vertices.empty() || vertices.size()%3 || vertices.size()/3>caps.max_primitives)return Invalid;
         for(const auto& v:vertices)if(!std::isfinite(v.x)||!std::isfinite(v.y)||!std::isfinite(v.z)||!std::isfinite(v.rhw)||v.rhw<=0||!std::isfinite(v.u)||!std::isfinite(v.v))return Invalid;
         auto hr=device.p->SetFVF(D3DFVF_XYZRHW|D3DFVF_DIFFUSE|D3DFVF_TEX1);if(FAILED(hr))return Status(hr);
         return Status(device.p->DrawPrimitiveUP(D3DPT_TRIANGLELIST,UINT(vertices.size()/3),vertices.data(),sizeof(TexturedVertex)));
@@ -254,7 +308,7 @@ public:
         D3DCAPS9 value{};auto hr=factory.p->GetDeviceCaps(0,D3DDEVTYPE_HAL,&value);if(FAILED(hr))return Status(hr);
         D3DDISPLAYMODE mode{};hr=factory.p->GetAdapterDisplayMode(0,&mode);if(FAILED(hr))return Status(hr);
         hr=factory.p->CheckDeviceFormat(0,D3DDEVTYPE_HAL,mode.Format,D3DUSAGE_RENDERTARGET,D3DRTYPE_SURFACE,D3DFMT_X8R8G8B8);
-        if(FAILED(hr))return Status(hr);caps=bounded(value);return texture_limits(factory.p,value,caps.texture);
+        if(FAILED(hr))return Status(hr);caps=bounded(value);depth_limits(factory.p,value,caps);return texture_limits(factory.p,value,caps.texture);
     }
     Status create(std::uintptr_t window,std::uint32_t width,std::uint32_t height,std::unique_ptr<Device>& out) override{
         if(GetCurrentThreadId()!=thread)return Invalid;if(!factory.p)return Unavailable;

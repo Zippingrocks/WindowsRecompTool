@@ -1,5 +1,5 @@
 // Included inside Draw; uses the DX7 ABI here and a version-neutral helper TU
-// for DX9. One checked texture stage; depth, lights and presentation remain absent.
+// for DX9. One checked texture stage and attached D16 depth; no stencil or presentation.
     host9::Factory& factory9(){if(!renderer9)renderer9=host9::make_factory();if(!renderer9)stop("D3D9 host unavailable");return *renderer9;}
     std::uintptr_t identity9(IUnknown* native){
         IUnknown* id{};const auto hr=native->QueryInterface(IID_IUnknown,reinterpret_cast<void**>(&id));
@@ -20,7 +20,8 @@
         caps={};caps.dpcLineCaps.dwSize=56;caps.dpcTriCaps.dwSize=56;
         caps.dwDevCaps=D3DDEVCAPS_FLOATTLVERTEX|D3DDEVCAPS_DRAWPRIMTLVERTEX;
         caps.dpcTriCaps.dwMiscCaps=c.misc;caps.dpcTriCaps.dwShadeCaps=c.shade;
-        caps.dwDeviceRenderBitDepth=DDBD_32;caps.dvMaxVertexW=c.max_w;
+        caps.dwDeviceRenderBitDepth=DDBD_32;caps.dwDeviceZBufferBitDepth=c.depth16?DDBD_16:0;
+        caps.dpcTriCaps.dwZCmpCaps=c.depth_compare;caps.dvMaxVertexW=c.max_w;
         caps.deviceGUID=IID_IDirect3DHALDevice;
         caps.dwDevCaps|=D3DDEVCAPS_TEXTURESYSTEMMEMORY;
         caps.dpcTriCaps.dwTextureCaps=c.texture.caps;
@@ -30,7 +31,7 @@
         caps.dwMaxTextureWidth=c.texture.width;caps.dwMaxTextureHeight=c.texture.height;
         caps.dwMaxTextureAspectRatio=c.texture.aspect;caps.dwTextureOpCaps=c.texture.ops;
         caps.wMaxTextureBlendStages=caps.wMaxSimultaneousTextures=1;
-        // Single-level textures only; no Z formats, multitexturing or light slots.
+        // Single-level textures and optional D16; no stencil, multitexturing or lights.
         return hr;
     }
     U32 enum_devices9(Args a){
@@ -75,6 +76,8 @@
         if(!IsEqualIID(requested,IID_IDirect3DHALDevice))return U32(DDERR_INVALIDPARAMS);
         auto& target=object(a[2],Interface::surface7);if(target.locked)stop("CreateDevice with locked D3D9 target");
         if(target.texture_model)stop("texture render targets are outside this profile");
+        auto surface_model=target.surface_model;
+        if(!surface_model || surface_model->constructing)stop("D3D9 target is unavailable or under construction");
         for(const auto& [at,o]:objects){(void)at;if(o.compat && o.compat->target==target.native)stop("one live D3D9 device per render target is supported");}
         const auto pos=cooperative_windows.find(identity9(root));
         if(pos==cooperative_windows.end() || !pos->second)stop("D3D9 creation needs an application-owned cooperative window");
@@ -87,15 +90,25 @@
         auto hr=native_target->GetSurfaceDesc(&desc);if(FAILED(hr))return U32(hr);
         if(!rgb32_9(desc))stop("D3D9 profile requires a bounded X8R8G8B8 render target");
         if(objects.size()>=MaxObjects)stop("COM object budget exhausted");
-        // Own the native inputs before CreateDevice can reenter through USER32.
-        auto d=std::make_shared<CompatDevice>();root->AddRef();d->root=root;native_target->AddRef();d->target=native_target;
+        // Own native inputs and metadata before CreateDevice can reenter USER32.
+        struct Constructing {SurfaceModel& value;explicit Constructing(SurfaceModel& v):value(v){value.constructing=true;}~Constructing(){value.constructing=false;}} guard(*surface_model);
+        auto d=std::make_shared<CompatDevice>();d->surface_model=surface_model;root->AddRef();d->root=root;native_target->AddRef();d->target=native_target;
         d->width=desc.dwWidth;d->height=desc.dwHeight;
         const auto created=factory9().create(reinterpret_cast<std::uintptr_t>(pos->second),d->width,d->height,d->gpu);
         if(host9::failed(created))return created;
+        std::shared_ptr<host9::Depth> pending;
+        if(surface_model->depth){
+            auto hr=prepare_depth9(*d,*surface_model->depth,pending);if(host9::failed(hr))return hr;
+            for(auto [state,value]:{std::pair<U32,U32>{D3DRENDERSTATE_ZENABLE,1},{D3DRENDERSTATE_ZWRITEENABLE,1},{D3DRENDERSTATE_ZFUNC,D3DCMP_LESSEQUAL}}){
+                hr=d->gpu->set_state(state,value);if(host9::failed(hr))return hr;
+            }
+        }
         auto uploaded=transfer9(*d,false);if(host9::failed(uploaded))return uploaded;
         const auto table=vtable(Interface::compatdevice7);Allocation memory(p,4);
         p.memory.store(memory.address,table,32);p.memory.protect(memory.address,4096,Memory::Read);
         auto at=memory.address;objects.emplace(at,Object{Interface::compatdevice7,nullptr,1,{},d});memory.keep();
+        if(surface_model->depth){if(!surface_model->depth->storage)++renderer9_depth_surfaces;surface_model->depth->storage=std::move(pending);++renderer9_depth_binds;}
+        surface_model->device=d;
         ++this->created;++render_devices;++renderer9_devices;p.memory.store(a[3],at,32);return U32(S_OK);
     }
     U32 begin9(Args a){
@@ -106,9 +119,14 @@
     U32 end9(Args a){auto d=object(a[0],Interface::compatdevice7).compat;auto hr=d->gpu->end();if(host9::failed(hr))return hr;return transfer9(*d,true);}
     U32 clear9(Args a){
         auto d=object(a[0],Interface::compatdevice7).compat;
-        if(a[1] || a[2] || a[3]!=D3DCLEAR_TARGET)stop("bounded D3D9 Clear supports whole viewport color only");
+        if(a[1] || a[2] || !a[3] || (a[3]&~U32(D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER)))stop("bounded D3D9 Clear supports viewport color/D16 only");
+        const float z=std::bit_cast<float>(a[5]);
+        if(a[3]&D3DCLEAR_ZBUFFER){
+            if(!d->surface_model->depth)stop("depth Clear requires an attached D16 surface");
+            if(!std::isfinite(z) || z<0 || z>1)return host9::Invalid;
+        }
         if(!d->gpu->in_scene()){auto hr=transfer9(*d,false);if(host9::failed(hr))return hr;}
-        auto hr=d->gpu->clear(a[4]);if(host9::failed(hr))return hr;++renderer9_clears;
+        auto hr=d->gpu->clear_buffers(a[3],a[4],z);if(host9::failed(hr))return hr;++renderer9_clears;
         return d->gpu->in_scene()?hr:transfer9(*d,true);
     }
     U32 enum_textures9(Args a){
