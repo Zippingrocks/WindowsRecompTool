@@ -5,21 +5,13 @@ on:
 permissions:
   contents: read
 jobs:
-  select:
-    runs-on: ubuntu-24.04
-    outputs:
-      source_sha: ${{ steps.source.outputs.source_sha }}
-    steps:
-      - id: source
-        run: echo "source_sha=d4c7bee78eb9659eaec584abb41a4808bef9c20c" >> "$GITHUB_OUTPUT"
   windows:
-    needs: select
     runs-on: windows-2022
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.select.outputs.source_sha }}
+          ref: d4c7bee78eb9659eaec584abb41a4808bef9c20c
           fetch-depth: 0
           submodules: false
       - run: git submodule update --init --recursive third_party/zydis
@@ -47,13 +39,12 @@ jobs:
             build/Testing/Temporary/LastTestsFailed.log
           retention-days: 14
   windows_memory:
-    needs: select
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.select.outputs.source_sha }}
+          ref: d4c7bee78eb9659eaec584abb41a4808bef9c20c
           submodules: false
       - run: git submodule update --init --recursive third_party/zydis
       - uses: actions/setup-python@v5
