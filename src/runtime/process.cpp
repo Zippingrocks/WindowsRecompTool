@@ -25,6 +25,11 @@ Process::Process(StepFunction step,ProcessOptions opts):win32_(std::make_unique<
     if(!step_)throw std::runtime_error("missing compiled dispatch function");
     if(!budget)throw std::runtime_error("instruction budget must be nonzero");
     options.data_root=std::filesystem::canonical(options.data_root);
+    for(auto& dir:options.dll_directories) {
+        if(dir.is_relative())dir=options.data_root/dir;
+        dir=std::filesystem::canonical(dir);
+        if(!std::filesystem::is_directory(dir))throw std::runtime_error("DLL search root is not a directory");
+    }
     install_win32(*this);
     gui_=install_gui(*this);
     directdraw_=install_directdraw(*this);
@@ -81,15 +86,6 @@ U32 Process::resolve(const std::string& dll,const std::string& name,bool allow_u
     if(next_thunk_>=0xf1000000)throw std::runtime_error("thunk space exhausted");
     const auto at=next_thunk_;next_thunk_+=16;api_names_[key]=at;apis_.emplace(at,Api{canonical(dll),name,0,false,{}});return at;
 }
-U32 Process::module(const std::string& dll,bool create) {
-    auto key=canonical(dll);if(key.empty())return image_base;
-    const auto path=key.find_last_of("/\\");if(path!=std::string::npos)key=key.substr(path+1);
-    if(key.find('.')==std::string::npos)key+=".dll";
-    if(auto it=modules_.find(key);it!=modules_.end())return it->second;
-    if(!create){set_error(126);return 0;}
-    const auto value=next_module_;next_module_+=0x10000;modules_[key]=value;return value;
-}
-std::string Process::module_name(U32 handle) const {for(const auto& [name,value]:modules_)if(value==handle)return name;return {};}
 U32 Process::argument(unsigned index) {
     const auto at=std::uint64_t(cpu.r[ESP])+4+std::uint64_t(index)*4;
     if(at+4>0x100000000ull)throw GuestFault(FaultKind::memory,cpu.r[ESP],"API argument stack wraps");return memory.load(U32(at),32);
@@ -99,7 +95,7 @@ bool Process::dispatch_api() {
     const auto return_address=memory.load(cpu.r[ESP],32);
     std::vector<U32> arguments;for(unsigned n=0;n<api.arguments;++n)arguments.push_back(argument(n));
     std::string detail;
-    if(!arguments.empty() && (api.name=="CreateFileA" || api.name=="FindFirstFileA" || api.name=="CreateDirectoryA" || api.name=="CreateMutexA")) {
+    if(!arguments.empty() && (api.name=="LoadLibraryA" || api.name=="GetModuleHandleA" || api.name=="CreateFileA" || api.name=="FindFirstFileA" || api.name=="CreateDirectoryA" || api.name=="CreateMutexA")) {
         try{const auto pointer=api.name=="CreateMutexA"?arguments.at(2):arguments[0];if(pointer)detail=read_string(pointer,1024);}catch(const std::exception&){detail="<unreadable bounded guest name>";}
     }
     recent_transfers.push_back({cpu.eip,return_address,api.dll+"!"+api.name,std::move(arguments),detail});if(recent_transfers.size()>32)recent_transfers.pop_front();
@@ -183,16 +179,18 @@ U32 Process::put_string(const std::string& string){auto p=allocate_bytes(string.
 U32 Process::put_wstring(const std::u16string& string){auto p=allocate_bytes((string.size()+1)*2);for(std::size_t n=0;n<=string.size();++n)memory.store(p+U32(n*2),n==string.size()?0:U32(string[n]),16);return p;}
 std::string Process::report() const {
     std::ostringstream out;out<<"{\"schema\":\"winrecomp.process.v1\",\"input_sha256\":"<<quote(input_sha256)<<",\"exited\":"<<(exited_?"true":"false")<<",\"exit_code\":"<<exit_code_<<",\"eip\":"<<cpu.eip<<",\"esp\":"<<cpu.r[ESP]<<",\"native_instructions\":"<<executed_instructions<<",\"api_calls\":"<<api_calls<<",\"budget_left\":"<<budget<<",\"recent_transfers\":[";
-    bool first=true;for(const auto& x:recent_transfers){if(!first)out<<',';first=false;out<<"{\"pc\":"<<x.pc<<",\"return\":"<<x.return_address<<",\"api\":"<<quote(x.api)<<",\"arguments\":[";for(std::size_t n=0;n<x.arguments.size();++n){if(n)out<<',';out<<x.arguments[n];}out<<"],\"detail\":"<<quote(x.detail)<<"}";}out<<"],\"gui\":"<<(gui_?gui_->report():"null")<<",\"directdraw\":"<<(directdraw_?directdraw_->report():"null")<<"}";return out.str();
+    bool first=true;for(const auto& x:recent_transfers){if(!first)out<<',';first=false;out<<"{\"pc\":"<<x.pc<<",\"return\":"<<x.return_address<<",\"api\":"<<quote(x.api)<<",\"arguments\":[";for(std::size_t n=0;n<x.arguments.size();++n){if(n)out<<',';out<<x.arguments[n];}out<<"],\"detail\":"<<quote(x.detail)<<"}";}out<<"],\"module_search_policy\":\"explicit-directories-and-owned-bridges\",\"module_lookups\":[";
+    first=true;for(const auto& e:win32_->module_lookups){if(!first)out<<',';first=false;out<<"{\"name\":"<<quote(e.name)<<",\"result\":"<<quote(e.result)<<",\"searched\":[";for(std::size_t n=0;n<e.searched.size();++n){if(n)out<<',';out<<quote(e.searched[n]);}out<<"]}";}
+    out<<"],\"gui\":"<<(gui_?gui_->report():"null")<<",\"directdraw\":"<<(directdraw_?directdraw_->report():"null")<<"}";return out.str();
 }
 int run_program(int argc,char** argv,StepFunction step,const char* expected_sha256) {
     std::unique_ptr<Process> process;std::string report_path;
     try {
-        if(argc<2)throw std::runtime_error("usage: recompiled_program original.exe [--root data-directory] [--budget N] [--report report.json] [--allow-write]");
+        if(argc<2)throw std::runtime_error("usage: recompiled_program original.exe [--root data-directory] [--budget N] [--report report.json] [--allow-write] [--dll-dir guest-library-directory]");
         ProcessOptions options;options.image_name=std::filesystem::path(argv[1]).filename().string();options.command_line='"'+std::filesystem::path(argv[1]).filename().string()+'"';
         for(int n=2;n<argc;++n){const std::string arg=argv[n];if(arg=="--allow-write"){options.allow_file_write=true;continue;}
             if(n+1>=argc)throw std::runtime_error("missing option value");const std::string value=argv[++n];
-            if(arg=="--root")options.data_root=value;else if(arg=="--report")report_path=value;else if(arg=="--command-line")options.command_line=value;
+            if(arg=="--root")options.data_root=value;else if(arg=="--dll-dir")options.dll_directories.emplace_back(value);else if(arg=="--report")report_path=value;else if(arg=="--command-line")options.command_line=value;
             else if(arg=="--budget"){std::size_t used{};options.instruction_budget=std::stoull(value,&used);if(used!=value.size() || value.empty() || value[0]=='-')throw std::runtime_error("invalid budget");}
             else throw std::runtime_error("unknown runtime option: "+arg);
         }

@@ -8,6 +8,8 @@
     4402970,
     4403405,
     4586112,
+    4600000,
+    4602336,
     4637984,
     4638400,
     4721232,
@@ -53,6 +55,18 @@
         4586112
       ],
       "basis": "Individually observed untranslated code targets during private x64 E3 startup under Wine. Checked as file-backed executable code before admission. 0x0046C6C0 is the legacy EnumDisplayModes callback supplied at 0x0046C5A7."
+    },
+    {
+      "targets": [
+        4602336
+      ],
+      "basis": "Observed untranslated target after the original game handles a missing glide2x.dll in the explicitly declared data-root DLL namespace, Windows x64 under Wine. File-backed executable entry admitted, not Windows-native evidence."
+    },
+    {
+      "targets": [
+        4600000
+      ],
+      "basis": "Observed untranslated DirectDraw enumeration callback during real E3 x64 startup under Wine after the optional-library failure branch. Not native Windows evidence."
     }
   ]
 }

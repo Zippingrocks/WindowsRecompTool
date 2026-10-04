@@ -1,6 +1,14 @@
 """Author-created byte fixtures for integer, prefix and indirect-flow semantics."""
 def cases():
-    out={}
+    out={
+        'pushfd_read':'9c58c3',
+        'pushf_read':'669c6658c3',
+        'popfd_roundtrip':'9c9dc3',
+        'popf_roundtrip':'669c669dc3',
+        'popfd_id_toggle':'9c583500002000509d9c58c3',
+        'popfd_defined_status':'25d50c20000d00020000509d9c58fcc3',
+        'popf_defined_status':'6625d50c660d00026650669d669c6658fcc3',
+    }
     for name,extension in [('shl',4),('shr',5),('sar',7),('rol',0),('ror',1),('rcl',2),('rcr',3)]:
         for width,prefix,opcode in [(8,'','d2'),(16,'66','d3'),(32,'','d3')]:
             out[f'{name}_{width}_cl']=prefix+opcode+f'{0xc0+extension*8:02x}'+'c3'

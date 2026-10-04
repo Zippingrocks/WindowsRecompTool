@@ -15,6 +15,8 @@ struct ProcessOptions {
     std::filesystem::path data_root{"."};
     std::string command_line{"program.exe"},image_name{"program.exe"};
     bool allow_file_write{false};
+    // Explicit guest DLL namespace; empty keeps unknown-library requests fail-closed.
+    std::vector<std::filesystem::path> dll_directories;
     std::string user_name{"WinRecomp"};
 };
 class Process {
@@ -28,7 +30,8 @@ private:
     std::unique_ptr<Image> source_image_;
     std::map<U32,Api> apis_;
     std::map<std::string,U32> api_names_;
-    std::map<std::string,U32> modules_;
+    struct Module { U32 handle{},references{};bool imported{}; };
+    std::map<std::string,Module> modules_;
     U32 next_thunk_{0xf0000000},next_module_{0xe0000000};
     StepFunction step_{};
     bool loaded_{},exited_{};
@@ -51,6 +54,8 @@ public:
     U32 resolve(const std::string& dll,const std::string& name,bool allow_unimplemented=false);
     U32 module(const std::string& dll,bool create=false);
     std::string module_name(U32 handle) const;
+    U32 load_library(const std::string& name);
+    U32 free_library(U32 handle);
     bool dispatch_api();
     U32 argument(unsigned index);
     U32 callback(U32 address,std::span<const U32> args,bool stdcall=true);

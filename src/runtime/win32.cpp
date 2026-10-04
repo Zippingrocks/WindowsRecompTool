@@ -321,7 +321,8 @@ void install_win32(Process& p) {
 #endif
     });
     kernel(p,"GetModuleHandleA",1,[](auto& q){auto at=arg(q,0);return at?q.module(q.read_string(at)):q.image_base;});
-    kernel(p,"LoadLibraryA",1,[](auto& q){auto name=q.read_string(arg(q,0));auto result=q.module(name,false);if(!result)throw GuestFault(FaultKind::unsupported,q.cpu.eip,"module loading not implemented for "+name);return result;});
+    kernel(p,"LoadLibraryA",1,[](auto& q){return q.load_library(q.read_string(arg(q,0)));});
+    kernel(p,"FreeLibrary",1,[](auto& q){return q.free_library(arg(q,0));});
     kernel(p,"GetProcAddress",2,[](auto& q){const auto name=q.module_name(arg(q,0));if(name.empty()){q.set_error(6);return 0u;}auto pointer=arg(q,1);auto symbol=pointer<0x10000?"#"+std::to_string(pointer):q.read_string(pointer);auto target=q.resolve(name,symbol);if(!target)throw GuestFault(FaultKind::unsupported,q.cpu.eip,"unmodelled dynamic export "+name+"!"+symbol);return target;});
     kernel(p,"GetModuleFileNameA",3,[](auto& q){if(arg(q,0) && arg(q,0)!=q.image_base){q.set_error(6);return 0u;}auto count=arg(q,2),dest=arg(q,1);if(!count){q.set_error(122);return 0u;}std::string name="C:\\WinRecomp\\"+q.options.image_name;auto n=std::min<std::size_t>(name.size(),count-1);q.memory.check(dest,n+1,Memory::Write);q.memory.copy_in(dest,std::span(reinterpret_cast<const std::uint8_t*>(name.data()),n));q.memory.store(dest+U32(n),0,8);if(n<name.size()){q.set_error(122);return count;}return U32(n);});
     kernel(p,"GetStartupInfoA",1,[](auto& q){auto at=arg(q,0);zero(q.memory,at,68);q.memory.store(at,68,32);q.memory.store(at+56,q.state().stdin_handle,32);q.memory.store(at+60,q.state().stdout_handle,32);q.memory.store(at+64,q.state().stderr_handle,32);return 0;});

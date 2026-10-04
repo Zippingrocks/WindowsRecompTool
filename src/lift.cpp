@@ -209,6 +209,9 @@ std::string translate_unlocked(const Instruction& i) {
         return "{auto value="+read(i,src)+";if(wr::test_condition(s,"+std::to_string(i.decoded.opcode&15u)+")){"+write(i,d,"value")+"}}";
     }
     switch(op) {
+    case ZYDIS_MNEMONIC_CPUID:return "wr::host_cpuid(s);";
+    case ZYDIS_MNEMONIC_PUSHF:case ZYDIS_MNEMONIC_PUSHFD:return "wr::push_flags(s,m,"+std::to_string(i.decoded.operand_width)+");";
+    case ZYDIS_MNEMONIC_POPF:case ZYDIS_MNEMONIC_POPFD:return "wr::pop_flags(s,m,"+std::to_string(i.decoded.operand_width)+");";
     case ZYDIS_MNEMONIC_CDQ:return "s.r[wr::EDX]=(s.r[wr::EAX]&0x80000000u)?0xffffffffu:0u;";
     case ZYDIS_MNEMONIC_CWD:return "wr::set_reg(s,wr::EDX,(s.r[wr::EAX]&0x8000u)?0xffffu:0u,16);";
     case ZYDIS_MNEMONIC_CWDE:return "s.r[wr::EAX]=wr::sign_extend(s.r[wr::EAX],16);";

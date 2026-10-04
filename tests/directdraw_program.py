@@ -146,7 +146,11 @@ def main():
     if result.returncode:raise RuntimeError(f'Generated x64 failed: {result.returncode}: {failures.get(result.returncode,"")}\n{result.stderr}\n{result.stdout}')
     output=(generated/'surface.bin').read_bytes();assert output==original_bytes==expected,'original/generated offscreen pixel mismatch'
     mode_bytes=(generated/'modes.bin').read_bytes()
-    assert mode_bytes==(original/'modes.bin').read_bytes() and len(mode_bytes)==32,'original/generated mode callback mismatch'
+    original_modes=(original/'modes.bin').read_bytes()
+    rows={'original':list(struct.unpack('<8I',original_modes)), 'generated':list(struct.unpack('<8I',mode_bytes))}
+    print('Native PE32 and generated x64 mode records:',rows,flush=True)
+    (args.out/'mode-comparison.json').write_text(json.dumps(rows,indent=2)+'\n')
+    assert mode_bytes==original_modes and len(mode_bytes)==32,rows
     mode_row=struct.unpack('<8I',mode_bytes)
     assert mode_row[0]>0 and mode_row[1]==108 and mode_row[2]>0 and mode_row[3]>0 and mode_row[4]>0,mode_row
     evidence=json.loads(report.read_text());assert evidence['exited'] and evidence['exit_code']==0

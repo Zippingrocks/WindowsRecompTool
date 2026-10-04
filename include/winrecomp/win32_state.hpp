@@ -5,9 +5,12 @@
 #include <filesystem>
 #include <functional>
 #include <map>
+#include <deque>
 #include <set>
 namespace wr {
 struct Win32State {
+    struct ModuleLookup {std::string name,result;std::vector<std::string> searched;};
+    std::deque<ModuleLookup> module_lookups;
     struct Heap {U32 maximum{};std::map<U32,U32> blocks;};
     struct File { std::FILE* stream{};bool owned{},read{},write{};U32 type{1};std::filesystem::path path;U32 share{7}; };
     struct Find {

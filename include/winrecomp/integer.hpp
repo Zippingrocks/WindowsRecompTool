@@ -1,4 +1,5 @@
 #pragma once
+#include "winrecomp/cpu_queries.hpp"
 #include "winrecomp/runtime.hpp"
 namespace wr {
 inline void tick(std::uint64_t& budget,U32 pc) {
