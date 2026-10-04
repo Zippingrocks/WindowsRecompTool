@@ -1,0 +1,41 @@
+name: Private local host tools
+on:
+  push:
+    branches: [work/portable-host-tools]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Resolve isolated Debian diagnostic packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p host-tools/packages
+          docker pull debian:trixie-slim
+          docker image inspect debian:trixie-slim > host-tools/container-image.json
+          docker run --rm -v "$PWD/host-tools:/out" debian:trixie-slim bash -ceu '
+            rm -f /etc/apt/apt.conf.d/docker-clean
+            apt-get update
+            packages="wine64 g++-mingw-w64-x86-64-posix libgl1-mesa-dri libglx-mesa0 libglu1-mesa libvulkan1 libxrandr2 libxinerama1 libxcursor1 libxi6 fonts-dejavu-core"
+            apt-cache policy $packages > /out/resolved-policy.txt
+            apt-get --yes --download-only --no-install-recommends install $packages
+            cp /var/cache/apt/archives/*.deb /out/packages/
+            cd /out/packages
+            sha256sum *.deb > ../SHA256SUMS
+            for f in *.deb; do
+              printf "FILE: %s\n" "$f"
+              dpkg-deb --field "$f" Package Version Architecture Source Depends
+            done > ../package-manifest.txt
+          '
+          printf '%s\n' 'External private development tools only. Extract packages into a separate workspace; do not merge these binaries into WinRecomp. Retain the Debian copyright files inside each package. Wine results are compatibility-host diagnostics, not native Windows acceptance. Game files and generated game code are never uploaded by this workflow.' > host-tools/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debian13-wine64-mingw64-diagnostics
+          path: host-tools/
+          retention-days: 14
+          compression-level: 0
+          if-no-files-found: error
