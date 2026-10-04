@@ -53,8 +53,9 @@ struct SurfaceLock {
 struct CompatDevice {
     std::unique_ptr<host9::Device> gpu;
     IDirectDraw7* root{};IDirectDrawSurface7* target{};
+    std::shared_ptr<IDirectDrawSurface7> texture;
     U32 width{},height{};
-    ~CompatDevice(){gpu.reset();if(target)target->Release();if(root)root->Release();}
+    ~CompatDevice(){gpu.reset();texture.reset();if(target)target->Release();if(root)root->Release();}
 };
 struct Object {
     Interface kind{};IUnknown* native{};U32 guest_refs{};
@@ -490,15 +491,17 @@ class Draw final:public DirectDrawBackend {
         const bool render=(caps&(DDSCAPS_OFFSCREENPLAIN|DDSCAPS_3DDEVICE))==(DDSCAPS_OFFSCREENPLAIN|DDSCAPS_3DDEVICE)
             && !(caps&~DWORD(DDSCAPS_OFFSCREENPLAIN|DDSCAPS_3DDEVICE|DDSCAPS_SYSTEMMEMORY|DDSCAPS_VIDEOMEMORY))
             && (caps&(DDSCAPS_SYSTEMMEMORY|DDSCAPS_VIDEOMEMORY))!=(DDSCAPS_SYSTEMMEMORY|DDSCAPS_VIDEOMEMORY);
-        if(!plain && !render)stop("unmodelled offscreen surface capability combination");
+        const bool texture=p.options.legacy_d3d9 && caps==(DDSCAPS_TEXTURE|DDSCAPS_SYSTEMMEMORY);
+        if(!plain && !render && !texture)stop("unmodelled offscreen surface capability combination");
         if(!(d.dwFlags&DDSD_PIXELFORMAT) && !render)stop("plain offscreen surface requires an explicit pixel format");
         if(d.dwFlags&DDSD_PIXELFORMAT){
             p.memory.copy_out(at+72,std::span(reinterpret_cast<std::uint8_t*>(&d.ddpfPixelFormat),32));
             const auto& f=d.ddpfPixelFormat;
-            if(f.dwSize!=32 || f.dwFlags!=DDPF_RGB || f.dwFourCC || f.dwRGBBitCount!=32 || f.dwRBitMask!=0xff0000 || f.dwGBitMask!=0xff00 || f.dwBBitMask!=0xff || f.dwRGBAlphaBitMask)
+            if(f.dwSize!=32 || (f.dwFlags!=DDPF_RGB && !(texture && f.dwFlags==(DDPF_RGB|DDPF_ALPHAPIXELS))) || f.dwFourCC || f.dwRGBBitCount!=32 || f.dwRBitMask!=0xff0000 || f.dwGBitMask!=0xff00 || f.dwBBitMask!=0xff || f.dwRGBAlphaBitMask!=((f.dwFlags&DDPF_ALPHAPIXELS)?0xff000000u:0u))
                 stop("only an explicit X8R8G8B8 or a native default render format is supported");
         }
         d.dwHeight=p.memory.load(at+8,32);d.dwWidth=p.memory.load(at+12,32);
+        if(texture && ((d.dwWidth&(d.dwWidth-1)) || (d.dwHeight&(d.dwHeight-1)) || d.dwWidth>2048 || d.dwHeight>2048))stop("single-level power-of-two texture dimensions required");
         if(!d.dwWidth || !d.dwHeight || std::uint64_t(d.dwWidth)*d.dwHeight>MaxSurfaceBytes/4)stop("surface allocation budget");
         return d;
     }
@@ -657,7 +660,7 @@ U32 Draw::vtable(Interface kind){
         }
         if(kind==Interface::compatdevice7){
             if(slot==3)method(2,[this](Args a){object(a[0],Interface::compatdevice7);p.memory.check(a[1],DeviceDescSize,Memory::Write);D3DDEVICEDESC7 caps{};auto hr=caps9(caps);if(!host9::failed(hr))write_device(a[1],caps);return hr;});
-            if(slot==4)method(3,[this](Args a){object(a[0],Interface::compatdevice7);if(!a[1])return U32(DDERR_INVALIDPARAMS);p.memory.check(a[1],1,Memory::Execute);return U32(S_OK);});
+            if(slot==4)method(3,[this](Args a){return enum_textures9(a);});
             if(slot==5)method(1,[this](Args a){return begin9(a);});
             if(slot==6)method(1,[this](Args a){return end9(a);});
             if(slot==7)method(2,[this](Args a){auto d=object(a[0],Interface::compatdevice7).compat;p.memory.check(a[1],4,Memory::Write);d->root->AddRef();p.memory.store(a[1],wrap(d->root,Interface::compat3d7),32);return U32(S_OK);});
@@ -668,6 +671,10 @@ U32 Draw::vtable(Interface kind){
             if(slot==20)method(3,[this](Args a){auto d=object(a[0],Interface::compatdevice7).compat;auto hr=d->gpu->set_state(a[1],a[2]);if(hr==U32(E_NOTIMPL))stop("render state/value outside bounded D3D9 profile");return hr;});
             if(slot==21)method(3,[this](Args a){auto d=object(a[0],Interface::compatdevice7).compat;p.memory.check(a[2],4,Memory::Write);U32 value{};auto hr=d->gpu->get_state(a[1],value);if(hr==U32(E_NOTIMPL))stop("render-state query outside bounded D3D9 profile");if(!host9::failed(hr))p.memory.store(a[2],value,32);return hr;});
             if(slot==25)method(6,[this](Args a){return triangles9(a);});
+            if(slot==34)method(3,[this](Args a){return get_texture9(a);});
+            if(slot==35)method(3,[this](Args a){return set_texture9(a);});
+            if(slot==36)method(4,[this](Args a){return stage9(a,false);});
+            if(slot==37)method(4,[this](Args a){return stage9(a,true);});
         }
         if(kind==Interface::clipper){
             if(slot==4)method(2,[this](Args a){return get_clipper_window(a);});

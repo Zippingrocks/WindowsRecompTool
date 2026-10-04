@@ -1,5 +1,5 @@
 // Included inside Draw; uses the DX7 ABI here and a version-neutral helper TU
-// for DX9. This profile intentionally cannot advertise textures/depth/lights.
+// for DX9. One checked texture stage; depth, lights and presentation remain absent.
     host9::Factory& factory9(){if(!renderer9)renderer9=host9::make_factory();if(!renderer9)stop("D3D9 host unavailable");return *renderer9;}
     std::uintptr_t identity9(IUnknown* native){
         IUnknown* id{};const auto hr=native->QueryInterface(IID_IUnknown,reinterpret_cast<void**>(&id));
@@ -22,7 +22,15 @@
         caps.dpcTriCaps.dwMiscCaps=c.misc;caps.dpcTriCaps.dwShadeCaps=c.shade;
         caps.dwDeviceRenderBitDepth=DDBD_32;caps.dvMaxVertexW=c.max_w;
         caps.deviceGUID=IID_IDirect3DHALDevice;
-        // No texture formats, Z formats, multitexturing or light slots yet.
+        caps.dwDevCaps|=D3DDEVCAPS_TEXTURESYSTEMMEMORY;
+        caps.dpcTriCaps.dwTextureCaps=c.texture.caps;
+        caps.dpcTriCaps.dwTextureFilterCaps=c.texture.filters;
+        caps.dpcTriCaps.dwTextureAddressCaps=c.texture.address;
+        caps.dwMinTextureWidth=caps.dwMinTextureHeight=1;
+        caps.dwMaxTextureWidth=c.texture.width;caps.dwMaxTextureHeight=c.texture.height;
+        caps.dwMaxTextureAspectRatio=c.texture.aspect;caps.dwTextureOpCaps=c.texture.ops;
+        caps.wMaxTextureBlendStages=caps.wMaxSimultaneousTextures=1;
+        // Single-level textures only; no Z formats, multitexturing or light slots.
         return hr;
     }
     U32 enum_devices9(Args a){
@@ -31,7 +39,7 @@
         root->AddRef();NativeOwner lifetime{root};D3DDEVICEDESC7 caps{};
         auto hr=caps9(caps);if(host9::failed(hr))return hr;
         DeviceEnumeration call{this,a[1],a[2],{},0};
-        char description[]="WinRecomp bounded Direct3D7-on-9 (untextured TL triangles)";
+        char description[]="WinRecomp bounded Direct3D7-on-9 (single-texture TL triangles)";
         char name[]="WinRecomp D3D9";
         enumerate_device(description,name,&caps,&call);
         if(call.failure)std::rethrow_exception(call.failure);return U32(S_OK);
@@ -102,11 +110,85 @@
         auto hr=d->gpu->clear(a[4]);if(host9::failed(hr))return hr;++renderer9_clears;
         return d->gpu->in_scene()?hr:transfer9(*d,true);
     }
+    U32 enum_textures9(Args a){
+        auto d=object(a[0],Interface::compatdevice7).compat;
+        if(!a[1])return U32(DDERR_INVALIDPARAMS);p.memory.check(a[1],1,Memory::Execute);
+        host9::Capabilities caps{};auto hr=factory9().capabilities(caps);if(host9::failed(hr))return hr;
+        ModeEnumeration call{this,a[1],a[2],{},0};
+        for(bool alpha:{false,true}){
+            if(alpha && !caps.texture.alpha)continue;
+            DDPIXELFORMAT f{};f.dwSize=32;f.dwFlags=DDPF_RGB|(alpha?DDPF_ALPHAPIXELS:0);
+            f.dwRGBBitCount=32;f.dwRBitMask=0xff0000;f.dwGBitMask=0xff00;f.dwBBitMask=0xff;f.dwRGBAlphaBitMask=alpha?0xff000000:0;
+            auto result=enumerate_texture(&f,&call);
+            if(call.failure)std::rethrow_exception(call.failure);
+            if(result==D3DENUMRET_CANCEL || p.exited())break;
+        }
+        return U32(S_OK);
+    }
+    U32 texture_upload9(CompatDevice& d,IDirectDrawSurface7* source){
+        if(source==d.target)stop("render-target texture feedback is not supported");
+        if(target_locked9(source))stop("texture upload while the guest surface is locked");
+        DDSURFACEDESC2 desc{};desc.dwSize=sizeof(desc);auto hr=source->GetSurfaceDesc(&desc);if(FAILED(hr))return U32(hr);
+        auto& f=desc.ddpfPixelFormat;
+        const bool alpha=f.dwFlags==(DDPF_RGB|DDPF_ALPHAPIXELS);
+        if((desc.dwFlags&(DDSD_CAPS|DDSD_PIXELFORMAT|DDSD_WIDTH|DDSD_HEIGHT))!=(DDSD_CAPS|DDSD_PIXELFORMAT|DDSD_WIDTH|DDSD_HEIGHT) ||
+           !(desc.ddsCaps.dwCaps&DDSCAPS_TEXTURE) || (desc.ddsCaps.dwCaps&(DDSCAPS_MIPMAP|DDSCAPS_COMPLEX)) ||
+           desc.ddsCaps.dwCaps2 || desc.ddsCaps.dwCaps3 || desc.ddsCaps.dwCaps4 ||
+           f.dwSize!=32 || (f.dwFlags!=DDPF_RGB && !alpha) || f.dwFourCC || f.dwRGBBitCount!=32 ||
+           f.dwRBitMask!=0xff0000 || f.dwGBitMask!=0xff00 || f.dwBBitMask!=0xff || f.dwRGBAlphaBitMask!=(alpha?0xff000000u:0u))
+            stop("unsupported single-level RGB texture descriptor");
+        const auto w=desc.dwWidth,h=desc.dwHeight;
+        if(!w || !h || w>2048 || h>2048 || (w&(w-1)) || (h&(h-1)))stop("unsupported texture dimensions");
+        void* parent{};hr=source->GetDDInterface(&parent);if(FAILED(hr))return U32(hr);
+        if(!parent)stop("texture has no DirectDraw parent");NativeOwner owner{static_cast<IUnknown*>(parent)};
+        if(identity9(owner.value)!=identity9(d.root))stop("texture belongs to another DirectDraw root");
+        std::vector<std::uint8_t> bytes(std::size_t(w)*h*4);DDSURFACEDESC2 locked{};locked.dwSize=sizeof(locked);
+        hr=source->Lock(nullptr,&locked,DDLOCK_WAIT|DDLOCK_READONLY,nullptr);if(FAILED(hr))return U32(hr);
+        struct Unlocker {IDirectDrawSurface7* p;~Unlocker(){if(p)p->Unlock(nullptr);}} cleanup{source};
+        if(locked.dwWidth!=w || locked.dwHeight!=h || !locked.lpSurface || locked.lPitch<0 || DWORD(locked.lPitch)<w*4)
+            stop("unsupported texture lock layout");
+        for(U32 y=0;y<h;++y)std::memcpy(bytes.data()+std::size_t(y)*w*4,static_cast<const std::uint8_t*>(locked.lpSurface)+std::size_t(y)*locked.lPitch,w*4);
+        hr=source->Unlock(nullptr);cleanup.p=nullptr;if(FAILED(hr))return U32(hr);
+        return d.gpu->texture(w,h,alpha,bytes);
+    }
+    U32 set_texture9(Args a){
+        auto d=object(a[0],Interface::compatdevice7).compat;if(a[1])stop("only texture stage zero is implemented");
+        if(!a[2]){auto hr=d->gpu->unbind_texture();if(!host9::failed(hr))d->texture.reset();return hr;}
+        auto& texture=object(a[2],Interface::surface7);if(texture.locked)stop("SetTexture with a locked guest surface");
+        auto native=static_cast<IDirectDrawSurface7*>(texture.native);native->AddRef();NativeOwner owner{native};
+        auto retained=std::shared_ptr<IDirectDrawSurface7>(static_cast<IDirectDrawSurface7*>(owner.keep()),[](auto* p){p->Release();});
+        auto hr=texture_upload9(*d,native);if(!host9::failed(hr))d->texture=std::move(retained);return hr;
+    }
+    U32 get_texture9(Args a){
+        auto d=object(a[0],Interface::compatdevice7).compat;if(a[1])stop("only texture stage zero is implemented");
+        p.memory.check(a[2],4,Memory::Write);if(!d->texture){p.memory.store(a[2],0,32);return U32(S_OK);}
+        d->texture->AddRef();auto at=wrap(d->texture.get(),Interface::surface7);p.memory.store(a[2],at,32);return U32(S_OK);
+    }
+    U32 stage9(Args a,bool set){
+        auto d=object(a[0],Interface::compatdevice7).compat;if(a[1])stop("only texture stage zero is implemented");
+        if(!set)p.memory.check(a[3],4,Memory::Write);
+        U32 value=a[3];auto hr=set?d->gpu->set_stage(a[2],value):d->gpu->get_stage(a[2],value);
+        if(hr==U32(E_NOTIMPL))stop("texture stage state/value outside the admitted profile");
+        if(!set && !host9::failed(hr))p.memory.store(a[3],value,32);return hr;
+    }
     U32 triangles9(Args a){
         auto d=object(a[0],Interface::compatdevice7).compat;
-        if(a[1]!=D3DPT_TRIANGLELIST || a[2]!=(D3DFVF_XYZRHW|D3DFVF_DIFFUSE) || a[5])stop("unsupported D3D9 primitive, FVF or flags");
+        const bool textured=a[2]==(D3DFVF_XYZRHW|D3DFVF_DIFFUSE|D3DFVF_TEX1);
+        if(a[1]!=D3DPT_TRIANGLELIST || (!textured && a[2]!=(D3DFVF_XYZRHW|D3DFVF_DIFFUSE)) || a[5])stop("unsupported D3D9 primitive, FVF or flags");
         if(!a[4] || a[4]%3 || a[4]>3*65536u)return host9::Invalid;
-        const auto bytes=std::size_t(a[4])*sizeof(host9::Vertex);p.memory.check(a[3],bytes,Memory::Read);
-        std::vector<host9::Vertex> vertices(a[4]);p.memory.copy_out(a[3],std::span(reinterpret_cast<std::uint8_t*>(vertices.data()),bytes));
-        auto hr=d->gpu->triangles(vertices);if(!host9::failed(hr))++renderer9_draws;return hr;
+        const auto bytes=std::size_t(a[4])*(textured?sizeof(host9::TexturedVertex):sizeof(host9::Vertex));p.memory.check(a[3],bytes,Memory::Read);
+        U32 hr{};
+        if(textured){
+            if(!d->texture || !d->gpu->in_scene())return host9::Invalid;
+            std::vector<host9::TexturedVertex> vertices(a[4]);p.memory.copy_out(a[3],std::span(reinterpret_cast<std::uint8_t*>(vertices.data()),bytes));
+            // Re-upload for each draw so guest edits after SetTexture are visible.
+            // This correctness path is intentionally not the final caching strategy.
+            hr=texture_upload9(*d,d->texture.get());if(host9::failed(hr))return hr;
+            hr=d->gpu->textured_triangles(vertices);
+        }else{
+            if(d->texture)stop("a bound texture requires explicit TEX1 vertices in this profile");
+            std::vector<host9::Vertex> vertices(a[4]);p.memory.copy_out(a[3],std::span(reinterpret_cast<std::uint8_t*>(vertices.data()),bytes));
+            hr=d->gpu->triangles(vertices);
+        }
+        if(!host9::failed(hr))++renderer9_draws;return hr;
     }

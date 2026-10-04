@@ -14,9 +14,11 @@ WC,WINDOW,DRAW,D3D,DEVICE,SURFACE,ALIAS=DATA+0xa00,DATA+0xa40,DATA+0xa44,DATA+0x
 UNK=DATA+0xa58
 IID7,IID3D,IIDHAL,IIDUNK=DATA+0xa60,DATA+0xa70,DATA+0xa80,DATA+0xa90
 DESC,LOCK,VIEW,VERTS,WRITTEN,OUTPUT=DATA+0xb00,DATA+0xb80,DATA+0xc00,DATA+0xc40,DATA+0xca0,DATA+0x1000
+TEX,TEXDESC,TEXLOCK=DATA+0xcf0,DATA+0xd00,DATA+0xd80
 WIDTH=64;HEIGHT=64
 
-def fixture():
+def fixture(textured=False):
+    vertex_at=DATA+0xe20 if textured else VERTS
     b=Assembler();u='USER32.dll';dd='DDRAW.dll';k='KERNEL32.dll'
     def com(obj,slot,*args):
         for value in reversed(((obj,),)+args):
@@ -39,11 +41,42 @@ def fixture():
     com(DEVICE,9,ALIAS);hr('GetRenderTarget');com(ALIAS,2)
     for state,value in [(7,0),(14,0),(137,0),(22,1),(9,2),(27,0),(28,0),(29,0)]:
         com(DEVICE,20,state,value);hr('render state '+str(state))
+    if textured:
+        com(DRAW,6,TEXDESC,TEX,0);hr('create texture surface')
+        def fill_texture(uniform=False):
+            com(TEX,25,0,TEXLOCK,1,0);hr('lock texture')
+            # Eight rows, four texel colors, actual native row pitch.
+            b.emit('8b35');b.word(TEXLOCK+36)
+            for y in range(8):
+                for x in range(8):
+                    color=0xff345678 if uniform else (0xffff0000 if x<4 else 0xff00ff00) if y<4 else (0xff0000ff if x<4 else 0xffffffff)
+                    if uniform:color=0xff345678
+                    b.emit('c786');b.word(x*4);b.word(color)
+                b.emit('0335');b.word(TEXLOCK+16)
+            com(TEX,32,0);hr('unlock texture')
+        fill_texture()
+        com(DEVICE,35,0,(TEX,));hr('SetTexture')
+        com(DEVICE,34,0,ALIAS);hr('GetTexture');com(ALIAS,2)
+        for state,value in [(1,2),(2,2),(3,0),(4,2),(5,2),(6,0),(13,3),(14,3),(16,1),(17,1),(18,1),(11,0)]:
+            com(DEVICE,37,0,state,value);hr('texture stage '+str(state))
     com(DEVICE,13,VIEW);hr('SetViewport')
     com(DEVICE,10,0,0,1,0xff183050,0x3f800000,0);hr('Clear')
     com(DEVICE,5);hr('BeginScene')
-    com(DEVICE,25,4,0x44,VERTS,3,0);hr('DrawPrimitive TL triangle')
+    com(DEVICE,25,4,0x144 if textured else 0x44,vertex_at,3,0);hr('DrawPrimitive TL triangle')
     com(DEVICE,6);hr('EndScene')
+    if textured:
+        # Edit after binding, without SetTexture again; then draw a second,
+        # disjoint triangle sampling that texel. The binding owns a reference.
+        com(TEX,25,0,TEXLOCK,1,0);hr('texture CPU edit')
+        b.emit('8b35');b.word(TEXLOCK+36);b.emit('c706');b.word(0xff345678)
+        com(TEX,32,0);hr('texture edit unlock')
+        com(TEX,2)
+        com(DEVICE,34,0,ALIAS);hr('retained texture');com(ALIAS,2)
+        # Reuse the six vertex slots: the second triangle is at VERTS+84.
+        com(DEVICE,5);hr('second BeginScene')
+        com(DEVICE,25,4,0x144,vertex_at+84,3,0);hr('changed texture draw')
+        com(DEVICE,6);hr('second EndScene')
+        com(DEVICE,35,0,0);hr('unbind texture')
     com(SURFACE,25,0,LOCK,0x11,0);hr('Lock completed render target')
     b.compare(LOCK+124,0xfeedcafe,'Lock canary')
     b.emit('8b35');b.word(LOCK+36);b.emit('bf');b.word(OUTPUT)
@@ -82,7 +115,17 @@ def fixture():
         (DESC,124),(DESC+4,0x1007),(DESC+8,HEIGHT),(DESC+12,WIDTH),(DESC+72,32),(DESC+76,0x40),
         (DESC+84,32),(DESC+88,0xff0000),(DESC+92,0xff00),(DESC+96,0xff),(DESC+104,0x2040),
         (LOCK,124),(LOCK+124,0xfeedcafe),(VIEW+8,WIDTH),(VIEW+12,HEIGHT),(VIEW+20,0x3f800000)]:word(at,value)
-    for n,(x,y) in enumerate([(8,8),(56,8),(8,56)]):struct.pack_into('<ffffI',data,VERTS-DATA+n*20,x,y,0.5,1,0xffd04020)
+    if textured:
+        # Texture data and six vertices must not overlap WRITTEN (DATA+0xca0).
+        # Only five words there were used by the baseline; relocate the new
+        # textured vertices to unused tail storage below the output buffer.
+        for at,value in [(TEXDESC,124),(TEXDESC+4,0x1007),(TEXDESC+8,8),(TEXDESC+12,8),
+            (TEXDESC+72,32),(TEXDESC+76,0x41),(TEXDESC+84,32),(TEXDESC+88,0xff0000),
+            (TEXDESC+92,0xff00),(TEXDESC+96,0xff),(TEXDESC+100,0xff000000),(TEXDESC+104,0x1800),(TEXLOCK,124)]:word(at,value)
+        for n,(x,y,u,v) in enumerate([(8,8,0,0),(56,8,1,0),(8,56,0,1),(56,56,.0625,.0625),(56,36,.0625,.0625),(36,56,.0625,.0625)]):
+            struct.pack_into('<ffffIff',data,vertex_at-DATA+n*28,x,y,.5,1,0xffffffff,u,v)
+    else:
+        for n,(x,y) in enumerate([(8,8),(56,8),(8,56)]):struct.pack_into('<ffffI',data,VERTS-DATA+n*20,x,y,0.5,1,0xffd04020)
     raw=make_pe(b.code,data);put32(raw,0x98+104,0x2000);put32(raw,0x98+108,20*(len(by_dll)+1))
     for off,value in [(4,(len(b.code)+511)&~511),(8,len(data)),(20,0x1000),(24,0x2000),(40,5),(48,5),(72,0x100000),(76,0x1000),(80,0x100000),(84,0x1000)]:put32(raw,0x98+off,value)
     return raw,callback,{100+n:text for n,(_,text) in enumerate(b.failures)}
