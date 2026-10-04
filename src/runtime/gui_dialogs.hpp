@@ -107,6 +107,13 @@ INT_PTR CALLBACK Gui::dialog_procedure(HWND h,UINT message,WPARAM wp,LPARAM lp) 
         if(g.stopping || g.failure || g.p.exited()){
             if(message!=WM_NCDESTROY && !d->ending){d->ending=true;EndDialog(h,-1);}return FALSE;
         }
+        // The dialog manager receives the same host-only non-client and
+        // accessibility transport as ordinary windows (Gui::procedure). Keep
+        // native payloads out of guest memory, but retain default DLGPROC
+        // processing by returning FALSE, never calling DefWindowProc here.
+        if((message>=0x90 && message<=0x95) || message==0xae || message==0xaf || message==WM_GETOBJECT || (message>=0x31e && message<=0x321) || message==0x33f || message==0x02e0){
+            ++g.host_only;g.host_only_ids.insert(message);return FALSE;
+        }
         U32 a=0,b=0,result=0;std::vector<U32> borrowed;
         struct Borrowed {Gui& g;std::vector<U32>& ids;~Borrowed(){for(auto id:ids)g.handles.erase(id);}} borrowed_scope{g,borrowed};
         bool direct=true;

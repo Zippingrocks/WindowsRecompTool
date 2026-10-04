@@ -84,7 +84,7 @@
     "tests/primary_clipper.cpp": "af5883ff95dd7cdd9cc972ad8e3192f4600f3778185827f49a1e0be83b3c9e26",
     "tests/device7_boundary.cpp": "9e6711f2971edfb9c817e8648a5f1f31cc775dc700a3b5054db5b097f724f921",
     "include/winrecomp/dialog_template.hpp": "67bfa12c1e46d8f256fbf63505f43f947c3069f8af9cfd70d93e0ec5165909ef",
-    "src/runtime/gui_dialogs.hpp": "8b49e9773923b3df073461ddadf533f99120e6ab091ac8f39d6f100edaa2c9d5",
+    "src/runtime/gui_dialogs.hpp": "d41191131efc36a69659de0c38145cff0a324e3f7e9fd9462f2babf9e2c98b30",
     "tests/dialog_boundary.cpp": "6d10116c2d0b56989ac608c5948226cfd7fe396288c6970cbfbbeb1839c99fb3",
     "tests/dialog_fixture.hpp": "ce2e879092c59fba2b030f290778f887fe2cbe1f8bb6392b56dcbc83da5aa5b7",
     "tests/dialog_program.py": "c0aee13bd46245b0ff5f95097ced3cc3fb48048708b1136952ffc63a6f539215",
