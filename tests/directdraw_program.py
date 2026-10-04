@@ -21,6 +21,7 @@ IID7,IIDUNK,IIDBAD=DATA+0x900,DATA+0x910,DATA+0x920
 DRAW,UNK,ALIAS,SURFACE,DRAW1=DATA+0xa00,DATA+0xa04,DATA+0xa08,DATA+0xa0c,DATA+0xa10
 DESC,LOCK,FX,RECORD=DATA+0xb00,DATA+0xc00,DATA+0xd00,DATA+0xe00
 OUTPUT,WRITTEN,NAME=DATA+0x2000,DATA+0xf00,DATA+0xf10
+MODE_RECORD,MODE_NAME=RECORD+32,DATA+0xf30
 WIDTH,HEIGHT=7,5
 MARKER=0x24681357
 
@@ -39,6 +40,10 @@ def fixture():
     hr('adapter enumeration');b.compare(RECORD+4,1,'cancel after first adapter')
     b.compare(RECORD+8,1,'callback context');b.compare(RECORD+12,1,'native adapter strings')
     b.invoke(dd,'DirectDrawCreate',2,DRAW1,0);hr('create old DirectDraw interface')
+    mode_callback_at=len(b.code)+1
+    com(DRAW1,8,0,0,MARKER,0);hr('legacy display-mode enumeration')
+    b.compare(MODE_RECORD,1,'mode callback cancels after first mode')
+    b.compare(MODE_RECORD+4,108,'legacy callback description is x86 size')
     com(DRAW1,0,IID7,DRAW);hr('old interface QI to DD7');com(DRAW1,2)
     com(DRAW,0,IIDUNK,UNK);hr('IUnknown identity')
     com(UNK,0,IID7,ALIAS);hr('IUnknown QI DD7')
@@ -75,6 +80,9 @@ def fixture():
     b.invoke(k,'CreateFileA',NAME,0x40000000,0,0,2,0x80,0);b.emit('83f8ff');b.fail('create output');b.emit('89c3')
     b.push(0);b.push(WRITTEN);b.push(WIDTH*HEIGHT*4);b.push(OUTPUT);b.emit('53');b.call(k,'WriteFile');b.nonzero('write pixels')
     b.compare(WRITTEN,WIDTH*HEIGHT*4,'output size');b.emit('53');b.call(k,'CloseHandle');b.nonzero('close output')
+    b.invoke(k,'CreateFileA',MODE_NAME,0x40000000,0,0,2,0x80,0);b.emit('83f8ff');b.fail('create modes output');b.emit('89c3')
+    b.push(0);b.push(WRITTEN);b.push(32);b.push(MODE_RECORD);b.emit('53');b.call(k,'WriteFile');b.nonzero('write mode record')
+    b.compare(WRITTEN,32,'mode record size');b.emit('53');b.call(k,'CloseHandle');b.nonzero('close mode record')
     b.invoke(k,'ExitProcess',0);b.emit('c3')
     b.label('callback');b.emit('558bec');b.increment(RECORD+4)
     b.emit('817d14');b.word(MARKER);b.branch('bad','0f85')
@@ -83,7 +91,15 @@ def fixture():
     b.emit('8b451085c0');b.branch('bad','0f84');b.emit('803800');b.branch('bad','0f84')
     b.emit('c705');b.word(RECORD+12);b.word(1)
     b.label('bad');b.emit('31c0c9c21400') # cancel, correctly clean five stdcall arguments
+    b.label('modecallback');b.emit('558bec');b.increment(MODE_RECORD)
+    b.emit('817d0c');b.word(MARKER);b.fail('legacy mode context','0f85')
+    b.emit('8b5508813a');b.word(108);b.fail('mode description native pointer-width leakage','0f85')
+    b.emit('837a2400');b.fail('mode description must not expose a surface pointer','0f85')
+    for offset,dest in [(0,4),(12,8),(8,12),(84,16),(88,20),(92,24),(96,28)]:
+        b.emit('8b82');b.word(offset);b.store(MODE_RECORD+dest)
+    b.emit('31c0c9c20800') # DDENUMRET_CANCEL; two stdcall arguments
     b.finish();procedure=0x401000+b.labels['callback'];struct.pack_into('<I',b.code,callback_at,procedure)
+    struct.pack_into('<I',b.code,mode_callback_at,0x401000+b.labels['modecallback'])
     assert len(b.code)<=4096,len(b.code)
     data=bytearray(0x4000);by_dll={}
     for _,dll,name in b.calls:
@@ -104,15 +120,18 @@ def fixture():
     def word(at,v):struct.pack_into('<I',data,at-DATA,v)
     for at,v in [(DESC,124),(DESC+4,0x1007),(DESC+8,HEIGHT),(DESC+12,WIDTH),(DESC+72,32),(DESC+76,0x40),(DESC+84,32),(DESC+88,0xff0000),(DESC+92,0xff00),(DESC+96,0xff),(DESC+104,0x840),(LOCK,124),(LOCK+124,0xdeadbeef),(FX,100),(FX+80,0x00336699),(RECORD,0x31444457)]:word(at,v)
     data[NAME-DATA:NAME-DATA+12]=b'surface.bin\0'
+    data[MODE_NAME-DATA:MODE_NAME-DATA+10]=b'modes.bin\0'
     raw=make_pe(b.code,data);put32(raw,0x98+104,0x2000);put32(raw,0x98+108,20*(len(by_dll)+1))
     for off,value in [(4,(len(b.code)+511)&~511),(8,len(data)),(20,0x1000),(24,0x2000),(40,5),(48,5),(72,0x100000),(76,0x1000),(80,0x100000),(84,0x1000)]:put32(raw,0x98+off,value)
-    return raw,procedure,{100+n:text for n,(_,text) in enumerate(b.failures)}
+    return raw,[procedure,0x401000+b.labels['modecallback']],{100+n:text for n,(_,text) in enumerate(b.failures)}
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--tool',type=Path,required=True);ap.add_argument('--out',type=Path,required=True);ap.add_argument('--cxx',default='c++');ap.add_argument('--prepare-only',action='store_true');args=ap.parse_args()
     args.out=args.out.resolve();args.out.mkdir(parents=True,exist_ok=True);raw,callback,failures=fixture();exe=args.out/'directdraw.exe';exe.write_bytes(raw)
     project=args.out/'project';shutil.rmtree(project,ignore_errors=True)
-    c.run([str(args.tool.resolve()),'project',str(exe),str(project),'--seed',hex(callback)])
+    command=[str(args.tool.resolve()),'project',str(exe),str(project)]
+    for entry in callback:command+=['--seed',hex(entry)]
+    c.run(command)
     if args.prepare_only:print('Prepared synthetic DirectDraw PE32; execution not tested');return
     if os.name!='nt':raise SystemExit('Native Windows DirectDraw oracle unavailable; not a pass')
     expected=[0x00336699]*(WIDTH*HEIGHT);expected[0]=0x00112233;expected[-1]=0x00445566;expected=struct.pack('<'+'I'*len(expected),*expected)
@@ -126,9 +145,13 @@ def main():
     result=subprocess.run([str(project/'build/recompiled_program.exe'),str(exe),'--root',str(generated),'--allow-write','--report',str(report)],capture_output=True,text=True,timeout=60)
     if result.returncode:raise RuntimeError(f'Generated x64 failed: {result.returncode}: {failures.get(result.returncode,"")}\n{result.stderr}\n{result.stdout}')
     output=(generated/'surface.bin').read_bytes();assert output==original_bytes==expected,'original/generated offscreen pixel mismatch'
+    mode_bytes=(generated/'modes.bin').read_bytes()
+    assert mode_bytes==(original/'modes.bin').read_bytes() and len(mode_bytes)==32,'original/generated mode callback mismatch'
+    mode_row=struct.unpack('<8I',mode_bytes)
+    assert mode_row[:2]==(1,108) and mode_row[2]>0 and mode_row[3]>0 and mode_row[4]>0,mode_row
     evidence=json.loads(report.read_text());assert evidence['exited'] and evidence['exit_code']==0
-    dd=evidence['directdraw'];assert dd['backend']=='native-ddraw7' and dd['adapter_callbacks']==1 and dd['surface_locks']==2 and dd['surface_unlocks']==2 and dd['blits']==1,dd
+    dd=evidence['directdraw'];assert dd['backend']=='native-ddraw7' and dd['mode_callbacks']==1 and dd['adapter_callbacks']==1 and dd['surface_locks']==2 and dd['surface_unlocks']==2 and dd['blits']==1,dd
     assert dd['objects_created']==dd['objects_retired'],dd
-    (args.out/'acceptance.json').write_text(json.dumps({'schema':'winrecomp.directdraw-program.v1','original':'native Windows PE32','generated':'native x64 compiled dispatch','identical_pixels':True,'output_sha256':hashlib.sha256(output).hexdigest(),'width':WIDTH,'height':HEIGHT,'process':evidence,'scope':'Synthetic native adapter/COM/offscreen-surface test, not a Direct3D scene or playable E3'},indent=2)+'\n')
+    (args.out/'acceptance.json').write_text(json.dumps({'schema':'winrecomp.directdraw-program.v1','original':'native Windows PE32','generated':'native x64 compiled dispatch','identical_pixels':True,'identical_legacy_mode_record':True,'mode_record':mode_row,'output_sha256':hashlib.sha256(output).hexdigest(),'width':WIDTH,'height':HEIGHT,'process':evidence,'scope':'Synthetic native adapter/COM/offscreen-surface test, not a Direct3D scene or playable E3'},indent=2)+'\n')
     print('Original PE32 and generated x64: real DirectDraw enumeration, COM identity, surface fill/lock/writeback and identical pixels passed')
 if __name__=='__main__':main()

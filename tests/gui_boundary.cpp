@@ -22,12 +22,18 @@ wr::Image image(){
     im.bytes.resize(1536);im.sections={{".text",0x1000,512,512,512,0x60000020},{".data",0x2000,512,1024,512,0xc0000040}};
     im.bytes[512]=0xc3;im.bytes[528]=0xc3;return im;
 }
+unsigned palette_queries{};
+bool palette_answer{};
 bool step(wr::Cpu& cpu,wr::Memory& memory,std::uint64_t&){
     if(cpu.eip==Entry){cpu.eip=wr::pop(cpu,memory);return true;}
     if(cpu.eip!=Callback)return false;
     const auto message=memory.load(cpu.r[wr::ESP]+8,32);
     if((mode==Mode::fault_on_create && message==WM_CREATE) || (mode==Mode::fault_on_custom && message==Custom))
         throw wr::GuestFault(wr::FaultKind::unsupported,cpu.eip,"deliberate WNDPROC fault");
+    if(message==WM_QUERYNEWPALETTE){
+        ++palette_queries;
+        if(palette_answer){cpu.r[wr::EAX]=1;cpu.eip=wr::pop(cpu,memory);cpu.r[wr::ESP]+=16;return true;}
+    }
     if(message==Custom){
         cpu.r[wr::EAX]=memory.load(cpu.r[wr::ESP]+12,32)+memory.load(cpu.r[wr::ESP]+16,32);
         cpu.eip=wr::pop(cpu,memory);cpu.r[wr::ESP]+=16;return true;
@@ -69,6 +75,13 @@ struct TestWindow {
 };
 void basic(){
     mode=Mode::normal;TestWindow w("basic");auto& p=w.p;CHECK(w.native());
+    // The query is a real guest callback, not a host-only notification. Its
+    // default return must agree with native DefWindowProcA.
+    CHECK(invoke(p,"SendMessageA",{w.handle,WM_QUERYNEWPALETTE,0,0})==wr::U32(::DefWindowProcA(w.native(),WM_QUERYNEWPALETTE,0,0)));
+    const auto queries_before=palette_queries;palette_answer=true;
+    CHECK(invoke(p,"SendMessageA",{w.handle,WM_QUERYNEWPALETTE,0,0})==1);
+    CHECK(::SendMessageA(w.native(),WM_QUERYNEWPALETTE,0,0)==1);
+    CHECK(palette_queries==queries_before+2);palette_answer=false;
     auto icon=invoke(p,"LoadIconA",{0,32512});CHECK(icon);CHECK(invoke(p,"IsWindow",{icon})==0);
     CHECK(invoke(p,"ShowWindow",{icon,SW_HIDE})==0 && p.last_error==1400);
     CHECK(invoke(p,"ReleaseDC",{0,icon})==0 && p.last_error==6);

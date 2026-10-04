@@ -53,7 +53,7 @@ class Draw final:public DirectDrawBackend {
     std::map<U32,Object> objects;
     std::map<Interface,U32> vtables;
     std::map<std::uintptr_t,U32> monitors;
-    std::uint64_t created{},retired{},enumerated{},locks{},unlocks{},blits{};
+    std::uint64_t created{},retired{},enumerated{},mode_callbacks{},locks{},unlocks{},blits{};
     [[noreturn]]void stop(const std::string& why){throw GuestFault(FaultKind::unsupported,p.cpu.eip,"DirectDraw: "+why);}
     void enter(){if(stopped || GetCurrentThreadId()!=thread)stop("foreign-thread or retired backend");}
     GUID guid(U32 address){GUID value{};static_assert(sizeof(value)==16);p.memory.copy_out(address,std::span(reinterpret_cast<std::uint8_t*>(&value),16));return value;}
@@ -105,6 +105,74 @@ class Draw final:public DirectDrawBackend {
             const std::array<U32,5> args{id?bytes(id,16):0,string(description),string(name),call.context,mon};
             ++self.enumerated;const auto result=self.p.callback(call.callback,args);return self.p.exited()?FALSE:result!=0;
         }catch(...){call.failure=std::current_exception();return FALSE;}
+    }
+    // IDirectDraw (v1) uses DDSURFACEDESC, not DDSURFACEDESC2. The native
+    // 64-bit pointer shifts following fields; never memcpy the native layout.
+    static constexpr U32 LegacyDescSize=108;
+    DDSURFACEDESC mode_filter(U32 at){
+        p.memory.check(at,LegacyDescSize,Memory::Read);
+        if(p.memory.load(at,32)!=LegacyDescSize)stop("mode filter requires the 108-byte x86 DDSURFACEDESC");
+        DDSURFACEDESC d{};d.dwSize=sizeof(d);d.dwFlags=p.memory.load(at+4,32);
+        constexpr U32 allowed=DDSD_WIDTH|DDSD_HEIGHT|DDSD_PIXELFORMAT|DDSD_REFRESHRATE;
+        if(d.dwFlags&~allowed)stop("unmodelled legacy display-mode filter fields");
+        if(p.memory.load(at+36,32))stop("display-mode filter must not contain a surface pointer");
+        if(d.dwFlags&DDSD_WIDTH)d.dwWidth=p.memory.load(at+12,32);
+        if(d.dwFlags&DDSD_HEIGHT)d.dwHeight=p.memory.load(at+8,32);
+        if(d.dwFlags&DDSD_REFRESHRATE)d.dwRefreshRate=p.memory.load(at+24,32);
+        if(d.dwFlags&DDSD_PIXELFORMAT){
+            p.memory.copy_out(at+72,std::span(reinterpret_cast<std::uint8_t*>(&d.ddpfPixelFormat),32));
+            if(d.ddpfPixelFormat.dwSize!=32)stop("mode filter pixel format must have size 32");
+        }
+        return d;
+    }
+    void write_mode(U32 at,const DDSURFACEDESC& d){
+        if(d.dwSize!=sizeof(d) || d.lpSurface || (d.dwFlags&DDSD_LPSURFACE))
+            stop("unhandled native display-mode descriptor or pixel pointer");
+        static_assert(sizeof(DDPIXELFORMAT)==32 && sizeof(DDCOLORKEY)==8 && sizeof(DDSCAPS)==4);
+        std::array<U32,27> out{};out[0]=LegacyDescSize;out[1]=d.dwFlags;
+        // Only fields marked valid may be consumed. Ignore undefined native
+        // padding, pointer storage and reserved values rather than exposing them.
+        if(d.dwFlags&DDSD_HEIGHT)out[2]=d.dwHeight;
+        if(d.dwFlags&DDSD_WIDTH)out[3]=d.dwWidth;
+        if(d.dwFlags&(DDSD_PITCH|DDSD_LINEARSIZE))out[4]=U32(d.lPitch);
+        if(d.dwFlags&DDSD_BACKBUFFERCOUNT)out[5]=d.dwBackBufferCount;
+        if(d.dwFlags&(DDSD_MIPMAPCOUNT|DDSD_ZBUFFERBITDEPTH|DDSD_REFRESHRATE))out[6]=d.dwRefreshRate;
+        if(d.dwFlags&DDSD_ALPHABITDEPTH)out[7]=d.dwAlphaBitDepth;
+        if(d.dwFlags&DDSD_CKDESTOVERLAY)std::memcpy(out.data()+10,&d.ddckCKDestOverlay,8);
+        if(d.dwFlags&DDSD_CKDESTBLT)std::memcpy(out.data()+12,&d.ddckCKDestBlt,8);
+        if(d.dwFlags&DDSD_CKSRCOVERLAY)std::memcpy(out.data()+14,&d.ddckCKSrcOverlay,8);
+        if(d.dwFlags&DDSD_CKSRCBLT)std::memcpy(out.data()+16,&d.ddckCKSrcBlt,8);
+        if(d.dwFlags&DDSD_PIXELFORMAT)std::memcpy(out.data()+18,&d.ddpfPixelFormat,32);
+        if(d.dwFlags&DDSD_CAPS)out[26]=d.ddsCaps.dwCaps;
+        for(unsigned n=0;n<out.size();++n)p.memory.store(at+4*n,out[n],32);
+    }
+    struct ModeEnumeration {Draw* self;U32 callback,context;std::exception_ptr failure;unsigned visits{};};
+    static HRESULT CALLBACK enumerate_mode(DDSURFACEDESC* description,void* context) noexcept {
+        auto& call=*static_cast<ModeEnumeration*>(context);auto& self=*call.self;
+        try {
+            self.enter();if(call.failure || self.p.exited())return DDENUMRET_CANCEL;
+            if(!description)self.stop("null display-mode callback descriptor");
+            if(++call.visits>4096)self.stop("display-mode callback budget exceeded");
+            Allocation scratch(self.p,LegacyDescSize);self.write_mode(scratch.address,*description);
+            self.p.memory.protect(scratch.address,4096,Memory::Read);
+            const std::array<U32,2> args{scratch.address,call.context};++self.mode_callbacks;
+            const auto result=self.p.callback(call.callback,args);
+            if(self.p.exited())return DDENUMRET_CANCEL;
+            if(result!=DDENUMRET_OK && result!=DDENUMRET_CANCEL)self.stop("invalid display-mode callback result");
+            return HRESULT(result);
+        }catch(...){if(!call.failure)call.failure=std::current_exception();return DDENUMRET_CANCEL;}
+    }
+    U32 enum_modes(Args a){
+        auto native=static_cast<IDirectDraw*>(object(a[0],Interface::draw1).native);
+        p.memory.check(a[4],1,Memory::Execute);
+        DDSURFACEDESC filter{};if(a[2])filter=mode_filter(a[2]);
+        // Guest callbacks may release their original reference. Keep the native
+        // enumeration receiver alive until the DLL call has unwound normally.
+        native->AddRef();NativeOwner lifetime{native};
+        ModeEnumeration call{this,a[4],a[3],{},0};
+        const auto hr=native->EnumDisplayModes(a[1],a[2]?&filter:nullptr,&call,enumerate_mode);
+        if(call.failure)std::rethrow_exception(call.failure);
+        return U32(hr);
     }
     DDSURFACEDESC2 read_description(U32 at){
         p.memory.check(at,DescSize,Memory::Read);if(p.memory.load(at,32)!=DescSize)stop("DDSURFACEDESC2 must have the 124-byte x86 layout");
@@ -173,7 +241,7 @@ public:
         for(auto& [address,value]:objects){(void)address;if(value.native)destroy_lock(value);}
         for(auto kind:{Interface::surface7,Interface::unknown,Interface::draw1,Interface::draw7})for(auto& [address,value]:objects){(void)address;if(value.native && value.kind==kind){for(U32 n=0;n<value.guest_refs;++n)value.native->Release();value.native=nullptr;}}
     }
-    std::string report() const override{std::ostringstream out;out<<"{\"backend\":\"native-ddraw7\",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
+    std::string report() const override{std::ostringstream out;out<<"{\"backend\":\"native-ddraw7\",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"mode_callbacks\":"<<mode_callbacks<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
 };
 U32 Draw::vtable(Interface kind){
     if(auto it=vtables.find(kind);it!=vtables.end())return it->second;
@@ -186,6 +254,7 @@ U32 Draw::vtable(Interface kind){
         if(slot==0)method(3,[this,kind](Args a){return query(object(a[0],kind),a);});
         else if(slot==1)method(1,[this,kind](Args a){auto& value=object(a[0],kind);if(value.guest_refs==0xffffffffu)stop("reference count overflow");const auto result=value.native->AddRef();++value.guest_refs;return result;});
         else if(slot==2)method(1,[this,kind](Args a){return release(object(a[0],kind));});
+        if(kind==Interface::draw1 && slot==8)method(5,[this](Args a){return enum_modes(a);});
         if(kind==Interface::draw7){
             if(slot==6)method(4,[this](Args a){auto d=read_description(a[1]);p.memory.check(a[2],4,Memory::Write);if(a[3])stop("aggregated surfaces not supported");IDirectDrawSurface7* surface=nullptr;const auto hr=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->CreateSurface(&d,&surface,nullptr);if(SUCCEEDED(hr))p.memory.store(a[2],wrap(surface,Interface::surface7),32);return U32(hr);});
             if(slot==12)method(2,[this](Args a){p.memory.check(a[1],DescSize,Memory::Read|Memory::Write);if(p.memory.load(a[1],32)!=DescSize)stop("GetDisplayMode description size");DDSURFACEDESC2 d{};d.dwSize=sizeof(d);auto hr=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->GetDisplayMode(&d);if(SUCCEEDED(hr)){if(d.lpSurface)stop("GetDisplayMode returned a native pixel pointer");write_description(a[1],d);}return U32(hr);});

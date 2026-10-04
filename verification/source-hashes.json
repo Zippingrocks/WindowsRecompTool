@@ -3,7 +3,7 @@
   "note": "Exact owned source bytes for the DirectDraw and MinGW candidate; no game material.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "5609f648595e041ef05ef35c2e85ded8495698d78c2fffeadf8f233d5804e167",
+    "CMakeLists.txt": "0149f01be8f8e3760cae36056c56fb7d158b34aee570a1d290d6bbb0b7312bb3",
     "include/winrecomp/compiled.hpp": "2142de2df49af250cbdab8b3c7346d01f3ca1d2d9f329c5c5ed409b8c65f32aa",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
@@ -58,15 +58,17 @@
     "src/runtime/gui_callbacks.hpp": "fd2a982165c1676b76a60f209d4075b422eff1016e7411eda680ed561a159953",
     "src/runtime/gui_lifecycle.hpp": "fc3cc179ca085625288822df5a98946065a8d74695c0442efbae62f3359b7b33",
     "src/runtime/gui_apis.hpp": "d0830b96e5321ccc6b65654201f749b36cbb0749de66f8ef71fb58da24ae4611",
-    "src/runtime/gui_messages.hpp": "6f6abb3634b835359f4dfc0efb901dd16ef6cc4d8fff38746379cf4f723e7380",
-    "tests/gui_boundary.cpp": "05fe612b7f69ba37235b8217d3f6e861f50666a3841f6f393b5c7cfb85ec74b1",
+    "src/runtime/gui_messages.hpp": "9cb1f71e79582b9636c9f797ee4eff10bbe074cbddcf03b4bedeb300ae8db705",
+    "tests/gui_boundary.cpp": "644b7ef3e74f2eac4d650147f27ae8d2237fadb60f57b751c41cb1a69877fbbf",
     ".github/workflows/windowing.yml": "3bc079f58fa059bc8a343faf34fc7af03337907d4a5c24494a0242eaaf392ddf",
     "tests/exception_unwind.cpp": "3576dcdb5f9ace11e66ef7efbb230364a7d5802d8aa2af541a8cd39ac274a9ca",
     "include/winrecomp/directdraw.hpp": "c5a07b238734fa0dc2fdbdd1a7c17ecaa0d106ce59c9a240df7032f67098cce5",
-    "src/runtime/directdraw.cpp": "a70b212cedf922969506226dfae1cfc94bc69908750e3bfccdd411ebe1522a7f",
+    "src/runtime/directdraw.cpp": "b6028b5178212efb7b137412f20b5eecb099daa5d70e8251867db33b403fb7e4",
     "tests/directdraw_boundary.cpp": "7d8debbc996b6debd6b46478e2275f6a9ec414cad2e508726e536ee83be7f9bf",
-    "tests/directdraw_program.py": "356e5bef506acd4ba4a6fdca64ed24eab81b394e7b7ad0a93a9e3cce7348e3c3",
+    "tests/directdraw_program.py": "1ff6f1fc1600291f30f4a9190fb7cb25f549571687a756c8f433d883904b6eee",
     ".github/workflows/directdraw.yml": "8bb41c0f02e2b7a6ae6a6da637772f25d9f88d795e37c2eb96c796ec7f13262d",
-    ".github/workflows/mingw.yml": "0c6d1d2d2c93fe584cf30ad7c69a80ee1ac213f3bd48bfd973c92120b3d0ddde"
+    ".github/workflows/mingw.yml": "0c6d1d2d2c93fe584cf30ad7c69a80ee1ac213f3bd48bfd973c92120b3d0ddde",
+    "tests/legacy_modes.cpp": "2eab836542738109d44edf4492173751c1f5e982c8aa3f03690c74b158d73abd",
+    ".github/workflows/windows-startup.yml": "3a4488e217fa444a1009ab5120c18d278ce341d10de6c5a3a9136ae1fd718d58"
   }
 }
