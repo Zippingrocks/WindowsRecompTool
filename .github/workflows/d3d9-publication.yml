@@ -18,35 +18,25 @@ jobs:
         with:
           fetch-depth: 0
           submodules: false
-      - name: Verify bounded owned-source snapshot
+      - name: Verify owned-source repair
         shell: python
         run: |
-          import base64,hashlib,lzma,subprocess,os
+          import hashlib,subprocess,os
           from pathlib import Path
-          checks=['cf07d87a22a22f8ec82df311500182d7bab0998cfea481833ea314f9a2c3aba6','a1011ddb7bcb8cdf48c91c7159eac99632f46d3ac09cae1c5e826f565116dac0','30ad5faf998d397e520815c9ee98b6c09b9a8b72d28d7db537729c5ad32f928c']
-          parts=[]
-          for i,want in enumerate(checks):
-              data=subprocess.check_output(['git','show',f'HEAD:publication/d3d9-{i}.b64'])
-              if hashlib.sha256(data).hexdigest()!=want: raise RuntimeError('Source segment mismatch')
-              parts.append(data)
-          encoded=b''.join(parts)
-          if hashlib.sha256(encoded).hexdigest()!='ff9632aaa309042b56833bd1318af8996c147fe6c8652cf578bf7adb086e8dc3': raise RuntimeError('Combined source mismatch')
-          decoder=lzma.LZMADecompressor(memlimit=128*1024*1024)
-          patch=decoder.decompress(base64.b64decode(encoded,validate=True),max_length=1024*1024)
-          if not decoder.eof or decoder.unused_data: raise RuntimeError('Invalid or oversized patch')
-          if hashlib.sha256(patch).hexdigest()!='f1ae51dec8442411854acf2e749dcc55e7bee27148e2dfcd99736d3a0e4e1eaf': raise RuntimeError('Patch mismatch')
+          patch=subprocess.check_output(['git','show','HEAD:publication/d3d9-identity.patch'])
+          if len(patch)>1048576 or hashlib.sha256(patch).hexdigest()!='3b3eab8c9bee463dff22522ed84809578f41b1aa45f36d43b82d2de1564aa893': raise RuntimeError('Patch mismatch')
           Path(os.environ['RUNNER_TEMP'],'d3d9.patch').write_bytes(patch)
       - name: Publish readable implementation on development branch
         id: publish
         shell: bash
         run: |
           set -euo pipefail
-          git worktree add --detach "$RUNNER_TEMP/d3d9-source" f647b0093d4514c4fc9f1be70414270d45f129b5
+          git worktree add --detach "$RUNNER_TEMP/d3d9-source" 30bb54c581a38449a95b6f5b17bedfc0378427ff
           cd "$RUNNER_TEMP/d3d9-source"
           git apply --index "$RUNNER_TEMP/d3d9.patch"
           python - <<'PY'
           import subprocess,json,hashlib
-          expected={'CMakeLists.txt','docs/d3d9-backend.md','include/winrecomp/d3d9_host.hpp','include/winrecomp/process.hpp','src/runtime/d3d9_host.cpp','src/runtime/directdraw.cpp','src/runtime/directdraw_d3d9.hpp','src/runtime/process.cpp','tests/d3d9_boundary.cpp','tests/d3d9_program.py','verification/source-hashes.json'}
+          expected={'src/runtime/directdraw.cpp','src/runtime/directdraw_d3d9.hpp','verification/source-hashes.json'}
           changed=set(subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines())
           if changed!=expected: raise RuntimeError('Unexpected source paths')
           hashes=json.loads(subprocess.check_output(['git','show',':verification/source-hashes.json']))['sha256']
@@ -57,7 +47,7 @@ jobs:
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'feat: add bounded native x64 D3D7-on-D3D9 rendering boundary' -m 'Explicit opt-in profile with real D3D9 HAL execution, conservative capabilities, guest COM identity, scene ownership and render-target synchronization. Transformed diffuse triangle path only; textures, depth and presentation not accepted. Local Linux checks and Windows cross-build passed; independent native Windows acceptance follows. No game material included.'
+          git commit -m 'fix: retain controlling DirectDraw identity references used for cooperative-window lookup' -m 'Do not retain bare pointers after releasing their identity references. Keep ownership until backend teardown, after devices and surfaces. The original native failed test and all original-versus-generated assertions remain unchanged. Windows cross-compilation passed; native acceptance follows. No gameplay claim.'
           git push origin HEAD:refs/heads/work/d3d9-backend
           echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   verify:
@@ -116,9 +106,9 @@ jobs:
             build/Testing/Temporary/LastTest.log
             build/Testing/Temporary/LastTestsFailed.log
             build/d3d9_program/acceptance.json
-            build/d3d9_program/generated/process.json
-            build/d3d9_program/original/triangle.bin
-            build/d3d9_program/generated/triangle.bin
+            build/d3d9_program/process.json
+            build/d3d9_program/original-d3d7/triangle.bin
+            build/d3d9_program/generated-d3d9/triangle.bin
             build/d3d9_program/*.log
             build/*/report.json
             build/*/hardware-report.json
