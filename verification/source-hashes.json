@@ -3,7 +3,7 @@
   "note": "Exact owned source for opt-in bounded single-stage D3D9 textures; no game material.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "e2cf6a07be9b3094aefebe974d97775020a01da2a09d5a9874c84293e9c021ea",
+    "CMakeLists.txt": "13d63b2fd352cc6c276e2ab69569ebcb5267ed564d9785322e11c8b94d2ad7f8",
     "include/winrecomp/compiled.hpp": "4264c817ee2e5fd3c523b6a5fab7e62208f7a47865c33ea894bb89a341972d04",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
@@ -103,6 +103,8 @@
     "tests/d3d9_indexed_program.py": "c54cdf38912d50bd10d0ce65182605fd41fe125a2539ccc42ad6008c07df328b",
     "src/runtime/directdraw_depth.hpp": "84105ddd7f1c3c1b6dbd94aa8aaae0d4364e7d1f6c50eb312eb3e77af249d1d5",
     "tests/d3d9_depth.cpp": "1e51f37c41842387bfb226b00c339d6b915acdc4bc655a61c835feea2b5cde47",
-    "tests/d3d9_depth_program.py": "734e05ca3595cffb99b913b2ce146435bcd8d2e9c0e130a38080be6c5b429959"
+    "tests/d3d9_depth_program.py": "734e05ca3595cffb99b913b2ce146435bcd8d2e9c0e130a38080be6c5b429959",
+    "tests/d3d9_combined.cpp": "84bba182b6bca8338ef5d5a263449095194652f86051974ab2290a46e9f4234b",
+    ".github/workflows/d3d9-combined.yml": "3d9658f7fc76a4bfb6f9c0e4e14d7cc858f7d2c447d85577001872401b0a8cff"
   }
 }
