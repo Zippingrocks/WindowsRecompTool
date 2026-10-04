@@ -1,0 +1,98 @@
+name: Native Windows presentation verification
+on:
+  push:
+    branches: [work/d3d9-present-publication]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    outputs:
+      source_sha: ${{ steps.publish.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: publish
+        shell: python
+        run: |
+          import base64,gzip,hashlib,json,os,subprocess
+          from pathlib import Path
+          patch_b64='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'
+          raw=gzip.decompress(base64.b64decode(patch_b64))
+          assert hashlib.sha256(raw).hexdigest()=='d15491dcc142f6e33c47cf02666f1db26b62341773ef48ec8cfef270f21fa6cd'
+          def git(*args,check=True):
+              return subprocess.run(['git',*args],check=check,capture_output=True).stdout
+          base='c033f100fe5730908a42abdf66fc464a2abff443'
+          git('checkout','-B','work/d3d9-present',base)
+          p=subprocess.run(['git','apply','--index','--whitespace=error-all','-'],input=raw,check=True)
+          expected={'include/winrecomp/d3d9_host.hpp','src/runtime/d3d9_host.cpp','src/runtime/directdraw.cpp','tests/d3d9_boundary.cpp'}
+          changed=set(git('diff','--cached','--name-only').decode().splitlines())
+          assert changed==expected,(changed,expected)
+          record=Path('verification/source-hashes.json')
+          data=json.loads(record.read_text())
+          for name in expected:
+              data['sha256'][name]=hashlib.sha256(Path(name).read_bytes()).hexdigest()
+          record.write_text(json.dumps(data,indent=2)+'\n')
+          git('add','verification/source-hashes.json')
+          git('config','user.name','github-actions[bot]')
+          git('config','user.email','41898282+github-actions[bot]@users.noreply.github.com')
+          git('commit','-m','feat: add exact-size windowed D3D9 presentation','-m','Translate a primary-surface Blt from the bounded legacy profile into a real D3D9 swap-chain Present. Reject scaling, foreign roots, active scenes, invalid rectangles and effects. Add visible-window pixel checks without weakening prior offscreen tests.')
+          sha=git('rev-parse','HEAD').decode().strip()
+          git('push','origin','HEAD:refs/heads/work/d3d9-present')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('source_sha='+sha+'\n')
+          print('Published '+sha)
+  windows:
+    needs: publish
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_sha }}
+          fetch-depth: 0
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: x64
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - run: python -m pip install unicorn==2.1.2
+      - run: python tools/check_repository.py
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=ON
+      - run: cmake --build build --parallel 2
+      - name: Real window presentation boundary
+        run: ctest --test-dir build -R "^(d3d9_boundary)$" --output-on-failure
+      - name: Retain depth/indexed/texture and runtime acceptance
+        run: ctest --test-dir build -R "^(d3d9_depth|d3d9_indexed|d3d9_textures|d3d9_depth_program|d3d9_indexed_program|d3d9_texture_program|d3d9_program|gui_boundary|dialog_boundary|resources|exception_unwind|core|processor|modules|process|runtime|callback_abi|modules_execution)$" --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: present-windows-msvc
+          path: |
+            build/Testing/Temporary/LastTest.log
+            build/Testing/Temporary/LastTestsFailed.log
+          retention-days: 14
+  windows_memory:
+    needs: publish
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - run: cmake -S . -B asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
+      - run: cmake --build asan --target winrecomp_d3d9_boundary winrecomp_d3d9_depth winrecomp_d3d9_indexed winrecomp_d3d9_textures winrecomp_gui_boundary winrecomp_dialog_boundary winrecomp_exception_unwind winrecomp_resource_tests --parallel 2
+      - name: Presentation and graphics lifetime checks
+        run: ctest --test-dir asan -R "^(d3d9_boundary|d3d9_depth|d3d9_indexed|d3d9_textures|gui_boundary|dialog_boundary|exception_unwind|resources)$" --output-on-failure
