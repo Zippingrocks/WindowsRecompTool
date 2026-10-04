@@ -1,0 +1,37 @@
+{
+  "schema": "winrecomp.combined-renderer-native.v1",
+  "tested_source": "da52dcc034a37248ca75df9aeb20b1d86cba90e5",
+  "workflow_run": 37243762060,
+  "host": "native Windows x64 / MSVC",
+  "result": "success",
+  "combined_path": [
+    "single-stage texture sampling",
+    "D16 depth attachment/test/write",
+    "nonindexed textured triangles",
+    "WORD-indexed textured triangles",
+    "render-target readback",
+    "real D3D9 swap-chain Present"
+  ],
+  "checks": [
+    "near textured geometry occludes farther textured geometry",
+    "texture binding can change within the active scene",
+    "indexed textured geometry respects the same depth buffer",
+    "Present is rejected during BeginScene/EndScene",
+    "Present succeeds after EndScene",
+    "enabling depth after unbinding the depth resource is rejected"
+  ],
+  "retained_native_windows_components": [
+    "presentation boundary",
+    "D16 depth boundary",
+    "indexed drawing boundary",
+    "texture boundary"
+  ],
+  "windows_address_sanitizer": "passed",
+  "limitations": [
+    "synthetic component test, not an E3 scene",
+    "no original-vs-recompiled whole-scene fixture in this combined test",
+    "fullscreen and display-mode parity remain unresolved",
+    "lighting, blending and broader state/format coverage remain incomplete"
+  ],
+  "e3_playable": false
+}
