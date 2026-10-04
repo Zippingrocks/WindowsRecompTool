@@ -1,0 +1,61 @@
+diff --git a/src/runtime/directdraw.cpp b/src/runtime/directdraw.cpp
+index b86d458..ce0fe76 100644
+--- a/src/runtime/directdraw.cpp
++++ b/src/runtime/directdraw.cpp
+@@ -68,6 +68,8 @@ class Draw final:public DirectDrawBackend {
+     std::map<Interface,U32> vtables;
+     std::unique_ptr<host9::Factory> renderer9;
+     std::map<std::uintptr_t,HWND> cooperative_windows;
++    // Retain controlling identity references while using their addresses as keys.
++    std::map<std::uintptr_t,std::shared_ptr<IUnknown>> root_identities;
+     std::uint64_t renderer9_devices{},renderer9_draws{},renderer9_clears{},renderer9_readbacks{};
+     std::map<std::uintptr_t,U32> monitors;
+     // D3D enumeration names remain usable after EnumDevices returns. These
+@@ -610,6 +612,7 @@ public:
+         for(auto& [address,value]:objects){(void)address;if(value.compat){value.compat.reset();value.guest_refs=0;}}
+         for(auto& [address,value]:objects){(void)address;if(value.native)destroy_lock(value);}
+         for(auto kind:{Interface::device7,Interface::surface7,Interface::clipper,Interface::d3d7,Interface::compat3d7,Interface::unknown,Interface::draw1,Interface::draw7})for(auto& [address,value]:objects){(void)address;if(value.native && value.kind==kind){for(U32 n=0;n<value.guest_refs;++n)value.native->Release();value.native=nullptr;}}
++        cooperative_windows.clear();root_identities.clear();
+     }
+     std::string report() const override{std::ostringstream out;out<<"{\"backend\":"<<quote(p.options.legacy_d3d9?"ddraw-d3d9-bounded":"native-ddraw7")<<",\"d3d9_devices\":"<<renderer9_devices<<",\"d3d9_draws\":"<<renderer9_draws<<",\"d3d9_clears\":"<<renderer9_clears<<",\"d3d9_readbacks\":"<<renderer9_readbacks<<",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"mode_callbacks\":"<<mode_callbacks<<",\"d3d7_wrappers\":"<<d3d_wrappers<<",\"d3d_device_callbacks\":"<<device_callbacks<<",\"mode7_callbacks\":"<<mode7_callbacks<<",\"zformat_callbacks\":"<<zformat_callbacks<<",\"d3d_devices_created\":"<<render_devices<<",\"texture_callbacks\":"<<texture_callbacks<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
+ };
+ diff --git a/src/runtime/directdraw_d3d9.hpp b/src/runtime/directdraw_d3d9.hpp
+index 9b40ab1..526a5e3 100644
+--- a/src/runtime/directdraw_d3d9.hpp
++++ b/src/runtime/directdraw_d3d9.hpp
+@@ -4,7 +4,12 @@
+     std::uintptr_t identity9(IUnknown* native){
+         IUnknown* id{};const auto hr=native->QueryInterface(IID_IUnknown,reinterpret_cast<void**>(&id));
+         if(FAILED(hr) || !id)stop("native object has no controlling IUnknown");
+-        auto key=reinterpret_cast<std::uintptr_t>(id);id->Release();return key;
++        NativeOwner owner{id};const auto key=reinterpret_cast<std::uintptr_t>(id);
++        if(!root_identities.contains(key)){
++            auto held=std::shared_ptr<IUnknown>(owner.keep(),[](IUnknown* p){p->Release();});
++            root_identities.emplace(key,std::move(held));
++        }
++        return key;
+     }
+     void check_target9(IUnknown* target){
+         for(const auto& [at,o]:objects){(void)at;if(o.compat && o.compat->target==target && o.compat->gpu->in_scene())stop("render target access during an active D3D9 scene");}
+ diff --git a/verification/source-hashes.json b/verification/source-hashes.json
+index 1affb79..9954561 100644
+--- a/verification/source-hashes.json
++++ b/verification/source-hashes.json
+@@ -63,7 +63,7 @@
+     ".github/workflows/windowing.yml": "3bc079f58fa059bc8a343faf34fc7af03337907d4a5c24494a0242eaaf392ddf",
+     "tests/exception_unwind.cpp": "3576dcdb5f9ace11e66ef7efbb230364a7d5802d8aa2af541a8cd39ac274a9ca",
+     "include/winrecomp/directdraw.hpp": "c5a07b238734fa0dc2fdbdd1a7c17ecaa0d106ce59c9a240df7032f67098cce5",
+-    "src/runtime/directdraw.cpp": "0a60e3cbb0713a6fbf097d35688f4b6a0b1568d491d247bb4a4fb54852481be1",
++    "src/runtime/directdraw.cpp": "a38e90b131968e3fcfadae3090290ece596da4806907a323198ea065e6eee8e3",
+     "tests/directdraw_boundary.cpp": "7d8debbc996b6debd6b46478e2275f6a9ec414cad2e508726e536ee83be7f9bf",
+     "tests/directdraw_program.py": "223f94ca5e5b23514227316946e642234c22483b7bbd0bc2bf4fbece3181ebfe",
+     ".github/workflows/directdraw.yml": "8bb41c0f02e2b7a6ae6a6da637772f25d9f88d795e37c2eb96c796ec7f13262d",
+@@ -92,7 +92,7 @@
+     ".github/workflows/dialog-fixes.yml": "b6c37f8b887d13e69dafddfb1b2acb692cb9f3ff297edbf5ccf8adec99bbab14",
+     "include/winrecomp/d3d9_host.hpp": "c148a6c74c4974544b436429921f11a92b9889128471579c581a172f056e4191",
+     "src/runtime/d3d9_host.cpp": "e23768f0a94ba3ed97a521ff762dc40bbc1e4c282a6d6f5c04a23e260e14d538",
+-    "src/runtime/directdraw_d3d9.hpp": "8906935732a9e58aeb8a2f94ca1abefe56e7bc5dd63fd2cc2614bad456f9051e",
++    "src/runtime/directdraw_d3d9.hpp": "166e99c22375b27524bdc67f29e3d85a3ff12732cf50989f4c81a423879a5fd8",
+     "tests/d3d9_boundary.cpp": "d1721e956314cb4fcb47e1c3e25332cf2dc95e582cf7f5af8bececedf28ed3e1",
+     "tests/d3d9_program.py": "17a17c7464bcf28ddd250d8ef72c6ea49aea7118efc52e75110eb6eac2254d2b"
+   }
