@@ -15,7 +15,7 @@ unsigned checks{};
 constexpr wr::U32 Entry=0x401000,Callback=0x401010,Nested=0x401020,Custom=WM_APP+55;
 wr::Process* current{};
 wr::U32 last_dialog{},last_control{},expected_result=209;
-unsigned init_count{},commands{},depth{};
+unsigned init_count{},commands{},depth{},ui_changes{},ui_updates{},ui_queries{};
 enum class Mode{normal,fault,nested,bad_output};Mode mode=Mode::normal;
 wr::U32 api(wr::Process& p,const char* name,std::initializer_list<wr::U32> args={}){
     const auto saved=p.cpu;
@@ -33,6 +33,11 @@ bool step(wr::Cpu& cpu,wr::Memory& memory,std::uint64_t&){
     const auto procedure=cpu.eip;auto& p=*current;
     const auto h=memory.load(cpu.r[wr::ESP]+4,32),message=memory.load(cpu.r[wr::ESP]+8,32),wp=memory.load(cpu.r[wr::ESP]+12,32),lp=memory.load(cpu.r[wr::ESP]+16,32);
     wr::U32 result=0;
+    // Let the real dialog manager handle these after it calls the guest. Counts
+    // verify the callback is delivered; FALSE preserves native default behavior.
+    if(message==WM_CHANGEUISTATE)++ui_changes;
+    if(message==WM_UPDATEUISTATE)++ui_updates;
+    if(message==WM_QUERYUISTATE)++ui_queries;
     if(message==WM_INITDIALOG){
         ++init_count;++depth;CHECK(lp==0xabcdef12);CHECK(api(p,"IsWindow",{h})==1);
         auto list=api(p,"GetDlgItem",{h,1001});CHECK(list && list!=h);CHECK(api(p,"IsWindow",{list})==1);
@@ -40,7 +45,21 @@ bool step(wr::Cpu& cpu,wr::Memory& memory,std::uint64_t&){
         else {
             last_dialog=h;last_control=list;
             if(mode==Mode::fault)throw wr::GuestFault(wr::FaultKind::memory,lp,"deliberate dialog callback failure");
-            CHECK(FindWindowA("#32770","WinRecomp modal fixture")!=nullptr);
+            auto native_dialog=FindWindowA("#32770","WinRecomp modal fixture");CHECK(native_dialog!=nullptr);
+            const auto changes=ui_changes,updates=ui_updates,queries=ui_queries;
+            constexpr wr::U32 cues=UISF_HIDEFOCUS|UISF_HIDEACCEL;
+            api(p,"SendMessageA",{h,WM_CHANGEUISTATE,MAKELONG(UIS_SET,cues),0});
+            CHECK((api(p,"SendMessageA",{h,WM_QUERYUISTATE,0,0})&cues)==cues);
+            CHECK((api(p,"SendMessageA",{list,WM_QUERYUISTATE,0,0})&cues)==cues);
+            CHECK((wr::U32(::SendMessageA(native_dialog,WM_QUERYUISTATE,0,0))&cues)==cues);
+            api(p,"SendMessageA",{h,WM_CHANGEUISTATE,MAKELONG(UIS_CLEAR,cues),0});
+            CHECK((api(p,"SendMessageA",{h,WM_QUERYUISTATE,0,0})&cues)==0);
+            CHECK((api(p,"SendMessageA",{list,WM_QUERYUISTATE,0,0})&cues)==0);
+            api(p,"SendMessageA",{h,WM_UPDATEUISTATE,MAKELONG(UIS_SET,cues),0});
+            CHECK((api(p,"SendMessageA",{h,WM_QUERYUISTATE,0,0})&cues)==cues);
+            api(p,"SendMessageA",{h,WM_UPDATEUISTATE,MAKELONG(UIS_CLEAR,cues),0});
+            CHECK((api(p,"SendMessageA",{h,WM_QUERYUISTATE,0,0})&cues)==0);
+            CHECK(ui_changes>=changes+2 && ui_updates>=updates+2 && ui_queries>=queries+4);
             CHECK(api(p,"GetWindowLongA",{h,4})==Callback);
             CHECK(api(p,"SetWindowLongA",{h,8,0x87654321})==0);
             CHECK(api(p,"GetWindowLongA",{h,8})==0x87654321);

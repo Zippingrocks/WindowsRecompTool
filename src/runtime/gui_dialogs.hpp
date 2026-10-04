@@ -57,7 +57,7 @@ U32 Gui::control_message(Args a){
         }
     }
     if(atom==0x80 && (m==BM_GETCHECK || m==BM_SETCHECK || m==BM_GETSTATE || m==BM_SETSTATE || m==BM_CLICK))return result32(SendMessageA(h,m,wp,signed_param(lp)));
-    if(m==WM_GETTEXTLENGTH || m==WM_ENABLE || m==WM_SETREDRAW)return result32(SendMessageA(h,m,wp,signed_param(lp)));
+    if(m==WM_GETTEXTLENGTH || m==WM_ENABLE || m==WM_SETREDRAW || m==WM_CHANGEUISTATE || m==WM_UPDATEUISTATE || m==WM_QUERYUISTATE)return result32(SendMessageA(h,m,wp,signed_param(lp)));
     unsupported("unmarshalled dialog control message "+hex(m));
 }
 U32 Gui::dialog_box(Args a){

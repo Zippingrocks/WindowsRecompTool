@@ -58,7 +58,7 @@
     "src/runtime/gui_callbacks.hpp": "ae289d7b4aeaf9391b9ee94b21c20094fd3796f4d361f12c2a3ec05b84065a14",
     "src/runtime/gui_lifecycle.hpp": "a34eb87148067ce7b18e5e8e4a02c27d1f333c79065695ee4f198e4048b7b54b",
     "src/runtime/gui_apis.hpp": "aec6b6825a461fe06a1b4ade606c2d2fc0dde314a616ec62054795f3c08d153e",
-    "src/runtime/gui_messages.hpp": "9cb1f71e79582b9636c9f797ee4eff10bbe074cbddcf03b4bedeb300ae8db705",
+    "src/runtime/gui_messages.hpp": "4ea4027d984d365cf6b2d7b38f4eb3393333d37433187617b1d4417e209570c4",
     "tests/gui_boundary.cpp": "644b7ef3e74f2eac4d650147f27ae8d2237fadb60f57b751c41cb1a69877fbbf",
     ".github/workflows/windowing.yml": "3bc079f58fa059bc8a343faf34fc7af03337907d4a5c24494a0242eaaf392ddf",
     "tests/exception_unwind.cpp": "3576dcdb5f9ace11e66ef7efbb230364a7d5802d8aa2af541a8cd39ac274a9ca",
@@ -84,10 +84,11 @@
     "tests/primary_clipper.cpp": "af5883ff95dd7cdd9cc972ad8e3192f4600f3778185827f49a1e0be83b3c9e26",
     "tests/device7_boundary.cpp": "9e6711f2971edfb9c817e8648a5f1f31cc775dc700a3b5054db5b097f724f921",
     "include/winrecomp/dialog_template.hpp": "67bfa12c1e46d8f256fbf63505f43f947c3069f8af9cfd70d93e0ec5165909ef",
-    "src/runtime/gui_dialogs.hpp": "b7f465af5b2d3a5345dfc3efe422909ffc8a0e03014a5a924b8cf7958adb29f8",
-    "tests/dialog_boundary.cpp": "0fc4f5db0e6db39a0e0c7e13a6922978b13e758542018c03b15ea5c82b1650c4",
+    "src/runtime/gui_dialogs.hpp": "8b49e9773923b3df073461ddadf533f99120e6ab091ac8f39d6f100edaa2c9d5",
+    "tests/dialog_boundary.cpp": "6d10116c2d0b56989ac608c5948226cfd7fe396288c6970cbfbbeb1839c99fb3",
     "tests/dialog_fixture.hpp": "ce2e879092c59fba2b030f290778f887fe2cbe1f8bb6392b56dcbc83da5aa5b7",
-    "tests/dialog_program.py": "a6c2afb70f0b607483ea4fb93751a0b444fd74afff55485d580b54327b9e3fe3",
-    "tests/dialog_template.cpp": "130ef0fb96076446148b4e819a21df365088a01242718bbb4b7d4710bf023cd1"
+    "tests/dialog_program.py": "c0aee13bd46245b0ff5f95097ced3cc3fb48048708b1136952ffc63a6f539215",
+    "tests/dialog_template.cpp": "130ef0fb96076446148b4e819a21df365088a01242718bbb4b7d4710bf023cd1",
+    ".github/workflows/dialog-fixes.yml": "b6c37f8b887d13e69dafddfb1b2acb692cb9f3ff297edbf5ccf8adec99bbab14"
   }
 }

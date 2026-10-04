@@ -35,15 +35,20 @@ def fixture():
     b.invoke(u,'IsWindow',(WINDOW,));b.eax_is(0,'dialog destroyed on return');b.invoke(u,'IsWindow',(CONTROL,));b.eax_is(0,'child handle lifetime')
     b.emit('c705');b.word(RECORD+24);b.word(1)
     b.push(MARKER);b.push(0);cancel_proc=len(b.code)-4;b.push(0);b.push(101);b.push(0x400000);b.call(u,'DialogBoxParamA');b.eax_is(0,'zero is a legitimate dialog result')
-    for at,value,why in [(RECORD,2,'two initializations'),(RECORD+4,2,'posted command callbacks'),(RECORD+8,MARKER,'guest initialization value'),(RECORD+12,1,'check state'),(RECORD+16,15,'ANSI list text length'),(RECORD+20,0x23456789,'DWL_MSGRESULT width')]:b.compare(at,value,why)
+    for at,value,why in [(RECORD,2,'two initializations'),(RECORD+4,2,'posted command callbacks'),(RECORD+8,MARKER,'guest initialization value'),(RECORD+12,1,'check state'),(RECORD+16,15,'ANSI list text length'),(RECORD+20,0x23456789,'DWL_MSGRESULT width'),(RECORD+28,3,'UI-state round trip')]:b.compare(at,value,why)
     b.invoke(k,'CreateFileA',FILENAME,0x40000000,0,0,2,0x80,0);b.emit('83f8ff');b.fail('output open');b.emit('89c3')
-    b.push(0);b.push(WRITTEN);b.push(28);b.push(RECORD);b.emit('53');b.call(k,'WriteFile');b.nonzero('record write')
+    b.push(0);b.push(WRITTEN);b.push(32);b.push(RECORD);b.emit('53');b.call(k,'WriteFile');b.nonzero('record write')
     b.emit('53');b.call(k,'CloseHandle');b.nonzero('record close');b.invoke(k,'ExitProcess',0);b.emit('c3')
     while len(b.code)%16:b.emit('90')
     procedure=0x401000+len(b.code);b.emit('5589e5535657')
     b.emit('8b450c3d10010000');b.branch('init','0f84');b.emit('3d11010000');b.branch('command','0f84');b.emit('3d37800000');b.branch('custom','0f84');b.emit('31c0');b.branch('return')
     b.label('custom');b.push(0x23456789);b.push(0);b.emit('ff7508');b.call(u,'SetWindowLongA');b.branch('handled')
     b.label('init');b.increment(RECORD);b.emit('8b4508');b.store(WINDOW);b.emit('8b4514');b.eax_is(MARKER,'initialization marshalling');b.store(RECORD+8)
+    # Exercise native UI-state propagation, not a swallowed notification.
+    b.invoke(u,'SendMessageA',(WINDOW,),0x127,0x00030001,0)
+    b.invoke(u,'SendMessageA',(WINDOW,),0x129,0,0);b.emit('83e003');b.eax_is(3,'UI cues hidden');b.store(RECORD+28)
+    b.invoke(u,'SendMessageA',(WINDOW,),0x128,0x00030002,0)
+    b.invoke(u,'SendMessageA',(WINDOW,),0x129,0,0);b.emit('83e003');b.eax_is(0,'UI cues visible')
     b.invoke(u,'GetDlgItem',(WINDOW,),1001);b.nonzero('list control');b.store(CONTROL)
     b.invoke(u,'SendMessageA',(CONTROL,),0x180,0,TEXT);b.eax_is(0,'list string insertion')
     b.invoke(u,'SendMessageA',(CONTROL,),0x186,0,0);b.eax_is(0,'list selection')
@@ -90,7 +95,7 @@ def main():
     original=a.out/'original';original.mkdir(exist_ok=True)
     run=subprocess.run([str(pe)],cwd=original,capture_output=True,timeout=45)
     if run.returncode:raise RuntimeError(f'Original Windows dialog fixture: {run.returncode}: {failures.get(run.returncode)}')
-    expected=(original/'dialog.bin').read_bytes();assert len(expected)==28
+    expected=(original/'dialog.bin').read_bytes();assert len(expected)==32
     c.run(['cmake','-S',str(project),'-B',str(project/'build'),'-G','Ninja','-DCMAKE_BUILD_TYPE=Release',f'-DWINRECOMP_SOURCE={c.ROOT}',f'-DCMAKE_CXX_COMPILER={a.cxx}'])
     c.run(['cmake','--build',str(project/'build'),'--target','recompiled_program','--parallel','2'])
     generated=a.out/'generated';generated.mkdir(exist_ok=True);report=a.out/'process.json'
@@ -99,6 +104,6 @@ def main():
     actual=(generated/'dialog.bin').read_bytes();assert actual==expected
     process=json.loads(report.read_text());assert process['exited'] and process['exit_code']==0
     assert process['gui']['dialogs_created']==2 and process['gui']['dialogs_completed']==2
-    evidence={'schema':'winrecomp.modal-dialog-program.v1','source_input_sha256':hashlib.sha256(raw).hexdigest(),'original':'Windows PE32 loader','generated':'native Windows x64 compiled dispatch','identical_semantic_record':True,'record':list(struct.unpack('<7I',actual)),'record_sha256':hashlib.sha256(actual).hexdigest(),'process':process,'scope':'Authored modal-dialog test, not E3 dialog execution or gameplay.'}
+    evidence={'schema':'winrecomp.modal-dialog-program.v1','source_input_sha256':hashlib.sha256(raw).hexdigest(),'original':'Windows PE32 loader','generated':'native Windows x64 compiled dispatch','identical_semantic_record':True,'record':list(struct.unpack('<8I',actual)),'record_sha256':hashlib.sha256(actual).hexdigest(),'process':process,'scope':'Authored modal-dialog test, not E3 dialog execution or gameplay.'}
     (a.out/'acceptance.json').write_text(json.dumps(evidence,indent=2)+'\n');print('Original PE32 and recompiled Windows x64: two real modal dialogs, compiled controls/callbacks, identical records')
 if __name__=='__main__':main()
