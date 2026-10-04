@@ -1,0 +1,47 @@
+name: Native Windows alpha blending verification
+on:
+  push:
+    branches: [work/d3d9-blending]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: x64
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - run: python tools/check_repository.py
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build --target winrecomp_d3d9_blending winrecomp_d3d9_combined winrecomp_d3d9_boundary winrecomp_d3d9_depth winrecomp_d3d9_indexed winrecomp_d3d9_textures --parallel 2
+      - name: Alpha blending plus retained renderer boundaries
+        run: ctest --test-dir build -R "^(d3d9_blending|d3d9_combined|d3d9_boundary|d3d9_depth|d3d9_indexed|d3d9_textures)$" --output-on-failure
+  windows_memory:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - run: cmake -S . -B asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
+      - run: cmake --build asan --target winrecomp_d3d9_blending --parallel 2
+      - name: Alpha blending ASan boundary
+        run: ctest --test-dir asan -R "^d3d9_blending$" --output-on-failure
