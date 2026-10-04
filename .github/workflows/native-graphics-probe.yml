@@ -1,0 +1,36 @@
+name: Native graphics availability observations
+on:
+  push:
+    branches: [work/native-graphics-probe]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86, x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+      - name: Compile isolated native API observation tool
+        shell: cmd
+        run: cl /nologo /EHsc /std:c++20 tests\windows_graphics_probe.cpp /Fe:graphics_probe.exe /link user32.lib ddraw.lib d3d9.lib d3d11.lib
+      - name: Record observations, not API availability assertions
+        shell: pwsh
+        run: |
+          & .\graphics_probe.exe | Out-File -Encoding utf8 graphics-observation.json
+          if ($LASTEXITCODE -ne 0) { throw 'Graphics observation process failed' }
+          $r = Get-Content graphics-observation.json -Raw | ConvertFrom-Json
+          if ($r.schema -ne 'winrecomp.native-graphics-observation.v1') { throw 'Invalid observation' }
+          Get-Content graphics-observation.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-graphics-${{ matrix.arch }}
+          path: graphics-observation.json
+          retention-days: 14
