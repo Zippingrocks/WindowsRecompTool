@@ -1,5 +1,11 @@
 # WinRecomp
 
+> Local development candidate: the Windows x64 E3 program reaches a request for its
+> **Choose Rasterizer** dialog under Wine after real Direct3D7 device/format
+> enumeration. The dialog has not been displayed; no game frame or player control
+> is verified. This candidate has not been pushed or tested on native Windows.
+> Current evidence and limitations are in `docs/status.md`.
+
 A developing static-recompilation tool for **PE32/i386 Windows programs**, with
 **native Windows x64** as the first intended game host. Guest registers, pointers,
 flags and addresses remain 32-bit; they are not widened into host pointers.

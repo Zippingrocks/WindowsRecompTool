@@ -1,0 +1,361 @@
+{
+  "schema": "winrecomp.dll-startup-local.v1",
+  "observed_at_utc": "2026-10-04T04:21:43.398862+00:00",
+  "source_commit": "cfa2b23bfe65d3d7fe57d2457a93087b97870cbe",
+  "source_parent": "9c7e077ed8615cdad2da4c847cf2b173084e7117",
+  "source_tree": "0936f0e59092725dba0e41cd009e27b9ea9698fa",
+  "source_hashes_verified": 75,
+  "recovery": "Restored published startup source and pinned dependencies from Git bundles in CI artifact 11290947969. Did not assume the previously claimed local-only commits were available.",
+  "publication": {
+    "status": "local_only",
+    "branch": "work/dll-startup",
+    "remote_main": "28903ea344b77ea97b6794151b18c3b63f8e3363",
+    "reason": "Current GitHub connector exposes reads, not writes; direct Git transport could not resolve github.com. No push or native Windows CI trigger."
+  },
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "tests": {
+    "linux_release": {
+      "suites_passed": 19,
+      "execution": "Completed batches; not one uninterrupted full-suite invocation."
+    },
+    "linux_asan_ubsan": {
+      "suites_passed": 12,
+      "scope": "Native Linux C++ core/CPU/module/runtime plus frontend; excludes Windows-only branches and separately built generated executables."
+    },
+    "windows_target_under_wine": {
+      "native_cpp_executables_passed": 12,
+      "host": "Wine 10 on Linux x64/Xvfb; not native Windows",
+      "last_test_log": "071f36bdcd0bdaabbc567952e98cdea28e804d0233dd65d16d17334ee4cd4958"
+    },
+    "integer": {
+      "oracle": "Unicorn 2.1.2",
+      "case_count": 237,
+      "comparisons": 60672,
+      "passed": true,
+      "compared": "8 GPRs, EIP, defined status flags, complete 64 KiB stack",
+      "new_flag_fixtures": 7
+    },
+    "native_flags": {
+      "comparisons_per_build": 8192,
+      "assertions_per_build": 49398,
+      "builds": [
+        "Linux/GCC x64",
+        "Windows/MinGW x64 executed under Wine"
+      ],
+      "scope": "Original uninterrupted POPF/POPFQ/PUSHFQ on x64 hardware, CPL3 safe values; not original i386 whole-game execution. Host TF/NT/AC are excluded, with separate runtime rejection tests."
+    },
+    "modules": {
+      "linux_assertions": 137,
+      "windows_under_wine_assertions": 139,
+      "linux_asan_assertions": 137
+    },
+    "compiled_modules_linux": {
+      "schema": "winrecomp.modules-execution.v1",
+      "passed": true,
+      "positive_cases": 64,
+      "negative_cases": 3,
+      "host": "linux",
+      "compiled_guest": true,
+      "cpu_profile": "scalar-v1",
+      "namespace": "explicit roots",
+      "original_os_comparison": false
+    },
+    "compiled_modules_windows_wine": {
+      "schema": "winrecomp.modules-execution.v1",
+      "passed": true,
+      "positive_cases": 64,
+      "negative_cases": 3,
+      "host": "Wine diagnostic",
+      "compiled_guest": true,
+      "cpu_profile": "scalar-v1",
+      "namespace": "explicit roots",
+      "original_os_comparison": false
+    },
+    "x87": {
+      "comparisons": 18240,
+      "passed": true
+    },
+    "simd": {
+      "comparisons": 29952,
+      "passed": true
+    },
+    "native_i386": {
+      "status": "unavailable",
+      "exit_code": 77,
+      "counted_as_pass": false
+    },
+    "native_windows_ci": {
+      "status": "not_run_for_this_candidate"
+    },
+    "interrupted_combined_commands": {
+      "count": 2,
+      "counted_as_pass": false,
+      "result": "Affected tests subsequently ran in completed batches."
+    }
+  },
+  "e3": {
+    "input_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+    "input_preserved": true,
+    "build": {
+      "host": "Linux cross-compilation for Windows x64",
+      "compiler": "MinGW GCC 14.2 POSIX",
+      "flags": "-O1 -DNDEBUG; -static -static-libgcc -static-libstdc++",
+      "manifest": {
+        "schema": "winrecomp.program.v1",
+        "sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+        "fixed_image_base": 4194304,
+        "entry": 4911384,
+        "instructions": 115248,
+        "partial": false,
+        "instruction_guard": "compare original bytes before each translated instruction"
+      },
+      "executable": {
+        "format": "PE32+",
+        "machine": "0x8664",
+        "architecture": "AMD64",
+        "entry_rva": "0x13f0",
+        "sections": 18,
+        "sha256": "a4d864a3310819e5bd47a71a1ffc7c18ecdc791d93437eb347ed35355da6bee3",
+        "size_bytes": 21533840,
+        "validation": "format and architecture, not execution"
+      }
+    },
+    "original_five_routine_comparisons": 5120,
+    "baseline_cfg_contract": "passed",
+    "repeated_startup": [
+      {
+        "error": "DirectDraw: native QueryInterface supports IID f5049e77-4861-11d2-a407-00a0c90629a8 without a guest wrapper at guest address 4026535696",
+        "guest_exited": false,
+        "eip": 4026535696,
+        "translated_guest_instructions": 20341638,
+        "api_dispatches": 536,
+        "cpu_profile": "scalar-v1",
+        "dll_namespace": {
+          "mode": "explicit_guest_roots",
+          "roots": [
+            "Z:/mnt/data/WinRecomp-dev/local/game-run"
+          ],
+          "probes": [
+            {
+              "requested": "glide2x.dll",
+              "normalized": "glide2x.dll",
+              "outcome": "absent_from_configured_namespace",
+              "searched": [
+                "Z:/mnt/data/WinRecomp-dev/local/game-run"
+              ]
+            }
+          ]
+        },
+        "gui": {
+          "backend": "native-win32",
+          "windows_created": 1,
+          "windows_destroyed": 0,
+          "window_callbacks": 29,
+          "messages_dispatched": 0,
+          "gl_contexts_created": 0,
+          "swaps": 0,
+          "host_only_notifications": 0,
+          "host_only_message_ids": []
+        },
+        "directdraw": {
+          "backend": "native-ddraw7",
+          "objects_created": 2,
+          "objects_retired": 1,
+          "adapter_callbacks": 1,
+          "mode_callbacks": 3,
+          "surface_locks": 0,
+          "surface_unlocks": 0,
+          "blits": 0
+        },
+        "report_sha256": "621c7d7b77b8cfd3dad3d1958a59514c0bf83c728bb9e6c3898782b162b1cabb"
+      },
+      {
+        "error": "DirectDraw: native QueryInterface supports IID f5049e77-4861-11d2-a407-00a0c90629a8 without a guest wrapper at guest address 4026535696",
+        "guest_exited": false,
+        "eip": 4026535696,
+        "translated_guest_instructions": 20341638,
+        "api_dispatches": 536,
+        "cpu_profile": "scalar-v1",
+        "dll_namespace": {
+          "mode": "explicit_guest_roots",
+          "roots": [
+            "Z:/mnt/data/WinRecomp-dev/local/game-run"
+          ],
+          "probes": [
+            {
+              "requested": "glide2x.dll",
+              "normalized": "glide2x.dll",
+              "outcome": "absent_from_configured_namespace",
+              "searched": [
+                "Z:/mnt/data/WinRecomp-dev/local/game-run"
+              ]
+            }
+          ]
+        },
+        "gui": {
+          "backend": "native-win32",
+          "windows_created": 1,
+          "windows_destroyed": 0,
+          "window_callbacks": 29,
+          "messages_dispatched": 0,
+          "gl_contexts_created": 0,
+          "swaps": 0,
+          "host_only_notifications": 0,
+          "host_only_message_ids": []
+        },
+        "directdraw": {
+          "backend": "native-ddraw7",
+          "objects_created": 2,
+          "objects_retired": 1,
+          "adapter_callbacks": 1,
+          "mode_callbacks": 3,
+          "surface_locks": 0,
+          "surface_unlocks": 0,
+          "blits": 0
+        },
+        "report_sha256": "621c7d7b77b8cfd3dad3d1958a59514c0bf83c728bb9e6c3898782b162b1cabb"
+      }
+    ],
+    "negative_cpu_unspecified": {
+      "error": "CPUID requires explicit --cpu-profile scalar-v1 at guest address 4600079",
+      "guest_exited": false,
+      "eip": 4600079,
+      "translated_guest_instructions": 20341533,
+      "api_dispatches": 531,
+      "cpu_profile": "unspecified",
+      "dll_namespace": {
+        "mode": "explicit_guest_roots",
+        "roots": [
+          "Z:/mnt/data/WinRecomp-dev/local/game-run"
+        ],
+        "probes": [
+          {
+            "requested": "glide2x.dll",
+            "normalized": "glide2x.dll",
+            "outcome": "absent_from_configured_namespace",
+            "searched": [
+              "Z:/mnt/data/WinRecomp-dev/local/game-run"
+            ]
+          }
+        ]
+      },
+      "gui": {
+        "backend": "native-win32",
+        "windows_created": 1,
+        "windows_destroyed": 0,
+        "window_callbacks": 26,
+        "messages_dispatched": 0,
+        "gl_contexts_created": 0,
+        "swaps": 0,
+        "host_only_notifications": 0,
+        "host_only_message_ids": []
+      },
+      "directdraw": {
+        "backend": "native-ddraw7",
+        "objects_created": 1,
+        "objects_retired": 1,
+        "adapter_callbacks": 1,
+        "mode_callbacks": 3,
+        "surface_locks": 0,
+        "surface_unlocks": 0,
+        "blits": 0
+      },
+      "report_sha256": "948f45562aec7d87242ecc9f94f9ea3f234639049e3cc6aa4fa61dfc0f10426c"
+    },
+    "negative_present_dll": {
+      "error": "DLL exists but guest DLL loading is not implemented: Z:/mnt/data/WinRecomp-dev/local/game-run/GLIDE2X.DLL at guest address 4026532560",
+      "guest_exited": false,
+      "eip": 4026532560,
+      "translated_guest_instructions": 20341362,
+      "api_dispatches": 525,
+      "cpu_profile": "scalar-v1",
+      "dll_namespace": {
+        "mode": "explicit_guest_roots",
+        "roots": [
+          "Z:/mnt/data/WinRecomp-dev/local/game-run"
+        ],
+        "probes": [
+          {
+            "requested": "glide2x.dll",
+            "normalized": "glide2x.dll",
+            "outcome": "present_but_untranslated",
+            "searched": [
+              "Z:/mnt/data/WinRecomp-dev/local/game-run"
+            ]
+          }
+        ]
+      },
+      "gui": {
+        "backend": "native-win32",
+        "windows_created": 1,
+        "windows_destroyed": 0,
+        "window_callbacks": 23,
+        "messages_dispatched": 0,
+        "gl_contexts_created": 0,
+        "swaps": 0,
+        "host_only_notifications": 0,
+        "host_only_message_ids": []
+      },
+      "directdraw": {
+        "backend": "native-ddraw7",
+        "objects_created": 1,
+        "objects_retired": 1,
+        "adapter_callbacks": 0,
+        "mode_callbacks": 3,
+        "surface_locks": 0,
+        "surface_unlocks": 0,
+        "blits": 0
+      },
+      "report_sha256": "689ddaee0dea47240d5011c87abc9cee2756f7dddb45be5e47c1b9b87c3ae772"
+    },
+    "present_dll_test": "An authored plaintext GLIDE2X.DLL in the private data copy was rejected as present_but_untranslated and left unchanged, then removed. It was never a real DLL or executed as code.",
+    "new_observed_code_seeds": [
+      "0x004639E0",
+      "0x004630C0"
+    ],
+    "current_missing_interface": {
+      "name": "IDirect3D7",
+      "iid": "f5049e77-4861-11d2-a407-00a0c90629a8",
+      "host_query": "succeeded",
+      "guest_wrapper": "not implemented; explicit stop, not E_NOINTERFACE"
+    },
+    "run_host": "Wine 10/Linux x64, not Windows",
+    "cpu_profile": "Explicit scalar-v1; transparent WinRecompCPU vendor and conservative advertised capabilities. Not passthrough of the physical CPU or proof of original demo-machine fidelity.",
+    "dll_scope": "One explicit private data directory plus loaded/modeled bridge libraries. Not universal Windows/SxS/PATH search order."
+  },
+  "inherited_ci": {
+    "run": 37170800794,
+    "commit": "9c7e077ed8615cdad2da4c847cf2b173084e7117",
+    "overall": "failure",
+    "failure": "original-vs-generated native Windows graphics comparison",
+    "other_jobs": "Linux and selected native Windows ASan boundary job passed",
+    "interpretation": "Historical baseline only; not this candidate acceptance."
+  },
+  "game_playable": false,
+  "game_frame_demonstrated": false,
+  "player_control_demonstrated": false,
+  "new_planning_points_awarded": 0,
+  "limitations": [
+    "No native Windows execution or CI acceptance of this candidate; Wine is a diagnostic host.",
+    "An explicit scoped absence permits the original game fallback; no game branch or bytes were patched.",
+    "Existing untranslated DLLs, unknown exports, final import unload and unsupported CPU modes still fail closed.",
+    "CPUID profile acceptance is a versioned virtual capability contract, not an independent comparison with host CPUID.",
+    "The original x87/SIMD conformance limitations still apply; no complete ISA, loader, graphics, SEH or thread claim.",
+    "The game build and generated game source remain private and are not committed or uploaded to CI."
+  ],
+  "log_sha256": {
+    "linux-base-regression.log": "3b6f27d21762700455e61717b51a3fafc5119ab4a0e87ab4a13e39debd5027c7",
+    "conformance-cpu.log": "9f46828375eabb72560f498811e0146bf3b1e25beb6a5629022e92bbf30d5c1a",
+    "linux-program-regression.log": "02cc8d417acd4d49ec4cd3e56cd5c3d8e298cea7178ee7221c397c26623220d7",
+    "e3-pe-check.log": "9cadc495ba05d30e8be81a3aed55552929020bc16f43e183ca704ca91030d37d",
+    "linux-generated-regression.log": "e0bc992b564e96cad99a00117e84cea062b4dc0d0935014ffc1a7523dae00a3a",
+    "linux-semantic-regression.log": "82e55f9d8fdb38bbcdc9f9f35361da6b00c3dd441f8cd4158f2982f69e05175a",
+    "cpu-build.log": "1a1d1f18782b960fb101958fe25db241b1be7ef14099f39a8af748287d1fc172",
+    "i386-probe.log": "f47396cd12d560bd775ecd3286e5d9934d36059fc823c854515a5f9a9e2c07f8",
+    "e3-regressions.log": "c4f9969984667e94b5d0365d9a20274206f2a32b7df24b8ee44e169f3ceee211",
+    "module-execution-windows-final.log": "c4070f8d052600f0b4a16aec57fe9a3c1cde65b25ef18a51a172bdd6e1a2b86f",
+    "asan-tests.log": "77194965862e12e4e8ec6dd23536789c56366ba9f34220e8cac266c3cc19cdff",
+    "windows-final-tests.log": "071f36bdcd0bdaabbc567952e98cdea28e804d0233dd65d16d17334ee4cd4958",
+    "e3-final-rebuild.log": "130e3c786e052c77f4d39ed848339cb121f71ff74764ad1b97dddcba27c57b79"
+  }
+}

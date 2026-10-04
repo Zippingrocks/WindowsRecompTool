@@ -308,21 +308,11 @@ void install_win32(Process& p) {
     kernel(p,"GetEnvironmentStrings",0,[environment](auto& q){return environment(q,false);});kernel(p,"GetEnvironmentStringsA",0,[environment](auto& q){return environment(q,false);});kernel(p,"GetEnvironmentStringsW",0,[environment](auto& q){return environment(q,true);});
     for(bool unicode:{false,true})kernel(p,unicode?"FreeEnvironmentStringsW":"FreeEnvironmentStringsA",1,[unicode](auto& q){auto at=arg(q,0);auto it=q.state().environment_blocks.find(at);if(it==q.state().environment_blocks.end() || it->second!=(unicode?2u:1u)){q.set_error(87);return 0;}q.memory.release(at);q.state().environment_blocks.erase(it);return 1;});
     kernel(p,"SetEnvironmentVariableA",2,[](auto& q){auto name=q.read_string(arg(q,0));if(name.empty() || name.find('=')!=std::string::npos){q.set_error(87);return 0;}auto value=arg(q,1);if(value)q.state().environment[name]=q.read_string(value);else q.state().environment.erase(name);return 1;});
-    kernel(p,"IsProcessorFeaturePresent",1,[](auto& q){
-        const auto feature=arg(q,0);
-        // The runtime uses native x64 x87/SSE, not an emulated processor or a
-        // pre-x64 Pentium with the FDIV erratum. Do not advertise other guest
-        // capabilities without a matching decoder/emitter/runtime contract.
-        if(feature>1)throw GuestFault(FaultKind::unsupported,q.cpu.eip,"processor feature query not modelled: "+std::to_string(feature));
-#ifdef _WIN32
-        return U32(::IsProcessorFeaturePresent(feature));
-#else
-        return 0u;
-#endif
-    });
+    kernel(p,"IsProcessorFeaturePresent",1,[](auto& q){return processor_feature(q.cpu,arg(q,0));});
     kernel(p,"GetModuleHandleA",1,[](auto& q){auto at=arg(q,0);return at?q.module(q.read_string(at)):q.image_base;});
-    kernel(p,"LoadLibraryA",1,[](auto& q){auto name=q.read_string(arg(q,0));auto result=q.module(name,false);if(!result)throw GuestFault(FaultKind::unsupported,q.cpu.eip,"module loading not implemented for "+name);return result;});
-    kernel(p,"GetProcAddress",2,[](auto& q){const auto name=q.module_name(arg(q,0));if(name.empty()){q.set_error(6);return 0u;}auto pointer=arg(q,1);auto symbol=pointer<0x10000?"#"+std::to_string(pointer):q.read_string(pointer);auto target=q.resolve(name,symbol);if(!target)throw GuestFault(FaultKind::unsupported,q.cpu.eip,"unmodelled dynamic export "+name+"!"+symbol);return target;});
+    kernel(p,"LoadLibraryA",1,[](auto& q){return q.load_library(q.read_string(arg(q,0)));});
+    kernel(p,"FreeLibrary",1,[](auto& q){return q.free_library(arg(q,0));});
+    kernel(p,"GetProcAddress",2,[](auto& q){const auto pointer=arg(q,1);return q.module_export(arg(q,0),pointer<0x10000?"#"+std::to_string(pointer):q.read_string(pointer));});
     kernel(p,"GetModuleFileNameA",3,[](auto& q){if(arg(q,0) && arg(q,0)!=q.image_base){q.set_error(6);return 0u;}auto count=arg(q,2),dest=arg(q,1);if(!count){q.set_error(122);return 0u;}std::string name="C:\\WinRecomp\\"+q.options.image_name;auto n=std::min<std::size_t>(name.size(),count-1);q.memory.check(dest,n+1,Memory::Write);q.memory.copy_in(dest,std::span(reinterpret_cast<const std::uint8_t*>(name.data()),n));q.memory.store(dest+U32(n),0,8);if(n<name.size()){q.set_error(122);return count;}return U32(n);});
     kernel(p,"GetStartupInfoA",1,[](auto& q){auto at=arg(q,0);zero(q.memory,at,68);q.memory.store(at,68,32);q.memory.store(at+56,q.state().stdin_handle,32);q.memory.store(at+60,q.state().stdout_handle,32);q.memory.store(at+64,q.state().stderr_handle,32);return 0;});
     // The portable guest identity is Windows 2000 (5.0), not the host OS.

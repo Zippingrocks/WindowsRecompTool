@@ -1,5 +1,6 @@
 #pragma once
 #include "winrecomp/integer.hpp"
+#include "winrecomp/processor.hpp"
 namespace wr {
 inline void check_code(Memory& memory,U32 pc,std::initializer_list<std::uint8_t> expected) {
     if(expected.size()>15)throw std::runtime_error("invalid generated instruction length");

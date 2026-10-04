@@ -1,54 +1,68 @@
-# Current status: Windows x64 product built
+# Local Windows x64 candidate: E3 reaches its renderer-selection dialog request
 
-Windows x64 is the primary target. The actual E3-derived `blam_x64.exe`
-has been generated, linked and inspected as AMD64/PE32+. It is 21,219,664
-bytes, SHA-256 `17ec240504ca34a8c291598f02fcea8db4bb4ca145abc79a618c829ab283f370`.
-The input-bound project contains 113,949 admitted instruction locations and
-was generated without partial mode.
+**E3 is not demonstrated playable. This candidate is local, not pushed or
+native-Windows-CI-approved.** The accepted planning total remains 50/100;
+no additional points are awarded for device creation or callback enumeration.
 
-**Actual E3 execution on native Windows is not yet verified. E3 is not
-claimed playable.** OS startup, a game-generated frame and responsive player
-control are distinct milestones. No new roadmap points are awarded.
+Implementation: `816608ddc83fcc6e9fe36f60bd4c07a0aa9c74bd`, branch
+`work/d3d7-startup`, based on retained DLL-startup checkpoint `9165539`.
+Remote `main` was rechecked at `28903ea`; no publishing action was available
+and direct Git transport failed DNS. Work has been preserved in local Git.
 
-## Exact implementation and new evidence
+## Actual game result
 
-Integrated source: `06e7e94343663af907a6a145a8504d0f49abf8c5`.
-The new Windows/MSVC driver and profile are combined with the previously
-published `7f6064e` runtime, unchanged at the implementation level.
+The E3-derived AMD64/PE32+ program now contains 115,823 admitted instruction
+locations, generated without partial mode. The final executable is 21,645,313
+bytes, SHA-256 `e23cbbac94df9f4a479743d40235c7838d8a00395032e13397e32741963363e8`.
+It was cross-compiled with Windows MinGW GCC 14 and executed under **Wine 10
+on Linux**, using a software-rendering host. It is not a native Linux game,
+but Wine execution is not native Windows execution either.
 
-- The actual E3 output was cross-compiled locally on Linux with Windows
-  MinGW/GCC, using Win64 ABI helpers. A completed linker and two independent
-  PE inspections establish a Windows x64 build, not Windows game execution.
-- The combined native Windows/MSVC build route passed run `37167613799`:
-  seven driver-test groups and original/recompiled synthetic window/frame
-  comparison. Both fixture programs ran on Windows with identical pixels.
-- The existing `7f6064e` implementation previously passed 20 native Windows
-  MinGW suites in run `37165676428`. Those finite synthetic/runtime tests
-  are not a fresh run of the real game.
+Two final runs each reached 20,355,349 executed guest instructions and 637
+API dispatches. Each created one window, executed 36 window callbacks,
+created four real host Direct3D7 devices and ran 56 texture-format callbacks.
+The next explicit stop is `user32.dll!DialogBoxParamA`. Its resource 101 is
+statically titled **Choose Rasterizer** and contains 18 controls. The dialog
+has not been displayed or answered by WinRecomp.
 
-The driver explicitly selects x64, checks the produced EXEs, retains logs,
-protects the original input/existing output, and never launches a guest by
-default. See `docs/windows-x64-first.md` and
-`verification/windows-x64-build.json` for commands, identities and limitations.
+All 21 enumerated/created guest COM wrappers were retired before this stop.
+The device creations are startup probes, not rendered game frames. OpenGL
+contexts, buffer swaps, DirectDraw blits and demonstrated player input remain
+zero/unachieved. No fake Direct3D device or successful dialog return is used.
 
-Game-derived outputs remain private. No original executable, assets,
-disassembly or generated game source/executable was uploaded to hosted CI
-or committed. The original executable remains required as guest data.
+## New support and tests
 
-## What remains
+The bridge now covers bounded IDirect3D7/IDirect3DDevice7 identity, construction,
+capability and format enumeration; DD7 adapter identification and modern modes;
+native primary/offscreen render targets and clippers. Native pointer-bearing
+structures and COM/window handles are converted to checked guest layouts.
+Callback cancellation, faults, nesting, read-only scratch expiration and native
+reference lifetime are tested rather than silently ignored.
 
-Actual E3 Windows startup and its first game-generated scene, broader API
-and renderer support, audio/input, static TLS, SEH, guest threading and the
-interactive game loop are not complete. The bounded DirectDraw bridge now
-present is not full DirectDraw/Direct3D or acceptance of the graphics gate.
-The old Linux LoadIconA stop remains historical diagnostic-host evidence;
-it is not a fresh Windows stop or Windows failure result.
+- Windows-target C++ tests under Wine: all 17 executables passed.
+- New emitted-x86 D3D7 callback test: 32 runs, 64 native-oracle rows passed.
+- Linux Release: all 19 CTest suites passed in a completed single invocation.
+- Linux GCC ASan/UBSan: all 12 suites passed; not Windows-only code coverage.
+- Current integer/flags, x87 and SIMD suites passed 60,672 / 18,240 / 29,952
+  comparisons respectively; finite test and undefined-state exclusions remain.
+- Original E3 identity/CFG and five routine regressions passed (5,120 comparisons).
+- New native Windows/MSVC, Windows ASan and native-i386 tests: not run this pass.
 
-## Historical accepted checkpoints
+The Wine text-classification tests preserve two recorded-snapshot differences
+for U+02C6; direct host API comparisons passed, not historical Windows fidelity.
+Earlier interrupted commands were not counted as passing. The final resumed
+builds and completed test invocations are recorded with their scope and hashes.
 
-The accepted planning total remains 50/100, not a measured fraction of all
-unknown engineering work or gameplay. Runtime `a9988b3` was validated in run
-`36993865298`; windowing `b02db47` in `37162230094`. Their exact evidence is
-retained in `verification/runtime-ci.json`, `verification/runtime-local.json`,
-`verification/windowing-ci.json` and the earlier foundation/revalidation
-records. None is substituted for actual E3 native Windows execution.
+## Next boundary and preservation
+
+The real dialog resource, guest dialog procedure and controls/message lifetime
+need implementation. Device7 scene/drawing/texture state methods and many other
+Windows/DirectX/audio/input/threading paths also remain unimplemented. Only an
+actual game scene with sustained input-driven movement/actions qualifies as
+playable; a chooser, successful API call or synthetic triangle does not.
+
+See `d3d7-startup.md` and `verification/d3d7-startup-local.json` for current exact
+results. The previous DLL/startup/runtime/windowing and native Windows build
+records remain preserved. Earlier successful platform tests are not substituted
+for current-source native Windows acceptance. No game binary, asset, disassembly,
+generated game source or game-derived executable is committed or uploaded.

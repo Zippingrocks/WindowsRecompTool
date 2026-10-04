@@ -1,0 +1,509 @@
+{
+  "schema": "winrecomp.d3d7-startup-local-evidence.v1",
+  "observed_at_utc": "2026-10-04T05:33:44.846093+00:00",
+  "implementation_commit": "816608ddc83fcc6e9fe36f60bd4c07a0aa9c74bd",
+  "parent_checkpoint": "91655395fbf901b1cb3d857fc363735761fccdf1",
+  "publication": {
+    "state": "local_only",
+    "branch": "work/d3d7-startup",
+    "remote_main": "28903ea344b77ea97b6794151b18c3b63f8e3363",
+    "pushed": false,
+    "reason": "Current GitHub tools are read-only; direct Git transport failed DNS. No GitHub CI ran this candidate."
+  },
+  "host": {
+    "development": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "execution": "Wine 10 on Linux, not native Windows",
+    "target": "Windows AMD64/PE32+",
+    "graphics": "Wine native DirectDraw/Direct3D7 via software-rendering host; LIBGL_ALWAYS_SOFTWARE=1",
+    "compiler": "Debian MinGW-w64 GCC 14 x86_64 POSIX cross compiler",
+    "cxx_flags": "-O1 -DNDEBUG",
+    "link_flags": "-static -static-libgcc -static-libstdc++"
+  },
+  "source_hash_count": 81,
+  "source_hash_manifest_sha256": "abd05ee461c0970b99b1909e64ef10faac5b35a71870fd45c9c09fe71adf6a5f",
+  "test_results": {
+    "linux_release": {
+      "total": 19,
+      "failures": 0,
+      "skipped": 0,
+      "names": [
+        "processor",
+        "modules",
+        "resources",
+        "core",
+        "fp_faults",
+        "target_fp_selector",
+        "nls_data",
+        "exception_unwind",
+        "nls",
+        "process",
+        "runtime",
+        "frontend",
+        "modules_execution",
+        "callback_abi",
+        "program",
+        "controlflow",
+        "simd",
+        "floating",
+        "conformance"
+      ]
+    },
+    "linux_asan_ubsan": {
+      "total": 12,
+      "failures": 0,
+      "skipped": 0,
+      "names": [
+        "processor",
+        "modules",
+        "resources",
+        "core",
+        "fp_faults",
+        "target_fp_selector",
+        "nls_data",
+        "exception_unwind",
+        "nls",
+        "process",
+        "runtime",
+        "frontend"
+      ]
+    },
+    "windows_target_cpp_under_wine": {
+      "host": "Wine 10 on Linux, not native Windows",
+      "passed": 17,
+      "total": 17,
+      "tests": [
+        {
+          "test": "winrecomp_d3d7_boundary",
+          "exit_code": 0,
+          "elapsed_seconds": 1.52,
+          "log": "local/logs/final-winrecomp_d3d7_boundary.log",
+          "log_sha256": "b8a1f0eecf64b814cc59ec55c8d87c1d8946350f0f06d7cf59fb3ab7e16e56ab"
+        },
+        {
+          "test": "winrecomp_device7_boundary",
+          "exit_code": 0,
+          "elapsed_seconds": 0.616,
+          "log": "local/logs/final-winrecomp_device7_boundary.log",
+          "log_sha256": "fa1dbda9b3ef4fb37be9a11219d4835ed13873b30236a08986f33945839ed847"
+        },
+        {
+          "test": "winrecomp_device_identifier",
+          "exit_code": 0,
+          "elapsed_seconds": 0.516,
+          "log": "local/logs/final-winrecomp_device_identifier.log",
+          "log_sha256": "e453a7d435e707b52166a76f4b0a06c65284759cfa978455953c3a8aecd7ac02"
+        },
+        {
+          "test": "winrecomp_directdraw_boundary",
+          "exit_code": 0,
+          "elapsed_seconds": 0.616,
+          "log": "local/logs/final-winrecomp_directdraw_boundary.log",
+          "log_sha256": "e4048314d1a932d911041f7d732c52dc7b0ca4dab45fbeec3bea104e4bf4d875"
+        },
+        {
+          "test": "winrecomp_exception_unwind",
+          "exit_code": 0,
+          "elapsed_seconds": 0.064,
+          "log": "local/logs/final-winrecomp_exception_unwind.log",
+          "log_sha256": "31574ca958d8cd9ddda75d8841408b27ab495a42709a2fc0e9a20e481994356b"
+        },
+        {
+          "test": "winrecomp_fp_faults",
+          "exit_code": 0,
+          "elapsed_seconds": 0.064,
+          "log": "local/logs/final-winrecomp_fp_faults.log",
+          "log_sha256": "ffa1cdd4d3c721d7e767cf23957189d0742f67087901e347db968037f563e98b"
+        },
+        {
+          "test": "winrecomp_gui_boundary",
+          "exit_code": 0,
+          "elapsed_seconds": 0.315,
+          "log": "local/logs/final-winrecomp_gui_boundary.log",
+          "log_sha256": "36fc9171b335aa1b325cd2c79be374f1cdb07a0bf00913fde38194b9dafbfdd7"
+        },
+        {
+          "test": "winrecomp_legacy_modes",
+          "exit_code": 0,
+          "elapsed_seconds": 0.717,
+          "log": "local/logs/final-winrecomp_legacy_modes.log",
+          "log_sha256": "e7ed5f2de9ca2feb2b2f2dd6f9af6b9544a30c6ade6f3e484874e591b2dc1335"
+        },
+        {
+          "test": "winrecomp_modes7",
+          "exit_code": 0,
+          "elapsed_seconds": 0.617,
+          "log": "local/logs/final-winrecomp_modes7.log",
+          "log_sha256": "3fd62efcbf3281bbf5787c45c0e1f60706a5610426b6190d8d73f2c90195b38f"
+        },
+        {
+          "test": "winrecomp_module_tests",
+          "exit_code": 0,
+          "elapsed_seconds": 0.215,
+          "log": "local/logs/final-winrecomp_module_tests.log",
+          "log_sha256": "82d88886a89e36b3cc424b8ce1494c72e11e1c51459abb9228e169da28e34fd1"
+        },
+        {
+          "test": "winrecomp_nls_tests",
+          "exit_code": 0,
+          "elapsed_seconds": 0.265,
+          "log": "local/logs/final-winrecomp_nls_tests.log",
+          "log_sha256": "03e74f6508ee412d8b7d97e9d26f61cb47958586a755d5087d3991dabcf911c1"
+        },
+        {
+          "test": "winrecomp_primary_clipper",
+          "exit_code": 0,
+          "elapsed_seconds": 0.565,
+          "log": "local/logs/final-winrecomp_primary_clipper.log",
+          "log_sha256": "aa4919d51b2d98ae53e15a82dd7118b221a47b3e2b654e42cd249eaa012c3127"
+        },
+        {
+          "test": "winrecomp_process_tests",
+          "exit_code": 0,
+          "elapsed_seconds": 0.265,
+          "log": "local/logs/final-winrecomp_process_tests.log",
+          "log_sha256": "195d12ca71e4bba01c8dee954265b551aa8d61e3ffa7eda9ca2e3898aa834e30"
+        },
+        {
+          "test": "winrecomp_processor_tests",
+          "exit_code": 0,
+          "elapsed_seconds": 0.064,
+          "log": "local/logs/final-winrecomp_processor_tests.log",
+          "log_sha256": "9280881bd1c653b4bdb302acf09f4387172349b57b0efb835046a24468fd38ff"
+        },
+        {
+          "test": "winrecomp_resource_tests",
+          "exit_code": 0,
+          "elapsed_seconds": 0.064,
+          "log": "local/logs/final-winrecomp_resource_tests.log",
+          "log_sha256": "63fa5440149db88e2fbdbad3c34f1479052476e51b7da9394b9fc99c793f1f1d"
+        },
+        {
+          "test": "winrecomp_runtime_tests",
+          "exit_code": 0,
+          "elapsed_seconds": 0.064,
+          "log": "local/logs/final-winrecomp_runtime_tests.log",
+          "log_sha256": "b131500fb7a21b134b093049310845c3049b89ac7869ea174157aea03604d4d2"
+        },
+        {
+          "test": "winrecomp_tests",
+          "exit_code": 0,
+          "elapsed_seconds": 0.064,
+          "log": "local/logs/final-winrecomp_tests.log",
+          "log_sha256": "2c0e0ba96c5ff1ac858e18dd42cf609ae2c41694ef0cddf034be516dd6eaa279"
+        }
+      ]
+    },
+    "compiled_d3d7_callbacks": {
+      "schema": "winrecomp.d3d7-execution.v1",
+      "host": "Wine on Linux (not Windows)",
+      "oracle": "Direct native host IDirect3D7 enumeration, not an original PE32 process",
+      "compiled_guest": true,
+      "descriptor_bytes_compared_per_row": 220,
+      "reserved_excluded": true,
+      "strings_compared": true,
+      "runs": 32,
+      "rows_compared": 64,
+      "all_passed": true
+    },
+    "existing_regressions": {
+      "integer": {
+        "schema": "winrecomp.conformance.v1",
+        "oracle": "Unicorn 2.1.2",
+        "native_pointer_bits": 64,
+        "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+        "compiler": "/usr/bin/c++",
+        "total_vectors": 60672,
+        "compared": "8 GPRs, EIP, defined status flags, complete 64 KiB stack",
+        "elapsed_seconds": 14.562,
+        "report_sha256": "b197361b8b08e1c43a917de5e7dfc92e4aaffaf7cbccf57077cdd5707e37e2b8",
+        "case_count": 237
+      },
+      "x87": {
+        "schema": "winrecomp.x87-conformance.v1",
+        "oracle": "native x86-64 hardware, uninterrupted original x87 byte fixtures in long mode",
+        "native_pointer_bits": 64,
+        "total_vectors": 18240,
+        "control_modes": 12,
+        "elapsed_seconds": 3.387,
+        "exclusions": [
+          "FIP/FCS/FOP/FDP/FDS host-versus-flat-guest environment fields (legacy bytes 12..25)",
+          "empty-register payloads"
+        ],
+        "not_a_native_i386_whole_program_oracle": true,
+        "report_sha256": "42be8c7f98eb8452144e7ff6cac048b5d0652cca45718a410c33de6ca52d683d",
+        "case_count": 95
+      },
+      "simd": {
+        "schema": "winrecomp.sse2-conformance.v1",
+        "oracle": "native x86-64 hardware, uninterrupted original SSE/SSE2 byte fixtures in long mode",
+        "native_pointer_bits": 64,
+        "total_vectors": 29952,
+        "control_modes": 16,
+        "elapsed_seconds": 4.566,
+        "exclusions": [
+          "FIP/FCS/FOP/FDP/FDS host-versus-flat-guest environment fields (legacy bytes 12..25)",
+          "empty-register payloads"
+        ],
+        "not_a_native_i386_whole_program_oracle": true,
+        "report_sha256": "dc21f0c829730e3e0236e7621455ae7c1a99f5ef7b47c8cf55fd130c775b1792",
+        "case_count": 156
+      },
+      "controlflow": {
+        "schema": "winrecomp.controlflow.v1",
+        "total_vectors": 1024,
+        "negative_table_tests": 8,
+        "report_sha256": "8a25bbaaac5e9cd5c945b2bdb009cc25cc8ed566ab88e4e41a5abe208d4b21b7",
+        "case_count": 4
+      },
+      "callback_abi": {
+        "schema": "winrecomp.callback-abi.v1",
+        "vectors": 256,
+        "path": "generated guest -> real host dispatcher -> generated guest stdcall callback -> host -> generated guest",
+        "all_passed": true,
+        "report_sha256": "375c1f61300061e4702e2bd7babbe1f1a82b0a376663e351fce2ef1e97f1175a"
+      },
+      "module_execution": {
+        "schema": "winrecomp.modules-execution.v1",
+        "passed": true,
+        "positive_cases": 64,
+        "negative_cases": 3,
+        "host": "linux",
+        "compiled_guest": true,
+        "cpu_profile": "scalar-v1",
+        "namespace": "explicit roots",
+        "original_os_comparison": false,
+        "report_sha256": "7a864d7b2e77192cd3096471534e8fae8a7eff59a72b72ca4f9c3f4e185bf9db"
+      }
+    },
+    "windows_build_driver_unit_test_groups_passed": 7,
+    "new_boundary_assertions": {
+      "d3d7": 372,
+      "device7": 253,
+      "device_identifier_and_caps": 2074,
+      "dd7_modes": 167,
+      "primary_surface_and_clipper": 143
+    },
+    "native_windows_ci": {
+      "status": "not_run"
+    },
+    "windows_address_sanitizer": {
+      "status": "not_run"
+    },
+    "native_i386": {
+      "status": "not_run_in_this_pass"
+    },
+    "nls_snapshot_differences": {
+      "count": 2,
+      "codepoint": "U+02C6",
+      "note": "Direct-host comparisons passed under Wine; two classifications differ from old recorded native Windows snapshot. Not historical Windows fidelity."
+    },
+    "interrupted_attempts": {
+      "counted_as_passes": false,
+      "description": "Earlier combined Linux test/build commands reached the container wall-time limit. A piped Wine test orchestration stalled before the full batch completed. Repeated final Linux suites, direct-log Wine batch and resumed sanitizer build all completed; none of the interrupted attempts is a pass."
+    }
+  },
+  "e3": {
+    "input_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+    "original_input_preserved": true,
+    "generated_manifest": {
+      "schema": "winrecomp.program.v1",
+      "sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+      "fixed_image_base": 4194304,
+      "entry": 4911384,
+      "instructions": 115823,
+      "partial": false,
+      "instruction_guard": "compare original bytes before each translated instruction"
+    },
+    "output_executable": {
+      "format": "PE32+",
+      "machine": "0x8664",
+      "architecture": "AMD64",
+      "entry_rva": "0x13f0",
+      "sections": 18,
+      "sha256": "e23cbbac94df9f4a479743d40235c7838d8a00395032e13397e32741963363e8",
+      "size_bytes": 21645313,
+      "validation": "format and architecture, not execution"
+    },
+    "independent_objdump_architecture": "pei-x86-64, i386:x86-64",
+    "profile_sha256": "43658a43ade6639b79fee30ea4dba48253b717975e8b368ffee08e1f3589f026",
+    "new_seeds": [
+      {
+        "target": 4600448,
+        "basis": "Observed untranslated callback passed to IDirect3D7::EnumDevices (vtable slot 3) during actual E3 Windows-x64 execution under Wine. Input SHA verified and target validated as file-backed executable code; not a native-Windows result."
+      },
+      {
+        "target": 4601920,
+        "basis": "Observed actual E3 Windows-x64 callback passed to IDirectDraw7::EnumDisplayModes slot 8 under Wine, after GetDeviceIdentifier/GetCaps. SHA-bound metadata, validated as executable by the analyzer. Not native Windows execution."
+      },
+      {
+        "target": 4602064,
+        "basis": "Observed untranslated code target inside the actual E3 device-enumeration callback path under Wine. Entry validated against file-backed executable .text; role not assigned. Metadata seed only, no original instruction patch."
+      },
+      {
+        "target": 4602144,
+        "basis": "Observed actual E3 Windows-x64 callback supplied to IDirect3D7::EnumZBufferFormats slot 6 under Wine. File-backed executable target; metadata only, no game-code patch and no native-Windows execution claim."
+      },
+      {
+        "target": 4602224,
+        "basis": "Observed untranslated code target inside the actual E3 device-enumeration callback path under Wine. Entry validated against file-backed executable .text; role not assigned. Metadata seed only, no original instruction patch."
+      },
+      {
+        "target": 4602256,
+        "basis": "Observed untranslated code target inside the actual E3 device-enumeration callback path under Wine. Entry validated against file-backed executable .text; role not assigned. Metadata seed only, no original instruction patch."
+      },
+      {
+        "target": 4592112,
+        "basis": "Observed untranslated code target along the actual E3 startup path under Wine. Entry validated against file-backed executable .text; role not assigned. Metadata seed only, no original instruction patch."
+      }
+    ],
+    "execution_profile": {
+      "cpu_profile": "scalar-v1",
+      "dll_namespace": "explicit guest asset-copy root",
+      "glide2x_probe": "absent from configured namespace; original guest fallback executes",
+      "allow_write": true,
+      "write_scope": "private asset copy, not original input",
+      "budget": 100000000
+    },
+    "repeated_runs": [
+      {
+        "runner_exit_code": 2,
+        "guest_exited": false,
+        "stop": "unimplemented Win32 import user32.dll!DialogBoxParamA at guest address 4026534960",
+        "eip": "0xf0000c30",
+        "translated_guest_instructions": 20355349,
+        "api_dispatches": 637,
+        "budget_left": 79546015,
+        "gui": {
+          "backend": "native-win32",
+          "windows_created": 1,
+          "windows_destroyed": 0,
+          "window_callbacks": 36,
+          "messages_dispatched": 0,
+          "gl_contexts_created": 0,
+          "swaps": 0,
+          "host_only_notifications": 0,
+          "host_only_message_ids": []
+        },
+        "directdraw": {
+          "backend": "native-ddraw7",
+          "objects_created": 21,
+          "objects_retired": 21,
+          "adapter_callbacks": 2,
+          "mode_callbacks": 3,
+          "d3d7_wrappers": 2,
+          "d3d_device_callbacks": 6,
+          "mode7_callbacks": 12,
+          "zformat_callbacks": 16,
+          "d3d_devices_created": 4,
+          "texture_callbacks": 56,
+          "surface_locks": 0,
+          "surface_unlocks": 0,
+          "blits": 0
+        },
+        "report_sha256": "268e9d2dc078ded53ad1aca865e35ef1c0008ae13b6db1f2bc95578a2803e1f5",
+        "elapsed_seconds": 3.525
+      },
+      {
+        "runner_exit_code": 2,
+        "guest_exited": false,
+        "stop": "unimplemented Win32 import user32.dll!DialogBoxParamA at guest address 4026534960",
+        "eip": "0xf0000c30",
+        "translated_guest_instructions": 20355349,
+        "api_dispatches": 637,
+        "budget_left": 79546015,
+        "gui": {
+          "backend": "native-win32",
+          "windows_created": 1,
+          "windows_destroyed": 0,
+          "window_callbacks": 36,
+          "messages_dispatched": 0,
+          "gl_contexts_created": 0,
+          "swaps": 0,
+          "host_only_notifications": 0,
+          "host_only_message_ids": []
+        },
+        "directdraw": {
+          "backend": "native-ddraw7",
+          "objects_created": 21,
+          "objects_retired": 21,
+          "adapter_callbacks": 2,
+          "mode_callbacks": 3,
+          "d3d7_wrappers": 2,
+          "d3d_device_callbacks": 6,
+          "mode7_callbacks": 12,
+          "zformat_callbacks": 16,
+          "d3d_devices_created": 4,
+          "texture_callbacks": 56,
+          "surface_locks": 0,
+          "surface_unlocks": 0,
+          "blits": 0
+        },
+        "report_sha256": "268e9d2dc078ded53ad1aca865e35ef1c0008ae13b6db1f2bc95578a2803e1f5",
+        "elapsed_seconds": 2.734
+      }
+    ],
+    "dialog_request": {
+      "resource_type": 5,
+      "resource_id": 101,
+      "language": 1033,
+      "title": "Choose Rasterizer",
+      "control_count": 18,
+      "dimensions": {
+        "x": 0,
+        "y": 0,
+        "cx": 400,
+        "cy": 270
+      },
+      "interpretation": "static resource metadata only, dialog has not been displayed by WinRecomp"
+    },
+    "five_original_routines": {
+      "comparisons": 5120,
+      "oracle": "Unicorn 2.1.2, local Linux x64 generated code",
+      "all_passed": true,
+      "report_sha256": "bdb4ddb48bc259bbcee37ce55dcf61fcfb8323f3e1593466f173c6f0a0cde926"
+    },
+    "native_windows_execution": "not_run",
+    "game_frame_demonstrated": false,
+    "player_control_demonstrated": false,
+    "playable": false
+  },
+  "repairs_and_limits": {
+    "native_unknown_QI_still_fails_explicitly": true,
+    "fake_device_or_surface_success_added": false,
+    "unsupported_dialog_result_injected": false,
+    "render_device_counter": "incremented only after real native CreateDevice succeeds and guest object is installed; counted by regression",
+    "primary_surface_negative_test": "Changed an initial incorrect must-fail assumption to compare the direct native host HRESULT for the same request, rather than changing runtime behavior.",
+    "inactive_native_union_fields": "zeroed; only fields marked meaningful are read",
+    "GetCaps_volatile_exclusions": [
+      "dwVidMemTotal",
+      "dwVidMemFree"
+    ],
+    "callback_descriptors": "read-only, temporary, bounded, expired on return/error",
+    "device_names": "bounded process-owned read-only storage; survive enumeration",
+    "lifetime": "native reference retained through callback/nesting/release and exceptions"
+  },
+  "log_sha256": {
+    "local/logs/final-linux-ctest.log": "a3b7330a8e1262f4166189341a313b31f520adba3e267dcc754882d202ee40c0",
+    "local/logs/final-asan-ctest.log": "bfc90814839318ef1e935138abefac42cd5a38e3626d45f9aa12afa605d8b422",
+    "local/logs/final-windows-batch.log": "c2c702eef4c6211792f4484f0dc9d75c5593fbb8367f09d283ed1484527eeeb9",
+    "local/logs/final-d3d7-compiled.log": "2c9cb163e4cc1e47f9d74e5ddcb4dcd07d222911e97855db1a56e7ff8d69506e",
+    "local/logs/final-e3-routines.log": "89b302b27645fcc041499ecb05b9dd411113c0b6b85b2487161f203e588e27e2",
+    "local/logs/github-transport.log": "8baf0ae421138cef855e9257b31b4c23a81ce7c9bb694c5d9dac782ba80a1d57"
+  },
+  "planning_points": {
+    "accepted_total": 50,
+    "new_points": 0,
+    "interpretation": "Historical roadmap planning points, not percentage of unknown work or gameplay."
+  },
+  "limitations": [
+    "Actual Windows-target game execution in this pass is under Wine, not native Windows/MSVC acceptance.",
+    "Linux sanitizers do not cover Windows-only COM/GUI runtime paths or separately compiled generated libraries.",
+    "Thirty-two synthetic compiled callback runs compare with the direct native host D3D7 API, not an original PE32 program.",
+    "Four real host devices were created for startup probing; no scene rendering or player control is demonstrated.",
+    "Dialog resource metadata is inspected statically; the chooser has not appeared.",
+    "CreateVertexBuffer, Device7 rendering/state/texture operations, arbitrary clip lists and many DirectDraw combinations remain explicit unsupported paths.",
+    "Capabilities returned by the host are not proof the wrapper implements all advertised operations; unknown methods still fail.",
+    "Finite fixture results do not establish universal x86, DirectX or Windows fidelity.",
+    "No original E3 binary, assets, disassembly, generated game code or game-derived EXE is committed or uploaded."
+  ]
+}

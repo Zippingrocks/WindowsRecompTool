@@ -6,15 +6,21 @@
 #include <exception>
 #include <map>
 #include <sstream>
+#include <iomanip>
 #include <thread>
 #include <vector>
 #include <utility>
 #ifdef _WIN32
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #define WIN32_LEAN_AND_MEAN
 #define DIRECTDRAW_VERSION 0x0700
 #include <windows.h>
 #include <ddraw.h>
+#include <d3d.h>
+#include <cstddef>
+#include <type_traits>
 #endif
 namespace wr {
 #ifndef _WIN32
@@ -26,7 +32,7 @@ std::unique_ptr<DirectDrawBackend> install_directdraw(Process&){return std::make
 namespace {
 using Args=std::span<const U32>;
 using Function=std::function<U32(Args)>;
-enum class Interface {unknown,draw1,draw7,surface7};
+enum class Interface {unknown,draw1,draw7,surface7,d3d7,clipper,device7};
 constexpr std::size_t DescSize=124,MaxSurfaceBytes=16u*1024*1024;
 constexpr U32 MaxObjects=256;
 struct Allocation {
@@ -53,7 +59,12 @@ class Draw final:public DirectDrawBackend {
     std::map<U32,Object> objects;
     std::map<Interface,U32> vtables;
     std::map<std::uintptr_t,U32> monitors;
-    std::uint64_t created{},retired{},enumerated{},locks{},unlocks{},blits{};
+    // D3D enumeration names remain usable after EnumDevices returns. These
+    // process-owned read-only strings are not temporary callback payloads.
+    std::map<std::string,U32> device_strings;
+    std::map<std::uintptr_t,std::pair<HWND,U32>> clipper_windows;
+    std::uint64_t d3d_wrappers{},device_callbacks{},zformat_callbacks{},mode7_callbacks{},render_devices{},texture_callbacks{};
+    std::uint64_t created{},retired{},enumerated{},mode_callbacks{},locks{},unlocks{},blits{};
     [[noreturn]]void stop(const std::string& why){throw GuestFault(FaultKind::unsupported,p.cpu.eip,"DirectDraw: "+why);}
     void enter(){if(stopped || GetCurrentThreadId()!=thread)stop("foreign-thread or retired backend");}
     GUID guid(U32 address){GUID value{};static_assert(sizeof(value)==16);p.memory.copy_out(address,std::span(reinterpret_cast<std::uint8_t*>(&value),16));return value;}
@@ -66,7 +77,7 @@ class Draw final:public DirectDrawBackend {
         for(auto& [address,value]:objects)if(value.native==native && value.kind==kind){if(value.guest_refs==0xffffffffu)stop("reference count overflow");++value.guest_refs;owner.keep();return address;}
         if(objects.size()>=MaxObjects)stop("COM object budget exhausted");
         const auto table=vtable(kind);Allocation memory(p,4);p.memory.store(memory.address,table,32);p.memory.protect(memory.address,4096,Memory::Read);
-        const auto at=memory.address;objects.emplace(at,Object{kind,native,1,{}});memory.keep();owner.keep();++created;return at;
+        const auto at=memory.address;objects.emplace(at,Object{kind,native,1,{}});memory.keep();owner.keep();++created;if(kind==Interface::d3d7)++d3d_wrappers;return at;
     }
     U32 query(Object& value,Args args){
         const auto iid=guid(args[1]);p.memory.check(args[2],4,Memory::Write);
@@ -75,10 +86,19 @@ class Draw final:public DirectDrawBackend {
         else if(IsEqualIID(iid,IID_IDirectDraw))kind=Interface::draw1;
         else if(IsEqualIID(iid,IID_IDirectDraw7))kind=Interface::draw7;
         else if(IsEqualIID(iid,IID_IDirectDrawSurface7))kind=Interface::surface7;
+        else if(IsEqualIID(iid,IID_IDirect3D7))kind=Interface::d3d7;
+        else if(IsEqualIID(iid,IID_IDirectDrawClipper))kind=Interface::clipper;
+        else if(IsEqualIID(iid,IID_IDirect3DDevice7))kind=Interface::device7;
         else supported=false;
         void* result=nullptr;const auto hr=value.native->QueryInterface(iid,&result);
         if(FAILED(hr)){p.memory.store(args[2],0,32);return U32(hr);}
-        if(!supported){static_cast<IUnknown*>(result)->Release();stop("native QueryInterface supports an interface without a guest wrapper");}
+        if(!result)stop("native QueryInterface returned success without an object");
+        if(!supported){
+            static_cast<IUnknown*>(result)->Release();std::ostringstream id;
+            id<<std::hex<<std::setfill('0')<<std::setw(8)<<iid.Data1<<'-'<<std::setw(4)<<iid.Data2<<'-'<<std::setw(4)<<iid.Data3<<'-';
+            for(unsigned n=0;n<8;++n){if(n==2)id<<'-';id<<std::setw(2)<<unsigned(iid.Data4[n]);}
+            stop("native QueryInterface supports IID "+id.str()+" without a guest wrapper");
+        }
         p.memory.store(args[2],wrap(static_cast<IUnknown*>(result),kind),32);return U32(hr);
     }
     void destroy_lock(Object& value) noexcept {
@@ -106,24 +126,412 @@ class Draw final:public DirectDrawBackend {
             ++self.enumerated;const auto result=self.p.callback(call.callback,args);return self.p.exited()?FALSE:result!=0;
         }catch(...){call.failure=std::current_exception();return FALSE;}
     }
+    // IDirectDraw (v1) uses DDSURFACEDESC, not DDSURFACEDESC2. The native
+    // 64-bit pointer shifts following fields; never memcpy the native layout.
+    static constexpr U32 LegacyDescSize=108;
+    DDSURFACEDESC mode_filter(U32 at){
+        p.memory.check(at,LegacyDescSize,Memory::Read);
+        if(p.memory.load(at,32)!=LegacyDescSize)stop("mode filter requires the 108-byte x86 DDSURFACEDESC");
+        DDSURFACEDESC d{};d.dwSize=sizeof(d);d.dwFlags=p.memory.load(at+4,32);
+        constexpr U32 allowed=DDSD_WIDTH|DDSD_HEIGHT|DDSD_PIXELFORMAT|DDSD_REFRESHRATE;
+        if(d.dwFlags&~allowed)stop("unmodelled legacy display-mode filter fields");
+        if(p.memory.load(at+36,32))stop("display-mode filter must not contain a surface pointer");
+        if(d.dwFlags&DDSD_WIDTH)d.dwWidth=p.memory.load(at+12,32);
+        if(d.dwFlags&DDSD_HEIGHT)d.dwHeight=p.memory.load(at+8,32);
+        if(d.dwFlags&DDSD_REFRESHRATE)d.dwRefreshRate=p.memory.load(at+24,32);
+        if(d.dwFlags&DDSD_PIXELFORMAT){
+            p.memory.copy_out(at+72,std::span(reinterpret_cast<std::uint8_t*>(&d.ddpfPixelFormat),32));
+            if(d.ddpfPixelFormat.dwSize!=32)stop("mode filter pixel format must have size 32");
+        }
+        return d;
+    }
+    void write_mode(U32 at,const DDSURFACEDESC& d){
+        if(d.dwSize!=sizeof(d) || d.lpSurface || (d.dwFlags&DDSD_LPSURFACE))
+            stop("unhandled native display-mode descriptor or pixel pointer");
+        static_assert(sizeof(DDPIXELFORMAT)==32 && sizeof(DDCOLORKEY)==8 && sizeof(DDSCAPS)==4);
+        std::array<U32,27> out{};out[0]=LegacyDescSize;out[1]=d.dwFlags;
+        // Only fields marked valid may be consumed. Ignore undefined native
+        // padding, pointer storage and reserved values rather than exposing them.
+        if(d.dwFlags&DDSD_HEIGHT)out[2]=d.dwHeight;
+        if(d.dwFlags&DDSD_WIDTH)out[3]=d.dwWidth;
+        if(d.dwFlags&(DDSD_PITCH|DDSD_LINEARSIZE))out[4]=U32(d.lPitch);
+        if(d.dwFlags&DDSD_BACKBUFFERCOUNT)out[5]=d.dwBackBufferCount;
+        if(d.dwFlags&(DDSD_MIPMAPCOUNT|DDSD_ZBUFFERBITDEPTH|DDSD_REFRESHRATE))out[6]=d.dwRefreshRate;
+        if(d.dwFlags&DDSD_ALPHABITDEPTH)out[7]=d.dwAlphaBitDepth;
+        if(d.dwFlags&DDSD_CKDESTOVERLAY)std::memcpy(out.data()+10,&d.ddckCKDestOverlay,8);
+        if(d.dwFlags&DDSD_CKDESTBLT)std::memcpy(out.data()+12,&d.ddckCKDestBlt,8);
+        if(d.dwFlags&DDSD_CKSRCOVERLAY)std::memcpy(out.data()+14,&d.ddckCKSrcOverlay,8);
+        if(d.dwFlags&DDSD_CKSRCBLT)std::memcpy(out.data()+16,&d.ddckCKSrcBlt,8);
+        if(d.dwFlags&DDSD_PIXELFORMAT)std::memcpy(out.data()+18,&d.ddpfPixelFormat,32);
+        if(d.dwFlags&DDSD_CAPS)out[26]=d.ddsCaps.dwCaps;
+        for(unsigned n=0;n<out.size();++n)p.memory.store(at+4*n,out[n],32);
+    }
+    struct ModeEnumeration {Draw* self;U32 callback,context;std::exception_ptr failure;unsigned visits{};};
+    static HRESULT CALLBACK enumerate_mode(DDSURFACEDESC* description,void* context) noexcept {
+        auto& call=*static_cast<ModeEnumeration*>(context);auto& self=*call.self;
+        try {
+            self.enter();if(call.failure || self.p.exited())return DDENUMRET_CANCEL;
+            if(!description)self.stop("null display-mode callback descriptor");
+            if(++call.visits>4096)self.stop("display-mode callback budget exceeded");
+            Allocation scratch(self.p,LegacyDescSize);self.write_mode(scratch.address,*description);
+            self.p.memory.protect(scratch.address,4096,Memory::Read);
+            const std::array<U32,2> args{scratch.address,call.context};++self.mode_callbacks;
+            const auto result=self.p.callback(call.callback,args);
+            if(self.p.exited())return DDENUMRET_CANCEL;
+            if(result!=DDENUMRET_OK && result!=DDENUMRET_CANCEL)self.stop("invalid display-mode callback result");
+            return HRESULT(result);
+        }catch(...){if(!call.failure)call.failure=std::current_exception();return DDENUMRET_CANCEL;}
+    }
+    U32 enum_modes(Args a){
+        auto native=static_cast<IDirectDraw*>(object(a[0],Interface::draw1).native);
+        p.memory.check(a[4],1,Memory::Execute);
+        DDSURFACEDESC filter{};if(a[2])filter=mode_filter(a[2]);
+        // Guest callbacks may release their original reference. Keep the native
+        // enumeration receiver alive until the DLL call has unwound normally.
+        native->AddRef();NativeOwner lifetime{native};
+        ModeEnumeration call{this,a[4],a[3],{},0};
+        const auto hr=native->EnumDisplayModes(a[1],a[2]?&filter:nullptr,&call,enumerate_mode);
+        if(call.failure)std::rethrow_exception(call.failure);
+        return U32(hr);
+    }
+    DDSURFACEDESC2 mode_filter7(U32 at){
+        p.memory.check(at,124,Memory::Read);
+        if(p.memory.load(at,32)!=124)stop("mode filter requires the 124-byte x86 DDSURFACEDESC2");
+        DDSURFACEDESC2 d{};d.dwSize=sizeof(d);d.dwFlags=p.memory.load(at+4,32);
+        constexpr U32 allowed=DDSD_WIDTH|DDSD_HEIGHT|DDSD_PIXELFORMAT|DDSD_REFRESHRATE;
+        if(d.dwFlags&~allowed)stop("unmodelled DD7 display-mode filter fields");
+        if(p.memory.load(at+36,32))stop("DD7 display-mode filter contains a surface pointer");
+        if(d.dwFlags&DDSD_WIDTH)d.dwWidth=p.memory.load(at+12,32);
+        if(d.dwFlags&DDSD_HEIGHT)d.dwHeight=p.memory.load(at+8,32);
+        if(d.dwFlags&DDSD_REFRESHRATE)d.dwRefreshRate=p.memory.load(at+24,32);
+        if(d.dwFlags&DDSD_PIXELFORMAT){
+            p.memory.copy_out(at+72,std::span(reinterpret_cast<std::uint8_t*>(&d.ddpfPixelFormat),32));
+            if(d.ddpfPixelFormat.dwSize!=32)stop("DD7 mode filter pixel-format size");
+        }
+        return d;
+    }
+    void write_mode7(U32 at,const DDSURFACEDESC2& d){
+        constexpr DWORD allowed=DDSD_CAPS|DDSD_WIDTH|DDSD_HEIGHT|DDSD_PIXELFORMAT|DDSD_REFRESHRATE|DDSD_PITCH|DDSD_LINEARSIZE|DDSD_BACKBUFFERCOUNT|DDSD_ALPHABITDEPTH;
+        if(d.dwSize!=sizeof(d) || d.lpSurface || (d.dwFlags&~allowed))stop("unhandled DD7 native display-mode descriptor");
+        if((d.dwFlags&DDSD_PIXELFORMAT) && d.ddpfPixelFormat.dwSize!=32)stop("DD7 native mode pixel-format size");
+        std::array<U32,31> out{};out[0]=124;out[1]=d.dwFlags;
+        if(d.dwFlags&DDSD_HEIGHT)out[2]=d.dwHeight;
+        if(d.dwFlags&DDSD_WIDTH)out[3]=d.dwWidth;
+        if(d.dwFlags&(DDSD_PITCH|DDSD_LINEARSIZE))out[4]=U32(d.lPitch);
+        if(d.dwFlags&DDSD_BACKBUFFERCOUNT)out[5]=d.dwBackBufferCount;
+        if(d.dwFlags&DDSD_REFRESHRATE)out[6]=d.dwRefreshRate;
+        if(d.dwFlags&DDSD_ALPHABITDEPTH)out[7]=d.dwAlphaBitDepth;
+        if(d.dwFlags&DDSD_PIXELFORMAT)std::memcpy(out.data()+18,&d.ddpfPixelFormat,32);
+        if(d.dwFlags&DDSD_CAPS)std::memcpy(out.data()+26,&d.ddsCaps,16);
+        for(unsigned n=0;n<out.size();++n)p.memory.store(at+4*n,out[n],32);
+    }
+    static HRESULT CALLBACK enumerate_mode7(DDSURFACEDESC2* description,void* context) noexcept {
+        auto& call=*static_cast<ModeEnumeration*>(context);auto& self=*call.self;
+        try {
+            self.enter();if(call.failure || self.p.exited())return DDENUMRET_CANCEL;
+            if(!description)self.stop("null DD7 display-mode descriptor");
+            if(++call.visits>4096)self.stop("DD7 display-mode callback budget exceeded");
+            Allocation scratch(self.p,124);self.write_mode7(scratch.address,*description);
+            self.p.memory.protect(scratch.address,4096,Memory::Read);
+            const std::array<U32,2> args{scratch.address,call.context};++self.mode7_callbacks;
+            const auto result=self.p.callback(call.callback,args);
+            if(self.p.exited())return DDENUMRET_CANCEL;
+            if(result!=DDENUMRET_OK && result!=DDENUMRET_CANCEL)self.stop("invalid DD7 display-mode callback result");
+            return HRESULT(result);
+        }catch(...){if(!call.failure)call.failure=std::current_exception();return DDENUMRET_CANCEL;}
+    }
+    U32 enum_modes7(Args a){
+        auto native=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native);
+        p.memory.check(a[4],1,Memory::Execute);
+        DDSURFACEDESC2 filter{};if(a[2])filter=mode_filter7(a[2]);
+        native->AddRef();NativeOwner lifetime{native};
+        ModeEnumeration call{this,a[4],a[3],{},0};
+        const auto hr=native->EnumDisplayModes(a[1],a[2]?&filter:nullptr,&call,enumerate_mode7);
+        if(call.failure)std::rethrow_exception(call.failure);
+        return U32(hr);
+    }
+    // All public D3DDEVICEDESC7 fields are fixed-width values, not pointers.
+    // The first 220 bytes have the same DX7 x86/x64 layout. Reserved fields
+    // stay zero; no host stack padding or pointers are exposed to the guest.
+    static constexpr U32 DeviceDescSize=236;
+    void write_device(U32 at,const D3DDEVICEDESC7& d){
+        static_assert(std::is_trivially_copyable_v<D3DDEVICEDESC7>);
+        static_assert(sizeof(D3DDEVICEDESC7)==DeviceDescSize && sizeof(D3DPRIMCAPS)==56);
+        static_assert(offsetof(D3DDEVICEDESC7,dpcLineCaps)==4);
+        static_assert(offsetof(D3DDEVICEDESC7,dpcTriCaps)==60);
+        static_assert(offsetof(D3DDEVICEDESC7,dwDeviceRenderBitDepth)==116);
+        static_assert(offsetof(D3DDEVICEDESC7,dwMinTextureWidth)==124);
+        static_assert(offsetof(D3DDEVICEDESC7,dvGuardBandLeft)==152);
+        static_assert(offsetof(D3DDEVICEDESC7,wMaxTextureBlendStages)==184);
+        static_assert(offsetof(D3DDEVICEDESC7,dwMaxActiveLights)==188);
+        static_assert(offsetof(D3DDEVICEDESC7,deviceGUID)==196);
+        static_assert(offsetof(D3DDEVICEDESC7,dwVertexProcessingCaps)==216);
+        static_assert(offsetof(D3DDEVICEDESC7,dwReserved1)==220);
+        if(d.dpcLineCaps.dwSize!=56 || d.dpcTriCaps.dwSize!=56)
+            stop("unhandled native D3DPRIMCAPS layout");
+        std::array<std::uint8_t,DeviceDescSize> bytes{};
+        std::memcpy(bytes.data(),&d,220);
+        p.memory.copy_in(at,bytes);
+    }
+    U32 device_string(const char* text){
+        if(!text)stop("null Direct3D enumeration string");
+        std::size_t n=0;while(n<4096 && text[n])++n;
+        if(n==4096)stop("unterminated Direct3D enumeration string");
+        std::string key(text,n);
+        if(auto it=device_strings.find(key);it!=device_strings.end())return it->second;
+        if(device_strings.size()>=256)stop("Direct3D enumeration string budget");
+        Allocation memory(p,n+1);
+        p.memory.copy_in(memory.address,std::span(reinterpret_cast<const std::uint8_t*>(text),n+1));
+        p.memory.protect(memory.address,4096,Memory::Read);
+        auto at=memory.address;device_strings.emplace(std::move(key),at);memory.keep();return at;
+    }
+    struct DeviceEnumeration {Draw* self;U32 callback,context;std::exception_ptr failure;unsigned visits{};};
+    static HRESULT CALLBACK enumerate_device(char* description,char* name,D3DDEVICEDESC7* desc,void* context) noexcept {
+        auto& call=*static_cast<DeviceEnumeration*>(context);auto& self=*call.self;
+        try {
+            self.enter();if(call.failure || self.p.exited())return D3DENUMRET_CANCEL;
+            if(!desc)self.stop("null Direct3D device description");
+            if(++call.visits>256)self.stop("Direct3D device callback budget exceeded");
+            Allocation scratch(self.p,DeviceDescSize);self.write_device(scratch.address,*desc);
+            self.p.memory.protect(scratch.address,4096,Memory::Read);
+            const std::array<U32,4> args{self.device_string(description),self.device_string(name),scratch.address,call.context};
+            ++self.device_callbacks;const auto result=self.p.callback(call.callback,args);
+            if(self.p.exited())return D3DENUMRET_CANCEL;
+            if(result!=D3DENUMRET_OK && result!=D3DENUMRET_CANCEL)self.stop("invalid Direct3D device callback result");
+            return HRESULT(result);
+        }catch(...){if(!call.failure)call.failure=std::current_exception();return D3DENUMRET_CANCEL;}
+    }
+    U32 enum_devices(Args a){
+        auto native=static_cast<IDirect3D7*>(object(a[0],Interface::d3d7).native);
+        if(a[1])p.memory.check(a[1],1,Memory::Execute);
+        // Preserve a native reference even when the guest callback releases its
+        // interface, nests enumeration or queries the controlling IUnknown.
+        native->AddRef();NativeOwner lifetime{native};
+        DeviceEnumeration call{this,a[1],a[2],{},0};
+        const auto hr=native->EnumDevices(a[1]?enumerate_device:nullptr,&call);
+        if(call.failure)std::rethrow_exception(call.failure);
+        return U32(hr);
+    }
+    struct ZFormatEnumeration {Draw* self;U32 callback,context;std::exception_ptr failure;unsigned visits{};};
+    static HRESULT CALLBACK enumerate_zformat(DDPIXELFORMAT* desc,void* context) noexcept {
+        auto& call=*static_cast<ZFormatEnumeration*>(context);auto& self=*call.self;
+        try {
+            self.enter();if(call.failure || self.p.exited())return D3DENUMRET_CANCEL;
+            if(!desc || desc->dwSize!=32)self.stop("unhandled native depth pixel format");
+            if(++call.visits>256)self.stop("Direct3D depth format callback budget exceeded");
+            constexpr DWORD allowed=DDPF_ZBUFFER|DDPF_STENCILBUFFER;
+            if(!(desc->dwFlags&DDPF_ZBUFFER) || (desc->dwFlags&~allowed))self.stop("unhandled depth pixel-format union");
+            // Serialize only active union fields; FourCC and unused RGB members
+            // are not meaningful for a depth/stencil enumeration.
+            const std::array<U32,8> fields{32,desc->dwFlags,0,desc->dwZBufferBitDepth,
+                (desc->dwFlags&DDPF_STENCILBUFFER)?desc->dwStencilBitDepth:0,
+                desc->dwZBitMask,(desc->dwFlags&DDPF_STENCILBUFFER)?desc->dwStencilBitMask:0,0};
+            Allocation scratch(self.p,32);
+            for(unsigned n=0;n<fields.size();++n)self.p.memory.store(scratch.address+4*n,fields[n],32);
+            self.p.memory.protect(scratch.address,4096,Memory::Read);
+            const std::array<U32,2> args{scratch.address,call.context};++self.zformat_callbacks;
+            const auto result=self.p.callback(call.callback,args);
+            if(self.p.exited())return D3DENUMRET_CANCEL;
+            if(result!=D3DENUMRET_OK && result!=D3DENUMRET_CANCEL)self.stop("invalid Direct3D depth callback result");
+            return HRESULT(result);
+        }catch(...){if(!call.failure)call.failure=std::current_exception();return D3DENUMRET_CANCEL;}
+    }
+    U32 enum_zformats(Args a){
+        auto native=static_cast<IDirect3D7*>(object(a[0],Interface::d3d7).native);
+        auto id=guid(a[1]);if(a[2])p.memory.check(a[2],1,Memory::Execute);
+        native->AddRef();NativeOwner lifetime{native};
+        ZFormatEnumeration call{this,a[2],a[3],{},0};
+        const auto hr=native->EnumZBufferFormats(id,a[2]?enumerate_zformat:nullptr,&call);
+        if(call.failure)std::rethrow_exception(call.failure);
+        return U32(hr);
+    }
+    U32 create_device(Args a){
+        auto native=static_cast<IDirect3D7*>(object(a[0],Interface::d3d7).native);
+        const auto id=guid(a[1]);p.memory.check(a[3],4,Memory::Write);
+        IDirectDrawSurface7* target=nullptr;
+        if(a[2]){auto& value=object(a[2],Interface::surface7);if(value.locked)stop("CreateDevice with a locked render target");target=static_cast<IDirectDrawSurface7*>(value.native);}
+        IDirect3DDevice7* result{};const auto hr=native->CreateDevice(id,target,&result);
+        if(SUCCEEDED(hr)){if(!result)stop("native CreateDevice returned no device");p.memory.store(a[3],wrap(result,Interface::device7),32);++render_devices;}
+        return U32(hr);
+    }
+    void write_texture_format(U32 at,const DDPIXELFORMAT& f){
+        static_assert(sizeof(f)==32);
+        constexpr DWORD palette=DDPF_PALETTEINDEXED1|DDPF_PALETTEINDEXED2|DDPF_PALETTEINDEXED4|DDPF_PALETTEINDEXED8|DDPF_PALETTEINDEXEDTO8;
+        constexpr DWORD allowed=DDPF_RGB|DDPF_ALPHAPIXELS|DDPF_ALPHAPREMULT|DDPF_ALPHA|DDPF_LUMINANCE|DDPF_BUMPDUDV|DDPF_BUMPLUMINANCE|DDPF_FOURCC|DDPF_COMPRESSED|palette;
+        if(f.dwSize!=32 || (f.dwFlags&~allowed))stop("unhandled native texture pixel-format flags");
+        std::array<U32,8> bytes{32,f.dwFlags,0,0,0,0,0,0};
+        if(f.dwFlags&DDPF_FOURCC)bytes[2]=f.dwFourCC;
+        if(f.dwFlags&(DDPF_RGB|DDPF_ALPHA|DDPF_LUMINANCE|DDPF_BUMPDUDV|palette))bytes[3]=f.dwRGBBitCount;
+        if(f.dwFlags&DDPF_RGB){bytes[4]=f.dwRBitMask;bytes[5]=f.dwGBitMask;bytes[6]=f.dwBBitMask;}
+        if(f.dwFlags&DDPF_LUMINANCE)bytes[4]=f.dwLuminanceBitMask;
+        if(f.dwFlags&DDPF_BUMPDUDV){bytes[4]=f.dwBumpDuBitMask;bytes[5]=f.dwBumpDvBitMask;if(f.dwFlags&DDPF_BUMPLUMINANCE)bytes[6]=f.dwBumpLuminanceBitMask;}
+        if(f.dwFlags&DDPF_ALPHAPIXELS)bytes[7]=f.dwRGBAlphaBitMask;
+        // Unused union members are not native pointers, but may be undefined.
+        // They remain zero rather than exposing incidental host storage.
+        for(unsigned i=0;i<bytes.size();++i)p.memory.store(at+4*i,bytes[i],32);
+    }
+    static HRESULT CALLBACK enumerate_texture(DDPIXELFORMAT* format,void* state) noexcept {
+        auto& call=*static_cast<ModeEnumeration*>(state);auto& self=*call.self;
+        try{
+            self.enter();if(call.failure || self.p.exited())return D3DENUMRET_CANCEL;
+            if(!format)self.stop("null native texture format");
+            if(++call.visits>1024)self.stop("texture format callback budget");
+            Allocation scratch(self.p,32);self.write_texture_format(scratch.address,*format);self.p.memory.protect(scratch.address,4096,Memory::Read);
+            const std::array<U32,2> args{scratch.address,call.context};++self.texture_callbacks;
+            const auto result=self.p.callback(call.callback,args);
+            if(self.p.exited())return D3DENUMRET_CANCEL;
+            if(result!=D3DENUMRET_CANCEL && result!=D3DENUMRET_OK)self.stop("invalid texture format callback result");
+            return HRESULT(result);
+        }catch(...){if(!call.failure)call.failure=std::current_exception();return D3DENUMRET_CANCEL;}
+    }
+    U32 enum_texture_formats(Args a){
+        auto native=static_cast<IDirect3DDevice7*>(object(a[0],Interface::device7).native);
+        if(!a[1])return U32(native->EnumTextureFormats(nullptr,nullptr));
+        p.memory.check(a[1],1,Memory::Execute);native->AddRef();NativeOwner owner{native};
+        ModeEnumeration call{this,a[1],a[2],{},0};const auto hr=native->EnumTextureFormats(enumerate_texture,&call);
+        if(call.failure)std::rethrow_exception(call.failure);return U32(hr);
+    }
+    U32 draw_caps(Args a){
+        auto native=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native);
+        static_assert(sizeof(DDCAPS)==380 && sizeof(DDSCAPS2)==16);
+        static_assert(offsetof(DDCAPS,dwVidMemTotal)==60 && offsetof(DDCAPS,ddsCaps)==364);
+        DDCAPS driver{},emulation{};driver.dwSize=emulation.dwSize=380;
+        for(auto at:{a[1],a[2]})if(at){
+            p.memory.check(at,380,Memory::Read|Memory::Write);
+            if(p.memory.load(at,32)!=380)stop("GetCaps requires the 380-byte DX7 DDCAPS layout");
+        }
+        if(a[1] && a[2] && std::uint64_t(a[1])<std::uint64_t(a[2])+380 && std::uint64_t(a[2])<std::uint64_t(a[1])+380)
+            stop("overlapping GetCaps outputs outside this profile");
+        const auto hr=native->GetCaps(a[1]?&driver:nullptr,a[2]?&emulation:nullptr);
+        if(SUCCEEDED(hr)){
+            // The DWORD-only structure has no host pointers or padding. Clear
+            // reserved words rather than exposing implementation-private data.
+            driver.dwReserved1=driver.dwReserved2=driver.dwReserved3=0;
+            emulation.dwReserved1=emulation.dwReserved2=emulation.dwReserved3=0;
+            if(a[1])p.memory.copy_in(a[1],std::span(reinterpret_cast<const std::uint8_t*>(&driver),380));
+            if(a[2])p.memory.copy_in(a[2],std::span(reinterpret_cast<const std::uint8_t*>(&emulation),380));
+        }
+        return U32(hr);
+    }
+    U32 device_identifier(Args a){
+        auto native=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native);
+        constexpr U32 GuestSize=1068;
+        p.memory.check(a[1],GuestSize,Memory::Write);
+        DDDEVICEIDENTIFIER2 value{};
+        const auto hr=native->GetDeviceIdentifier(&value,a[2]);
+        if(FAILED(hr))return U32(hr);
+        static_assert(MAX_DDDEVICEID_STRING==512);
+        static_assert(offsetof(DDDEVICEIDENTIFIER2,liDriverVersion)==1024);
+        static_assert(offsetof(DDDEVICEIDENTIFIER2,dwVendorId)==1032);
+        static_assert(offsetof(DDDEVICEIDENTIFIER2,guidDeviceIdentifier)==1048);
+        static_assert(offsetof(DDDEVICEIDENTIFIER2,dwWHQLLevel)==1064);
+        std::array<std::uint8_t,GuestSize> bytes{};
+        auto text=[&](std::size_t at,const char* v){
+            std::size_t n=0;while(n<512 && v[n])++n;
+            if(n==512)stop("unterminated device identifier string");
+            std::memcpy(bytes.data()+at,v,n);
+        };
+        text(0,value.szDriver);text(512,value.szDescription);
+        // No native sizeof: on Win64 this type has tail padding after WHQL.
+        const std::array<U32,6> words{value.liDriverVersion.LowPart,U32(value.liDriverVersion.HighPart),
+            value.dwVendorId,value.dwDeviceId,value.dwSubSysId,value.dwRevision};
+        for(unsigned n=0;n<words.size();++n)for(unsigned k=0;k<4;++k)bytes[1024+4*n+k]=std::uint8_t(words[n]>>(8*k));
+        std::memcpy(bytes.data()+1048,&value.guidDeviceIdentifier,16);
+        for(unsigned k=0;k<4;++k)bytes[1064+k]=std::uint8_t(value.dwWHQLLevel>>(8*k));
+        p.memory.copy_in(a[1],bytes);return U32(hr);
+    }
     DDSURFACEDESC2 read_description(U32 at){
-        p.memory.check(at,DescSize,Memory::Read);if(p.memory.load(at,32)!=DescSize)stop("DDSURFACEDESC2 must have the 124-byte x86 layout");
-        DDSURFACEDESC2 d{};d.dwSize=sizeof(d);d.dwFlags=p.memory.load(at+4,32);d.dwHeight=p.memory.load(at+8,32);d.dwWidth=p.memory.load(at+12,32);
-        const auto allowed=DDSD_CAPS|DDSD_WIDTH|DDSD_HEIGHT|DDSD_PIXELFORMAT;
-        if((d.dwFlags&~allowed) || (d.dwFlags&allowed)!=allowed)stop("only explicit offscreen dimensions/pixel format/caps are supported");
+        p.memory.check(at,DescSize,Memory::Read);
+        if(p.memory.load(at,32)!=DescSize)stop("DDSURFACEDESC2 must have the 124-byte x86 layout");
+        DDSURFACEDESC2 d{};d.dwSize=sizeof(d);d.dwFlags=p.memory.load(at+4,32);
+        constexpr DWORD allowed=DDSD_CAPS|DDSD_WIDTH|DDSD_HEIGHT|DDSD_PIXELFORMAT;
+        if((d.dwFlags&~allowed) || !(d.dwFlags&DDSD_CAPS))stop("unmodelled surface descriptor flags");
         if(p.memory.load(at+36,32))stop("caller-owned native surface memory is not supported");
         static_assert(sizeof(DDPIXELFORMAT)==32 && sizeof(DDSCAPS2)==16);
-        p.memory.copy_out(at+72,std::span(reinterpret_cast<std::uint8_t*>(&d.ddpfPixelFormat),32));
         p.memory.copy_out(at+104,std::span(reinterpret_cast<std::uint8_t*>(&d.ddsCaps),16));
-        if(d.ddsCaps.dwCaps!=(DDSCAPS_OFFSCREENPLAIN|DDSCAPS_SYSTEMMEMORY) || d.ddsCaps.dwCaps2 || d.ddsCaps.dwCaps3 || d.ddsCaps.dwCaps4)stop("only system-memory offscreen surfaces are supported");
-        if(d.ddpfPixelFormat.dwSize!=32 || d.ddpfPixelFormat.dwFlags!=DDPF_RGB || d.ddpfPixelFormat.dwRGBBitCount!=32 || d.ddpfPixelFormat.dwRBitMask!=0xff0000 || d.ddpfPixelFormat.dwGBitMask!=0xff00 || d.ddpfPixelFormat.dwBBitMask!=0xff || d.ddpfPixelFormat.dwRGBAlphaBitMask)stop("only X8R8G8B8 surfaces are supported");
-        if(!d.dwWidth || !d.dwHeight || std::uint64_t(d.dwWidth)*d.dwHeight>MaxSurfaceBytes/4)stop("surface allocation budget");return d;
+        if(d.ddsCaps.dwCaps2 || d.ddsCaps.dwCaps3 || d.ddsCaps.dwCaps4)stop("extended surface caps are not supported");
+        // A primary surface inherits the host display dimensions/format. Never
+        // manufacture an offscreen surface or invent these values for the guest.
+        if(d.dwFlags==DDSD_CAPS && d.ddsCaps.dwCaps==DDSCAPS_PRIMARYSURFACE)return d;
+        if((d.dwFlags&(DDSD_CAPS|DDSD_WIDTH|DDSD_HEIGHT))!=(DDSD_CAPS|DDSD_WIDTH|DDSD_HEIGHT))
+            stop("offscreen surface requires explicit dimensions");
+        const DWORD caps=d.ddsCaps.dwCaps;
+        const bool plain=caps==(DDSCAPS_OFFSCREENPLAIN|DDSCAPS_SYSTEMMEMORY);
+        const bool render=(caps&(DDSCAPS_OFFSCREENPLAIN|DDSCAPS_3DDEVICE))==(DDSCAPS_OFFSCREENPLAIN|DDSCAPS_3DDEVICE)
+            && !(caps&~DWORD(DDSCAPS_OFFSCREENPLAIN|DDSCAPS_3DDEVICE|DDSCAPS_SYSTEMMEMORY|DDSCAPS_VIDEOMEMORY))
+            && (caps&(DDSCAPS_SYSTEMMEMORY|DDSCAPS_VIDEOMEMORY))!=(DDSCAPS_SYSTEMMEMORY|DDSCAPS_VIDEOMEMORY);
+        if(!plain && !render)stop("unmodelled offscreen surface capability combination");
+        if(!(d.dwFlags&DDSD_PIXELFORMAT) && !render)stop("plain offscreen surface requires an explicit pixel format");
+        if(d.dwFlags&DDSD_PIXELFORMAT){
+            p.memory.copy_out(at+72,std::span(reinterpret_cast<std::uint8_t*>(&d.ddpfPixelFormat),32));
+            const auto& f=d.ddpfPixelFormat;
+            if(f.dwSize!=32 || f.dwFlags!=DDPF_RGB || f.dwFourCC || f.dwRGBBitCount!=32 || f.dwRBitMask!=0xff0000 || f.dwGBitMask!=0xff00 || f.dwBBitMask!=0xff || f.dwRGBAlphaBitMask)
+                stop("only an explicit X8R8G8B8 or a native default render format is supported");
+        }
+        d.dwHeight=p.memory.load(at+8,32);d.dwWidth=p.memory.load(at+12,32);
+        if(!d.dwWidth || !d.dwHeight || std::uint64_t(d.dwWidth)*d.dwHeight>MaxSurfaceBytes/4)stop("surface allocation budget");
+        return d;
     }
     void write_description(U32 at,const DDSURFACEDESC2& d,U32 pixels=0){
         p.memory.check(at,DescSize,Memory::Write);
-        std::array<U32,31> out{};out[0]=DescSize;out[1]=d.dwFlags;out[2]=d.dwHeight;out[3]=d.dwWidth;out[4]=U32(d.lPitch);out[5]=d.dwBackBufferCount;out[6]=d.dwMipMapCount;out[7]=d.dwAlphaBitDepth;out[9]=pixels;
-        std::memcpy(out.data()+10,&d.ddckCKDestOverlay,32);std::memcpy(out.data()+18,&d.ddpfPixelFormat,32);std::memcpy(out.data()+26,&d.ddsCaps,16);out[30]=d.dwTextureStage;
+        constexpr DWORD allowed=DDSD_CAPS|DDSD_HEIGHT|DDSD_WIDTH|DDSD_PITCH|DDSD_LINEARSIZE|DDSD_BACKBUFFERCOUNT|DDSD_MIPMAPCOUNT|DDSD_REFRESHRATE|DDSD_ALPHABITDEPTH|DDSD_LPSURFACE|DDSD_CKDESTOVERLAY|DDSD_CKDESTBLT|DDSD_CKSRCOVERLAY|DDSD_CKSRCBLT|DDSD_PIXELFORMAT|DDSD_TEXTURESTAGE;
+        if(d.dwSize!=sizeof(d) || (d.dwFlags&~allowed))stop("unmodelled native surface descriptor fields");
+        if((d.dwFlags&DDSD_PIXELFORMAT) && d.ddpfPixelFormat.dwSize!=32)stop("native surface pixel format size");
+        std::array<U32,31> out{};out[0]=DescSize;out[1]=d.dwFlags;
+        if(d.dwFlags&DDSD_HEIGHT)out[2]=d.dwHeight;
+        if(d.dwFlags&DDSD_WIDTH)out[3]=d.dwWidth;
+        if(d.dwFlags&(DDSD_PITCH|DDSD_LINEARSIZE))out[4]=U32(d.lPitch);
+        if(d.dwFlags&DDSD_BACKBUFFERCOUNT)out[5]=d.dwBackBufferCount;
+        if(d.dwFlags&(DDSD_MIPMAPCOUNT|DDSD_REFRESHRATE))out[6]=d.dwMipMapCount;
+        if(d.dwFlags&DDSD_ALPHABITDEPTH)out[7]=d.dwAlphaBitDepth;
+        // Lock's native address is replaced with the staging allocation even if
+        // the host omits DDSD_LPSURFACE in its returned flags. Never copy it.
+        out[9]=pixels;
+        if(d.dwFlags&DDSD_CKDESTOVERLAY)std::memcpy(out.data()+10,&d.ddckCKDestOverlay,8);
+        if(d.dwFlags&DDSD_CKDESTBLT)std::memcpy(out.data()+12,&d.ddckCKDestBlt,8);
+        if(d.dwFlags&DDSD_CKSRCOVERLAY)std::memcpy(out.data()+14,&d.ddckCKSrcOverlay,8);
+        if(d.dwFlags&DDSD_CKSRCBLT)std::memcpy(out.data()+16,&d.ddckCKSrcBlt,8);
+        if(d.dwFlags&DDSD_PIXELFORMAT)std::memcpy(out.data()+18,&d.ddpfPixelFormat,32);
+        if(d.dwFlags&DDSD_CAPS)std::memcpy(out.data()+26,&d.ddsCaps,16);
+        if(d.dwFlags&DDSD_TEXTURESTAGE)out[30]=d.dwTextureStage;
         for(unsigned n=0;n<out.size();++n)p.memory.store(at+4*n,out[n],32);
+    }
+    HWND guest_window(U32 token){
+        if(!token)return nullptr;
+        try{return reinterpret_cast<HWND>(p.gui()->native_window(token));}
+        catch(const GuestFault&){throw;}
+        catch(const std::exception& error){stop(std::string("guest window lookup: ")+error.what());}
+    }
+    U32 create_clipper(Args a){
+        auto native=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native);
+        p.memory.check(a[2],4,Memory::Write);if(a[3])stop("COM clipper aggregation is unsupported");
+        IDirectDrawClipper* value{};const auto hr=native->CreateClipper(a[1],&value,nullptr);
+        if(SUCCEEDED(hr)){
+            if(!value)stop("native CreateClipper succeeded without an object");
+            // Reset association on creation: native addresses may be reused.
+            NativeOwner owner{value};clipper_windows[reinterpret_cast<std::uintptr_t>(value)]={nullptr,0};
+            auto address=wrap(owner.keep(),Interface::clipper);p.memory.store(a[2],address,32);
+        }
+        return U32(hr);
+    }
+    U32 set_clipper_window(Args a){
+        auto native=static_cast<IDirectDrawClipper*>(object(a[0],Interface::clipper).native);
+        const auto window=guest_window(a[2]);
+        const auto hr=native->SetHWnd(a[1],window);
+        if(SUCCEEDED(hr))clipper_windows[reinterpret_cast<std::uintptr_t>(native)]={window,a[2]};
+        return U32(hr);
+    }
+    U32 get_clipper_window(Args a){
+        auto native=static_cast<IDirectDrawClipper*>(object(a[0],Interface::clipper).native);
+        p.memory.check(a[1],4,Memory::Write);HWND window{};const auto hr=native->GetHWnd(&window);
+        if(SUCCEEDED(hr)){
+            U32 token=0;
+            if(window){auto it=clipper_windows.find(reinterpret_cast<std::uintptr_t>(native));
+                if(it==clipper_windows.end() || it->second.first!=window)stop("foreign clipper window handle");
+                token=it->second.second;}
+            p.memory.store(a[1],token,32);
+        }
+        return U32(hr);
     }
     U32 lock(Object& value,Args a){
         if(a[1] || a[4])stop("surface Lock supports the whole surface and no event handle");
@@ -171,13 +579,13 @@ public:
     void shutdown() noexcept override{
         if(stopped)return;stopped=true;
         for(auto& [address,value]:objects){(void)address;if(value.native)destroy_lock(value);}
-        for(auto kind:{Interface::surface7,Interface::unknown,Interface::draw1,Interface::draw7})for(auto& [address,value]:objects){(void)address;if(value.native && value.kind==kind){for(U32 n=0;n<value.guest_refs;++n)value.native->Release();value.native=nullptr;}}
+        for(auto kind:{Interface::device7,Interface::surface7,Interface::clipper,Interface::d3d7,Interface::unknown,Interface::draw1,Interface::draw7})for(auto& [address,value]:objects){(void)address;if(value.native && value.kind==kind){for(U32 n=0;n<value.guest_refs;++n)value.native->Release();value.native=nullptr;}}
     }
-    std::string report() const override{std::ostringstream out;out<<"{\"backend\":\"native-ddraw7\",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
+    std::string report() const override{std::ostringstream out;out<<"{\"backend\":\"native-ddraw7\",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"mode_callbacks\":"<<mode_callbacks<<",\"d3d7_wrappers\":"<<d3d_wrappers<<",\"d3d_device_callbacks\":"<<device_callbacks<<",\"mode7_callbacks\":"<<mode7_callbacks<<",\"zformat_callbacks\":"<<zformat_callbacks<<",\"d3d_devices_created\":"<<render_devices<<",\"texture_callbacks\":"<<texture_callbacks<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
 };
 U32 Draw::vtable(Interface kind){
     if(auto it=vtables.find(kind);it!=vtables.end())return it->second;
-    const unsigned count=kind==Interface::unknown?3u:kind==Interface::draw1?23u:kind==Interface::draw7?30u:49u;
+    const unsigned count=kind==Interface::unknown?3u:kind==Interface::draw1?23u:kind==Interface::draw7?30u:kind==Interface::d3d7?8u:kind==Interface::clipper?9u:49u;
     Allocation table(p,count*4);
     for(unsigned slot=0;slot<count;++slot){
         const auto name=std::string("WinRecompCOM.")+std::to_string(unsigned(kind))+"."+std::to_string(slot);
@@ -186,13 +594,37 @@ U32 Draw::vtable(Interface kind){
         if(slot==0)method(3,[this,kind](Args a){return query(object(a[0],kind),a);});
         else if(slot==1)method(1,[this,kind](Args a){auto& value=object(a[0],kind);if(value.guest_refs==0xffffffffu)stop("reference count overflow");const auto result=value.native->AddRef();++value.guest_refs;return result;});
         else if(slot==2)method(1,[this,kind](Args a){return release(object(a[0],kind));});
+        if(kind==Interface::draw1 && slot==8)method(5,[this](Args a){return enum_modes(a);});
         if(kind==Interface::draw7){
+            if(slot==4)method(4,[this](Args a){return create_clipper(a);});
             if(slot==6)method(4,[this](Args a){auto d=read_description(a[1]);p.memory.check(a[2],4,Memory::Write);if(a[3])stop("aggregated surfaces not supported");IDirectDrawSurface7* surface=nullptr;const auto hr=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->CreateSurface(&d,&surface,nullptr);if(SUCCEEDED(hr))p.memory.store(a[2],wrap(surface,Interface::surface7),32);return U32(hr);});
+            if(slot==8)method(5,[this](Args a){return enum_modes7(a);});
+            if(slot==11)method(3,[this](Args a){return draw_caps(a);});
             if(slot==12)method(2,[this](Args a){p.memory.check(a[1],DescSize,Memory::Read|Memory::Write);if(p.memory.load(a[1],32)!=DescSize)stop("GetDisplayMode description size");DDSURFACEDESC2 d{};d.dwSize=sizeof(d);auto hr=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->GetDisplayMode(&d);if(SUCCEEDED(hr)){if(d.lpSurface)stop("GetDisplayMode returned a native pixel pointer");write_description(a[1],d);}return U32(hr);});
-            if(slot==20)method(3,[this](Args a){if(a[2]!=DDSCL_NORMAL)stop("only normal/windowed cooperative mode is supported");auto window=reinterpret_cast<HWND>(p.gui()->native_window(a[1]));return U32(static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->SetCooperativeLevel(window,a[2]));});
+            if(slot==20)method(3,[this](Args a){if(a[2]!=DDSCL_NORMAL)stop("only normal/windowed cooperative mode is supported");auto window=guest_window(a[1]);return U32(static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->SetCooperativeLevel(window,a[2]));});
+            if(slot==27)method(3,[this](Args a){return device_identifier(a);});
             if(slot==26)method(1,[this](Args a){return U32(static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->TestCooperativeLevel());});
         }
+        if(kind==Interface::d3d7){
+            if(slot==4)method(4,[this](Args a){return create_device(a);});
+            if(slot==3)method(3,[this](Args a){return enum_devices(a);});
+            if(slot==6)method(4,[this](Args a){return enum_zformats(a);});
+            if(slot==7)method(1,[this](Args a){return U32(static_cast<IDirect3D7*>(object(a[0],Interface::d3d7).native)->EvictManagedTextures());});
+        }
+        if(kind==Interface::device7){
+            if(slot==3)method(2,[this](Args a){auto native=static_cast<IDirect3DDevice7*>(object(a[0],Interface::device7).native);p.memory.check(a[1],DeviceDescSize,Memory::Write);D3DDEVICEDESC7 caps{};auto hr=native->GetCaps(&caps);if(SUCCEEDED(hr))write_device(a[1],caps);return U32(hr);});
+            if(slot==4)method(3,[this](Args a){return enum_texture_formats(a);});
+            if(slot==7)method(2,[this](Args a){auto native=static_cast<IDirect3DDevice7*>(object(a[0],Interface::device7).native);p.memory.check(a[1],4,Memory::Write);IDirect3D7* result{};auto hr=native->GetDirect3D(&result);if(SUCCEEDED(hr)){if(!result)stop("native device returned no Direct3D interface");p.memory.store(a[1],wrap(result,Interface::d3d7),32);}return U32(hr);});
+            if(slot==9)method(2,[this](Args a){auto native=static_cast<IDirect3DDevice7*>(object(a[0],Interface::device7).native);p.memory.check(a[1],4,Memory::Write);IDirectDrawSurface7* result{};auto hr=native->GetRenderTarget(&result);if(SUCCEEDED(hr)){if(!result)stop("native device returned no render target");p.memory.store(a[1],wrap(result,Interface::surface7),32);}return U32(hr);});
+        }
+        if(kind==Interface::clipper){
+            if(slot==4)method(2,[this](Args a){return get_clipper_window(a);});
+            if(slot==6)method(2,[this](Args a){auto native=static_cast<IDirectDrawClipper*>(object(a[0],Interface::clipper).native);p.memory.check(a[1],4,Memory::Write);BOOL changed{};auto hr=native->IsClipListChanged(&changed);if(SUCCEEDED(hr))p.memory.store(a[1],U32(changed),32);return U32(hr);});
+            if(slot==8)method(3,[this](Args a){return set_clipper_window(a);});
+        }
         if(kind==Interface::surface7){
+            if(slot==15)method(2,[this](Args a){auto native=static_cast<IDirectDrawSurface7*>(object(a[0],Interface::surface7).native);p.memory.check(a[1],4,Memory::Write);IDirectDrawClipper* result{};auto hr=native->GetClipper(&result);if(SUCCEEDED(hr)){if(!result)stop("native GetClipper succeeded without an object");p.memory.store(a[1],wrap(result,Interface::clipper),32);}return U32(hr);});
+            if(slot==28)method(2,[this](Args a){auto& surface=object(a[0],Interface::surface7);if(surface.locked)stop("SetClipper while surface is locked");auto clipper=a[1]?static_cast<IDirectDrawClipper*>(object(a[1],Interface::clipper).native):nullptr;return U32(static_cast<IDirectDrawSurface7*>(surface.native)->SetClipper(clipper));});
             if(slot==5)method(6,[this](Args a){auto& value=object(a[0],Interface::surface7);if(value.locked)stop("blit while surface is locked");if(a[1] || a[2] || a[3] || (a[4]&~U32(DDBLT_COLORFILL|DDBLT_WAIT)) || !(a[4]&DDBLT_COLORFILL))stop("only whole-surface color fill is supported");p.memory.check(a[5],100,Memory::Read);if(p.memory.load(a[5],32)!=100)stop("DDBLTFX must have the 100-byte x86 layout");DDBLTFX fx{};fx.dwSize=sizeof(fx);fx.dwFillColor=p.memory.load(a[5]+80,32);auto hr=static_cast<IDirectDrawSurface7*>(value.native)->Blt(nullptr,nullptr,nullptr,a[4],&fx);if(SUCCEEDED(hr))++blits;return U32(hr);});
             if(slot==22)method(2,[this](Args a){p.memory.check(a[1],DescSize,Memory::Read|Memory::Write);if(p.memory.load(a[1],32)!=DescSize)stop("GetSurfaceDesc description size");DDSURFACEDESC2 d{};d.dwSize=sizeof(d);auto hr=static_cast<IDirectDrawSurface7*>(object(a[0],Interface::surface7).native)->GetSurfaceDesc(&d);if(SUCCEEDED(hr)){if((d.dwFlags&DDSD_LPSURFACE) && d.lpSurface)stop("GetSurfaceDesc returned a live native pixel pointer; use Lock");write_description(a[1],d);}return U32(hr);});
             if(slot==24)method(1,[this](Args a){return U32(static_cast<IDirectDrawSurface7*>(object(a[0],Interface::surface7).native)->IsLost());});

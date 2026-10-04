@@ -62,4 +62,13 @@ def cases():
     for name,op in [('cmpsb','a6'),('cmpsw','66a7'),('cmpsd','a7'),('scasb','ae'),('scasw','66af'),('scasd','af')]:
         out['repe_'+name]='83e11ff3'+op+'c3'
         out['repne_'+name]='83e11ff2'+op+'c3'
+    out.update({
+      'pushfd_read':'9c58c3',
+      'pushf16_read':'669c6658c3',
+      'popfd_roundtrip':'9c9dc3',
+      'popf16_roundtrip':'669c669dc3',
+      'popfd_id_toggle':'9c5889c23500002000509d9c5831d0c3',
+      'popfd_status_df':'68070e00009d9c58fcc3',
+      'popf16_status_df':'6668070e669d669c6658fcc3',
+    })
     return out

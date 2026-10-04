@@ -7,7 +7,24 @@
     4402942,
     4402970,
     4403405,
+    4586112,
+    4592112,
+    4600000,
+    4600448,
+    4601920,
+    4602064,
+    4602144,
+    4602224,
+    4602256,
+    4602336,
+    4637984,
+    4638400,
     4721232,
+    4721299,
+    4721318,
+    4721372,
+    4721388,
+    4721452,
     4821462,
     4821521,
     4821576,
@@ -24,6 +41,67 @@
   "limitations": [
     "This metadata does not recover every indirect target or missing API.",
     "No dependency on the unavailable local-only discovery implementation.",
-    "Actual E3 Windows build/startup/frame/control results must be recorded separately; a synthetic fixture is not E3 evidence."
+    "Actual E3 Windows build/startup/frame/control results must be recorded separately; a synthetic fixture is not E3 evidence.",
+    "New startup roots were observed through Wine on Linux, not through native Windows; they are bounded profile metadata, not a complete indirect-flow recovery claim."
+  ],
+  "startup_seed_provenance": [
+    {
+      "targets": [
+        4721299,
+        4721318,
+        4721372,
+        4721388,
+        4721452
+      ],
+      "basis": "Five bounded entries of the WNDPROC dispatch table at 0x00480B48, indexed through the 31-byte selector table at 0x00480B5C. 0x00480AEC was first reached as an untranslated activation callback by the actual x64 E3 build under Wine."
+    },
+    {
+      "targets": [
+        4637984,
+        4638400,
+        4586112
+      ],
+      "basis": "Individually observed untranslated code targets during private x64 E3 startup under Wine. Checked as file-backed executable code before admission. 0x0046C6C0 is the legacy EnumDisplayModes callback supplied at 0x0046C5A7."
+    }
+  ],
+  "module_fallback_seeds": [
+    {
+      "target": 4602336,
+      "basis": "Actual recompiled Windows x64 E3 under Wine reached an untranslated target after its own null-result Glide library branch. Observed in the explicit no-Glide guest DLL namespace; no original code patched."
+    },
+    {
+      "target": 4600000,
+      "basis": "Observed callback argument to DirectDrawEnumerateExA in the x64 E3 Wine execution after the configured missing-Glide fallback. File-backed executable address; not an inferred callback."
+    }
+  ],
+  "d3d7_seed_provenance": [
+    {
+      "target": 4600448,
+      "basis": "Observed untranslated callback passed to IDirect3D7::EnumDevices (vtable slot 3) during actual E3 Windows-x64 execution under Wine. Input SHA verified and target validated as file-backed executable code; not a native-Windows result."
+    },
+    {
+      "target": 4601920,
+      "basis": "Observed actual E3 Windows-x64 callback passed to IDirectDraw7::EnumDisplayModes slot 8 under Wine, after GetDeviceIdentifier/GetCaps. SHA-bound metadata, validated as executable by the analyzer. Not native Windows execution."
+    },
+    {
+      "target": 4602064,
+      "basis": "Observed untranslated code target inside the actual E3 device-enumeration callback path under Wine. Entry validated against file-backed executable .text; role not assigned. Metadata seed only, no original instruction patch."
+    },
+    {
+      "target": 4602144,
+      "basis": "Observed actual E3 Windows-x64 callback supplied to IDirect3D7::EnumZBufferFormats slot 6 under Wine. File-backed executable target; metadata only, no game-code patch and no native-Windows execution claim."
+    },
+    {
+      "target": 4602224,
+      "basis": "Observed untranslated code target inside the actual E3 device-enumeration callback path under Wine. Entry validated against file-backed executable .text; role not assigned. Metadata seed only, no original instruction patch."
+    },
+    {
+      "target": 4602256,
+      "basis": "Observed untranslated code target inside the actual E3 device-enumeration callback path under Wine. Entry validated against file-backed executable .text; role not assigned. Metadata seed only, no original instruction patch."
+    },
+    {
+      "target": 4592112,
+      "basis": "Observed untranslated code target along the actual E3 startup path under Wine. Entry validated against file-backed executable .text; role not assigned. Metadata seed only, no original instruction patch."
+    }
   ]
 }
