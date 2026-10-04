@@ -1,0 +1,153 @@
+name: Module startup publication and verification
+on:
+  push:
+    branches: [work/module-startup]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-windows-startup
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: ${{ contains(github.event.head_commit.message, '[source-transfer]') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      source_sha: ${{ steps.commit.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Check exact base, patch digest, and owned source before publication
+        shell: python
+        run: |
+          import hashlib,json,subprocess
+          from pathlib import Path
+          m=json.loads(Path('.module-transfer/manifest.json').read_text())
+          base=subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()
+          assert base==m['base_commit'], (base,m['base_commit'])
+          patch=b''.join(Path(f'.module-transfer/part{i}.patch').read_bytes() for i in range(3))
+          Path('.module-transfer/change.patch').write_bytes(patch)
+          assert len(patch)==m['patch_bytes']
+          assert hashlib.sha256(patch).hexdigest()==m['patch_sha256']
+          subprocess.run(['git','apply','--check','--index','--unidiff-zero','.module-transfer/change.patch'],check=True)
+          subprocess.run(['git','apply','--index','--unidiff-zero','.module-transfer/change.patch'],check=True)
+          for p,want in m['changed_sha256'].items():
+              assert hashlib.sha256(Path(p).read_bytes()).hexdigest()==want,p
+          assert set(subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines())==set(m['changed_sha256'])
+          assert not subprocess.check_output(['git','diff','--name-only'],text=True).strip()
+      - name: Publish exact candidate without touching main
+        id: commit
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: publish verified-source module and CPU-query candidate'
+          git push origin HEAD:work/module-startup
+          echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  verify:
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_sha }}
+          fetch-depth: 0
+          submodules: false
+      - name: Initialize pinned decoder
+        run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - run: python -m pip install unicorn==2.1.2
+      - name: Verify exact implementation source and upstream pins
+        run: python tools/check_repository.py
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=ON
+      - name: Compile
+        id: compile
+        run: cmake --build build --parallel 2
+      - name: Original PE32 versus generated x64 graphics boundaries
+        if: runner.os == 'Windows'
+        run: ctest --test-dir build -R "^(window_program|directdraw_program)$" --output-on-failure
+      - name: Complete runtime and conformance regressions
+        if: ${{ !cancelled() && steps.compile.outcome == 'success' }}
+        run: ctest --test-dir build -E "^(window_program|directdraw_program)$" --output-on-failure
+      - name: Native i386 integer oracle
+        if: runner.os == 'Linux'
+        run: python tests/hardware_oracle.py --tool build/winrecomp --out build/hardware --vectors 64
+      - name: Retain source for reproducible workspaces
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p build
+          git bundle create build/WinRecomp.bundle --all
+          git -C third_party/zydis bundle create "$GITHUB_WORKSPACE/build/Zydis.bundle" --all
+          git -C third_party/zydis/dependencies/zycore bundle create "$GITHUB_WORKSPACE/build/Zycore.bundle" --all
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: module-startup-${{ matrix.os }}
+          path: |
+            build/module_program/acceptance.json
+            build/directdraw_program/mode-comparison.json
+            build/directdraw_program/acceptance.json
+            build/directdraw_program/process.json
+            build/window_program/acceptance.json
+            build/window_program/process.json
+            build/window_program/synthetic-frame.ppm
+            build/conformance/report.json
+            build/controlflow/report.json
+            build/floating/report.json
+            build/simd/report.json
+            build/abi_callbacks/report.json
+            build/program/acceptance.json
+            build/hardware/hardware-report.json
+            build/Testing/Temporary/LastTest.log
+            build/WinRecomp.bundle
+            build/Zydis.bundle
+            build/Zycore.bundle
+          retention-days: 14
+          if-no-files-found: warn
+  windows_gui_memory:
+    needs: publish
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Configure native boundary with Windows AddressSanitizer
+        run: cmake -S . -B asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
+      - name: Compile native startup and failure-path tests
+        run: cmake --build asan --target winrecomp_cpu_queries winrecomp_module_tests winrecomp_exception_unwind winrecomp_gui_boundary winrecomp_directdraw_boundary winrecomp_legacy_modes winrecomp_resource_tests --parallel 2
+      - name: Check native callback and descriptor lifetime errors
+        run: ctest --test-dir asan -R "^(cpu_queries|modules|exception_unwind|gui_boundary|directdraw_boundary|legacy_modes|resources)$" --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: module-startup-asan
+          path: asan/Testing/Temporary/LastTest.log
+          retention-days: 14
+          if-no-files-found: warn

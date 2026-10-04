@@ -1,0 +1,249 @@
+diff --git a/tests/integer_cases.py b/tests/integer_cases.py
+index 945cf18..c0f8b39 100644
+--- a/tests/integer_cases.py
++++ b/tests/integer_cases.py
+@@ -3 +3,9 @@ def cases():
+-    out={}
++    out={
++        'pushfd_read':'9c58c3',
++        'pushf_read':'669c6658c3',
++        'popfd_roundtrip':'9c9dc3',
++        'popf_roundtrip':'669c669dc3',
++        'popfd_id_toggle':'9c583500002000509d9c58c3',
++        'popfd_defined_status':'25d50c20000d00020000509d9c58fcc3',
++        'popf_defined_status':'6625d50c660d00026650669d669c6658fcc3',
++    }
+diff --git a/tests/module_program.py b/tests/module_program.py
+new file mode 100644
+index 0000000..cfb2aa7
+--- /dev/null
++++ b/tests/module_program.py
+@@ -0,0 +1,83 @@
++"""Compiled PE32/x64 module fallback and CPU-query comparison.
++
++Only author-written fixtures. On Windows the original runs under the native
++PE32 loader. Missing DLL names are random, never the game's libraries.
++"""
++from __future__ import annotations
++import argparse
++import hashlib
++import json
++from pathlib import Path
++import shutil
++import struct
++import subprocess
++import uuid
++from program import imports
++from window_program import Assembler
++from fixtures import put32
++import conformance as c
++
++RECORD=0x402a00
++NAME=0x402900
++KERNEL=0x402940
++MISSING=0x402980
++WRITTEN=0x402a40
++HANDLE=0x402a44
++
++def fixture(missing: str):
++    b=Assembler();k='KERNEL32.dll'
++    # Original and generated code execute the same flag/CPUID instructions.
++    # Compare the stable vendor/basic-leaf query, not per-core APIC identifiers.
++    b.emit('9c589c5e3500002000509d9c5831f02500002000')
++    b.eax_is(0x200000,'ID flag round-trip');b.store(RECORD)
++    b.emit('569d31c031c90fa2');b.store(RECORD+4)
++    for op,offset in [('891d',8),('890d',12),('8915',16)]:b.emit(op);b.word(RECORD+offset)
++    b.invoke(k,'LoadLibraryA',KERNEL);b.nonzero('load known bridge');b.store(HANDLE)
++    b.invoke(k,'GetModuleHandleA',KERNEL);b.emit('3b05');b.word(HANDLE);b.fail('same loaded module identity','0f85')
++    b.invoke(k,'FreeLibrary',(HANDLE,));b.nonzero('release additional module reference')
++    b.invoke(k,'GetModuleHandleA',KERNEL);b.nonzero('static module still exists')
++    b.invoke(k,'SetLastError',0)
++    b.invoke(k,'LoadLibraryA',MISSING);b.eax_is(0,'missing DLL returns NULL')
++    b.invoke(k,'GetLastError');b.eax_is(126,'missing DLL last error');b.store(RECORD+20)
++    b.invoke(k,'CreateFileA',NAME,0x40000000,0,0,2,0x80,0)
++    b.emit('83f8ff');b.fail('file must open','0f84');b.store(HANDLE)
++    b.invoke(k,'WriteFile',(HANDLE,),RECORD,24,WRITTEN,0);b.nonzero('write record');b.compare(WRITTEN,24,'written size')
++    b.invoke(k,'CloseHandle',(HANDLE,));b.nonzero('close output')
++    b.invoke(k,'ExitProcess',0);b.emit('c3');b.finish()
++    names=sorted({name for _,_,name in b.calls})
++    for pos,_,name in b.calls:struct.pack_into('<I',b.code,pos,0x402180+4*names.index(name))
++    raw=imports(b.code,names)
++    for offset,value in [(4,(len(b.code)+511)&~511),(8,4096),(20,0x1000),(24,0x2000),(40,5),(48,5),(72,0x100000),(76,0x1000),(80,0x100000),(84,0x1000)]:put32(raw,0x98+offset,value)
++    at=struct.unpack_from('<I',raw,0x98+224+40+20)[0]
++    for address,text in [(NAME,'cpu-module.bin'),(KERNEL,'kernel32.dll'),(MISSING,missing)]:
++        encoded=text.encode('ascii')+b'\0';raw[at+address-0x402000:at+address-0x402000+len(encoded)]=encoded
++    assert len(b.code)<4096
++    return raw
++
++def main():
++    ap=argparse.ArgumentParser();ap.add_argument('--tool',type=Path,required=True);ap.add_argument('--out',type=Path,required=True);ap.add_argument('--cxx',default='c++');a=ap.parse_args()
++    a.out=a.out.resolve();a.tool=a.tool.resolve();a.out.mkdir(parents=True,exist_ok=True)
++    name='wr_absent_'+uuid.uuid4().hex+'.dll';pe=a.out/'input.exe';pe.write_bytes(fixture(name))
++    project=a.out/'project';shutil.rmtree(project,ignore_errors=True)
++    c.run([str(a.tool),'project',str(pe),str(project)])
++    c.run(['cmake','-S',str(project),'-B',str(project/'build'),'-G','Ninja','-DCMAKE_BUILD_TYPE=Release',f'-DWINRECOMP_SOURCE={c.ROOT}',f'-DCMAKE_CXX_COMPILER={a.cxx}'])
++    c.run(['cmake','--build',str(project/'build'),'--target','recompiled_program','--parallel','2'])
++    exe=project/'build'/('recompiled_program.exe' if c.os.name=='nt' else 'recompiled_program')
++    outputs={};runs={}
++    labels=['original','generated'] if c.os.name=='nt' else ['generated']
++    for label in labels:
++        root=a.out/label;root.mkdir(exist_ok=True);out=root/'cpu-module.bin'
++        if out.exists():out.unlink()
++        cmd=[str(pe)] if label=='original' else [str(exe),str(pe),'--root',str(root),'--dll-dir','.', '--allow-write','--report',str(a.out/'process.json')]
++        r=subprocess.run(cmd,cwd=root,capture_output=True,text=True,timeout=45)
++        if r.returncode:raise RuntimeError(f'{label} failed: {r.returncode}\n{r.stdout}\n{r.stderr}')
++        outputs[label]=out.read_bytes();assert len(outputs[label])==24
++        record=struct.unpack('<6I',outputs[label]);assert record[0]==0x200000 and record[-1]==126 and record[1]>0,record
++        runs[label]={'status':'passed','record':list(record),'sha256':hashlib.sha256(outputs[label]).hexdigest()}
++    if 'original' in outputs:assert outputs['original']==outputs['generated'],'CPUID/module original-vs-compiled result differs'
++    p=json.loads((a.out/'process.json').read_text());assert p['exited'] and p['exit_code']==0
++    assert p['module_lookups'][-1]['name']==name and p['module_lookups'][-1]['result']=='absent_in_declared_namespace'
++    evidence={'schema':'winrecomp.module-program.v1','platform':c.os.name,'runs':runs,'original_windows_executed':c.os.name=='nt','process':p,'scope':'Authored module/CPUID/flags program; not game execution or full Windows DLL search fidelity'}
++    (a.out/'acceptance.json').write_text(json.dumps(evidence,indent=2)+'\n')
++    print('Compiled flags, native CPUID and module lookup program passed; original Windows comparison:',c.os.name=='nt')
++if __name__=='__main__':main()
+diff --git a/tests/modules.cpp b/tests/modules.cpp
+new file mode 100644
+index 0000000..dd55c0c
+--- /dev/null
++++ b/tests/modules.cpp
+@@ -0,0 +1,100 @@
++#include "winrecomp/process.hpp"
++#include "winrecomp/win32_state.hpp"
++#include <fstream>
++#include <iostream>
++#include <random>
++#ifdef _WIN32
++#ifndef NOMINMAX
++#define NOMINMAX
++#endif
++#include <windows.h>
++#endif
++namespace {
++unsigned checks{};
++#define CHECK(x) do{++checks;if(!(x))throw std::runtime_error("module assertion: " #x);}while(0)
++bool step(wr::Cpu&,wr::Memory&,std::uint64_t&){return false;}
++wr::Image image(){wr::Image im;im.base=0x400000;im.entry=0x401000;im.size=0x3000;im.headers_size=512;im.bytes.resize(1024);im.bytes[512]=0xc3;im.sections={{".text",0x1000,512,512,512,0x60000020}};return im;}
++wr::U32 call(wr::Process& p,const char* name,std::initializer_list<wr::U32> args) {
++    const auto saved=p.cpu;
++    try {
++        for(auto i=args.end();i!=args.begin();)wr::push(p.cpu,p.memory,*--i);
++        wr::push(p.cpu,p.memory,saved.eip);p.cpu.eip=p.resolve("kernel32.dll",name);
++        CHECK(p.cpu.eip && p.dispatch_api());CHECK(p.cpu.r[wr::ESP]==saved.r[wr::ESP]);
++        CHECK(p.cpu.eip==saved.eip);auto result=p.cpu.r[wr::EAX];p.cpu=saved;return result;
++    }catch(...){p.cpu=saved;throw;}
++}
++template<class F> void unsupported(F action){bool caught=false;try{action();}catch(const wr::GuestFault& e){CHECK(e.kind==wr::FaultKind::unsupported);caught=true;}CHECK(caught);}
++struct Root {
++    std::filesystem::path path=std::filesystem::temp_directory_path()/("wr-module-"+std::to_string(std::random_device{}()));
++    Root(){if(!std::filesystem::create_directory(path))throw std::runtime_error("fresh module directory required");}
++    ~Root(){std::error_code error;std::filesystem::remove_all(path,error);}
++};
++}
++int main(){
++#ifdef _WIN32
++    SetErrorMode(SEM_FAILCRITICALERRORS|SEM_NOGPFAULTERRORBOX);
++#endif
++try{
++    Root root;wr::ProcessOptions o;o.data_root=root.path;
++    {
++        wr::Process p(step,o);p.load(image());
++        const auto name=p.put_string("wr_unconfigured_8547e761.dll");
++        unsupported([&]{call(p,"LoadLibraryA",{name});});
++        CHECK(p.state().module_lookups.back().result=="search_unconfigured");
++    }
++    o.dll_directories={"."};wr::Process p(step,o);p.load(image());
++    auto kernel=p.module("kernel32.dll",true);p.set_error(0x13579);
++    const auto k=p.put_string("KERNEL32"),lower=p.put_string("kernel32.dll");
++    CHECK(call(p,"LoadLibraryA",{k})==kernel);CHECK(p.last_error==0x13579);
++    CHECK(call(p,"LoadLibraryA",{lower})==kernel);CHECK(call(p,"GetModuleHandleA",{k})==kernel);
++    CHECK(call(p,"FreeLibrary",{kernel})==1);CHECK(call(p,"FreeLibrary",{kernel})==1);
++    CHECK(call(p,"GetModuleHandleA",{lower})==kernel);
++    unsupported([&]{call(p,"FreeLibrary",{kernel});});
++    CHECK(call(p,"FreeLibrary",{0})==0 && p.last_error==6);
++    CHECK(call(p,"FreeLibrary",{0xdeadbeef})==0 && p.last_error==6);
++    const auto empty=p.put_string("");CHECK(call(p,"GetModuleHandleA",{0})==p.image_base);
++    CHECK(call(p,"GetModuleHandleA",{empty})==0 && p.last_error==126);
++    p.register_api("wr_bridge.dll","Answer",0,[](auto&){return 42u;});
++    const auto dyn=p.put_string("wr_bridge.dll"),symbol=p.put_string("Answer");
++    CHECK(call(p,"GetModuleHandleA",{dyn})==0);
++    const auto d1=call(p,"LoadLibraryA",{dyn}),d2=call(p,"LoadLibraryA",{dyn});CHECK(d1 && d1==d2);
++    CHECK(call(p,"GetProcAddress",{d1,symbol})==p.resolve("wr_bridge.dll","Answer"));
++    CHECK(call(p,"FreeLibrary",{d1})==1);CHECK(call(p,"GetModuleHandleA",{dyn})==d1);
++    CHECK(call(p,"FreeLibrary",{d2})==1);CHECK(call(p,"GetModuleHandleA",{dyn})==0);
++    CHECK(call(p,"FreeLibrary",{d1})==0 && p.last_error==6);
++    const auto d3=call(p,"LoadLibraryA",{dyn});CHECK(d3 && d3!=d1);
++    CHECK(call(p,"FreeLibrary",{d3})==1);
++    const std::string missing="wr_missing_9e177d4ed3cd4ceea39e145e3e6e9b3b.dll";
++    const auto absent=p.put_string(missing);
++    CHECK(call(p,"LoadLibraryA",{absent})==0 && p.last_error==126);
++    CHECK(p.state().module_lookups.back().result=="absent_in_declared_namespace");
++    CHECK(p.state().module_lookups.back().searched.size()==1);
++#ifdef _WIN32
++    // Independent OS result for a name absent on this runner. Never load a
++    // game library or fixture containing code just to obtain a reference.
++    SetLastError(0);const auto native=::LoadLibraryA(missing.c_str());
++    const auto error=GetLastError();if(native)::FreeLibrary(native);
++    CHECK(!native && error==ERROR_MOD_NOT_FOUND);
++#endif
++    // A present-but-untranslated file MUST NOT be reported missing; otherwise
++    // the library resolver could force an incorrect game fallback branch.
++    std::ofstream(root.path/"WR_PRESENT.dll")<<"not a DLL";
++    auto present=p.put_string("wr_present");unsupported([&]{call(p,"LoadLibraryA",{present});});
++    CHECK(p.state().module_lookups.back().result=="present_untranslated");
++    std::ofstream(root.path/"no_extension")<<"present without extension";
++    auto noext=p.put_string("no_extension.");unsupported([&]{call(p,"LoadLibraryA",{noext});});
++    CHECK(call(p,"LoadLibraryA",{p.put_string("no_extension")})==0 && p.last_error==126);
++    for(const auto& invalid:{"..","../wr.dll","sub\\wr.dll","C:\\wr.dll","*.dll","wr.dll ","wr.dll\n"})
++        unsupported([&]{call(p,"LoadLibraryA",{p.put_string(invalid)});});
++    CHECK(p.module("C:\\elsewhere\\kernel32.dll")==0); // no basename alias of a different path
++    auto other=root.path/"other";std::filesystem::create_directory(other);
++    std::ofstream(other/"second.dll")<<"present in second directory";
++    p.options.dll_directories.push_back(other);
++    unsupported([&]{call(p,"LoadLibraryA",{p.put_string("second")});});
++    CHECK(p.state().module_lookups.back().searched.size()==2);
++    std::filesystem::remove_all(other);
++    unsupported([&]{call(p,"LoadLibraryA",{absent});});
++    CHECK(p.state().module_lookups.back().result=="search_failed");
++    CHECK(p.report().find("explicit-directories-and-owned-bridges")!=std::string::npos);
++    std::cout<<checks<<" module lookup/refcount/absence assertions passed\n";return 0;
++}catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}}
+diff --git a/verification/source-hashes.json b/verification/source-hashes.json
+index c7935df..bba880e 100644
+--- a/verification/source-hashes.json
++++ b/verification/source-hashes.json
+@@ -6 +6 @@
+-    "CMakeLists.txt": "0149f01be8f8e3760cae36056c56fb7d158b34aee570a1d290d6bbb0b7312bb3",
++    "CMakeLists.txt": "fcb932cbf3c6dd0e76ffd5085912a07ce19089dcab740b7d9a3facc2dba62ab4",
+@@ -11 +11 @@
+-    "include/winrecomp/integer.hpp": "10777e00720fc8b00d40c808dac4bc90ee234d404297d4076ec1721ef73666a7",
++    "include/winrecomp/integer.hpp": "b121783e5405122d1e9e8ad998a6218642f5972b4a6043b189d34efaac9b454c",
+@@ -14 +14 @@
+-    "include/winrecomp/process.hpp": "080263cbd8f9d93ab2bd408bfabec91a190191933d1e5b043cc261f0fa2f55a4",
++    "include/winrecomp/process.hpp": "5dfa67dc6c9567ee2367ed510c706c6578ff18240ea706f69dd30d000158b5fe",
+@@ -17 +17 @@
+-    "include/winrecomp/win32_state.hpp": "fd3bddcc125cd92d3154f0bbfb22e9b353d11eea5330eeed13ba5a106baea1be",
++    "include/winrecomp/win32_state.hpp": "a9097ca1780315397874284fe58c42ce91f5707b7fa52eea9205f106e5b28c23",
+@@ -20 +20 @@
+-    "src/lift.cpp": "2bfa9299f020ee4af90b7c3206e954e54a218d56e0b8520ba800e88e04ca12f7",
++    "src/lift.cpp": "1d3697f774fa00ba84b16df6a5a77386f5aca6f1e7a8a4244fff7e4dff6ed13d",
+@@ -23,2 +23,2 @@
+-    "src/runtime/process.cpp": "a689e69375f1ba5f80aa7876d0c8083fd170c51f02aa46ef1d27cb835472f0b0",
+-    "src/runtime/win32.cpp": "147d1e4622896478184714287508e4e52cc84867f94833c780b8fae6ea5dc3ae",
++    "src/runtime/process.cpp": "e7225ba30adce338cff99287d2eff7d1ae009c9962fafb76fc5075a0067c3a2c",
++    "src/runtime/win32.cpp": "4a122b0bf9f864a1bd6298881d4626a7259a8347a3b20cf4e97cc8bc3fdfd9dc",
+@@ -36 +36 @@
+-    "tests/integer_cases.py": "cd65632dffd8bef133634dd94e72e6298ebb0676e250479a67d3938fd6498afd",
++    "tests/integer_cases.py": "b83a8bba3f1f8be9c3fc02606a211e1cdd0df85f5b93a145741d48d8939a394e",
+@@ -68 +68 @@
+-    "tests/directdraw_program.py": "223f94ca5e5b23514227316946e642234c22483b7bbd0bc2bf4fbece3181ebfe",
++    "tests/directdraw_program.py": "13b5673cbfd987115d1e1bd6b1662a7bad5aedd2bcff7c08416b9c7af1ac5280",
+@@ -72 +72,7 @@
+-    ".github/workflows/windows-startup.yml": "3a4488e217fa444a1009ab5120c18d278ce341d10de6c5a3a9136ae1fd718d58"
++    ".github/workflows/windows-startup.yml": "3a4488e217fa444a1009ab5120c18d278ce341d10de6c5a3a9136ae1fd718d58",
++    "examples/e3_2000/windows-x64.json": "6da6247deadfe4b5d5f819cb16ca5e1517fa080344a7dfa33a898b172b0b2790",
++    "include/winrecomp/cpu_queries.hpp": "1ddcc23a21c1650a10cb49da8b5a395bd9c5682c0a372d0a9fc9dd87030dbd39",
++    "src/runtime/modules.cpp": "e9c3bdd22e979f0e1a0421c34049029302a233f59528e52033a9710884399925",
++    "tests/cpu_queries.cpp": "6ab038b17ad7170775c19828d3a0f7546d54b9fa163ce78d2020fd3a3672adf3",
++    "tests/module_program.py": "20b375a20a975e8ba2deb8f52ecebfc4ba117c2d98f3b224c1c1baae601a8891",
++    "tests/modules.cpp": "f83c09a689087097e341bfdabf18ab1db89f32cba244951e0511f49d6939a9b3"

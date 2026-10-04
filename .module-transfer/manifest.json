@@ -1,0 +1,23 @@
+{
+  "base_commit": "9c7e077ed8615cdad2da4c847cf2b173084e7117",
+  "patch_sha256": "ec9847b6268a0a6a3f8e3b057642e7bcf5009e430bc21c8ff4a8bbdbccd28041",
+  "changed_sha256": {
+    "CMakeLists.txt": "fcb932cbf3c6dd0e76ffd5085912a07ce19089dcab740b7d9a3facc2dba62ab4",
+    "examples/e3_2000/windows-x64.json": "6da6247deadfe4b5d5f819cb16ca5e1517fa080344a7dfa33a898b172b0b2790",
+    "include/winrecomp/cpu_queries.hpp": "1ddcc23a21c1650a10cb49da8b5a395bd9c5682c0a372d0a9fc9dd87030dbd39",
+    "include/winrecomp/integer.hpp": "b121783e5405122d1e9e8ad998a6218642f5972b4a6043b189d34efaac9b454c",
+    "include/winrecomp/process.hpp": "5dfa67dc6c9567ee2367ed510c706c6578ff18240ea706f69dd30d000158b5fe",
+    "include/winrecomp/win32_state.hpp": "a9097ca1780315397874284fe58c42ce91f5707b7fa52eea9205f106e5b28c23",
+    "src/lift.cpp": "1d3697f774fa00ba84b16df6a5a77386f5aca6f1e7a8a4244fff7e4dff6ed13d",
+    "src/runtime/modules.cpp": "e9c3bdd22e979f0e1a0421c34049029302a233f59528e52033a9710884399925",
+    "src/runtime/process.cpp": "e7225ba30adce338cff99287d2eff7d1ae009c9962fafb76fc5075a0067c3a2c",
+    "src/runtime/win32.cpp": "4a122b0bf9f864a1bd6298881d4626a7259a8347a3b20cf4e97cc8bc3fdfd9dc",
+    "tests/cpu_queries.cpp": "6ab038b17ad7170775c19828d3a0f7546d54b9fa163ce78d2020fd3a3672adf3",
+    "tests/directdraw_program.py": "13b5673cbfd987115d1e1bd6b1662a7bad5aedd2bcff7c08416b9c7af1ac5280",
+    "tests/integer_cases.py": "b83a8bba3f1f8be9c3fc02606a211e1cdd0df85f5b93a145741d48d8939a394e",
+    "tests/module_program.py": "20b375a20a975e8ba2deb8f52ecebfc4ba117c2d98f3b224c1c1baae601a8891",
+    "tests/modules.cpp": "f83c09a689087097e341bfdabf18ab1db89f32cba244951e0511f49d6939a9b3",
+    "verification/source-hashes.json": "93e3c7c8fcbf87542fc952a0af30cc34e74452107c7e35690cca3481b4b822c8"
+  },
+  "patch_bytes": 34156
+}

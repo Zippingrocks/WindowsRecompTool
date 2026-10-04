@@ -1,0 +1,210 @@
+diff --git a/src/lift.cpp b/src/lift.cpp
+index 9730f80..73c3be7 100644
+--- a/src/lift.cpp
++++ b/src/lift.cpp
+@@ -211,0 +212,3 @@ std::string translate_unlocked(const Instruction& i) {
++    case ZYDIS_MNEMONIC_CPUID:return "wr::host_cpuid(s);";
++    case ZYDIS_MNEMONIC_PUSHF:case ZYDIS_MNEMONIC_PUSHFD:return "wr::push_flags(s,m,"+std::to_string(i.decoded.operand_width)+");";
++    case ZYDIS_MNEMONIC_POPF:case ZYDIS_MNEMONIC_POPFD:return "wr::pop_flags(s,m,"+std::to_string(i.decoded.operand_width)+");";
+diff --git a/src/runtime/modules.cpp b/src/runtime/modules.cpp
+new file mode 100644
+index 0000000..aee1b1f
+--- /dev/null
++++ b/src/runtime/modules.cpp
+@@ -0,0 +1,94 @@
++#include "winrecomp/process.hpp"
++#include "winrecomp/win32_state.hpp"
++#include <algorithm>
++#include <limits>
++
++namespace wr {
++namespace {
++std::string fold(std::string value) {
++    for(auto& c:value)if(c>='A' && c<='Z')c=char(c-'A'+'a');
++    return value;
++}
++std::string library_key(const std::string& name) {
++    if(name.empty() || name.size()>255 || name=="." || name=="..")
++        throw std::invalid_argument("empty or oversized module name");
++    for(unsigned char c:name)if(c<32 || c>=127 || std::string("/\\:*?\"<>|").find(char(c))!=std::string::npos)
++        throw std::invalid_argument("only literal ASCII module basenames are supported");
++    if(name.back()==' ')throw std::invalid_argument("ambiguous trailing-space module name");
++    auto key=fold(name);
++    if(key.back()=='.')key.pop_back(); // A trailing dot suppresses the default .dll extension.
++    else if(key.find('.')==std::string::npos)key+=".dll";
++    return key;
++}
++}
++U32 Process::module(const std::string& name,bool create) {
++    std::string key;
++    try{key=library_key(name);}catch(const std::invalid_argument&){set_error(126);return 0;}
++    if(key==fold(options.image_name))return image_base;
++    if(auto it=modules_.find(key);it!=modules_.end())return it->second.handle;
++    if(!create){set_error(126);return 0;}
++    if(next_module_>=0xef000000u)throw GuestFault(FaultKind::unsupported,cpu.eip,"module handle budget exhausted");
++    const auto handle=next_module_;next_module_+=0x10000;
++    modules_.emplace(key,Module{handle,1,true});return handle;
++}
++std::string Process::module_name(U32 handle) const {
++    for(const auto& [key,value]:modules_)if(value.handle==handle)return key;
++    return {};
++}
++U32 Process::load_library(const std::string& name) {
++    std::string key;
++    try{key=library_key(name);}catch(const std::invalid_argument& error){
++        throw GuestFault(FaultKind::unsupported,cpu.eip,error.what());
++    }
++    auto& history=state().module_lookups;
++    history.push_back({key,"pending",{}});if(history.size()>32)history.pop_front();
++    auto& event=history.back();
++    if(auto it=modules_.find(key);it!=modules_.end()) {
++        if(it->second.references==std::numeric_limits<U32>::max()) {
++            event.result="reference_count_overflow";set_error(8);return 0;
++        }
++        ++it->second.references;event.result="existing_bridge";return it->second.handle;
++    }
++    // A registered, owned API bridge is not an arbitrary native DLL. No host
++    // function pointer or original x86 DLL code is admitted through this path.
++    const bool bridge=std::any_of(apis_.begin(),apis_.end(),[&](const auto& entry){
++        return entry.second.dll==key && bool(entry.second.function);
++    });
++    if(bridge) {
++        if(next_module_>=0xef000000u)throw GuestFault(FaultKind::unsupported,cpu.eip,"module handle budget exhausted");
++        const auto handle=next_module_;next_module_+=0x10000;
++        modules_.emplace(key,Module{handle,1,false});event.result="registered_bridge";return handle;
++    }
++    // Missing optional libraries are meaningful only in an explicitly declared
++    // guest namespace. No directories means unknown, NOT "file not found".
++    // This is deliberately not the Windows host's PATH/SxS/registry search.
++    if(options.dll_directories.empty()) {
++        event.result="search_unconfigured";
++        throw GuestFault(FaultKind::unsupported,cpu.eip,"module lookup requires explicit --dll-dir search roots for "+key);
++    }
++    try {
++        for(const auto& directory:options.dll_directories) {
++            event.searched.push_back(directory.generic_string());
++            for(const auto& item:std::filesystem::directory_iterator(directory)) {
++                if(fold(item.path().filename().string())!=key)continue;
++                event.result="present_untranslated";
++                throw GuestFault(FaultKind::unsupported,cpu.eip,"module present but has no compiled bridge: "+key);
++            }
++        }
++    }catch(const std::filesystem::filesystem_error&){
++        event.result="search_failed";
++        throw GuestFault(FaultKind::unsupported,cpu.eip,"cannot establish module absence: directory search failed for "+key);
++    }
++    event.result="absent_in_declared_namespace";set_error(126);return 0;
++}
++U32 Process::free_library(U32 handle) {
++    for(auto it=modules_.begin();it!=modules_.end();++it)if(it->second.handle==handle) {
++        auto& value=it->second;
++        if(value.imported && value.references==1)
++            throw GuestFault(FaultKind::unsupported,cpu.eip,"unloading the final static-import module reference is unsupported");
++        if(!--value.references)modules_.erase(it);
++        return 1;
++    }
++    set_error(6);return 0;
++}
++}
+diff --git a/src/runtime/process.cpp b/src/runtime/process.cpp
+index 5b714d9..65a3039 100644
+--- a/src/runtime/process.cpp
++++ b/src/runtime/process.cpp
+@@ -27,0 +28,5 @@ Process::Process(StepFunction step,ProcessOptions opts):win32_(std::make_unique<
++    for(auto& dir:options.dll_directories) {
++        if(dir.is_relative())dir=options.data_root/dir;
++        dir=std::filesystem::canonical(dir);
++        if(!std::filesystem::is_directory(dir))throw std::runtime_error("DLL search root is not a directory");
++    }
+@@ -84,9 +88,0 @@ U32 Process::resolve(const std::string& dll,const std::string& name,bool allow_u
+-U32 Process::module(const std::string& dll,bool create) {
+-    auto key=canonical(dll);if(key.empty())return image_base;
+-    const auto path=key.find_last_of("/\\");if(path!=std::string::npos)key=key.substr(path+1);
+-    if(key.find('.')==std::string::npos)key+=".dll";
+-    if(auto it=modules_.find(key);it!=modules_.end())return it->second;
+-    if(!create){set_error(126);return 0;}
+-    const auto value=next_module_;next_module_+=0x10000;modules_[key]=value;return value;
+-}
+-std::string Process::module_name(U32 handle) const {for(const auto& [name,value]:modules_)if(value==handle)return name;return {};}
+@@ -102 +98 @@ bool Process::dispatch_api() {
+-    if(!arguments.empty() && (api.name=="CreateFileA" || api.name=="FindFirstFileA" || api.name=="CreateDirectoryA" || api.name=="CreateMutexA")) {
++    if(!arguments.empty() && (api.name=="LoadLibraryA" || api.name=="GetModuleHandleA" || api.name=="CreateFileA" || api.name=="FindFirstFileA" || api.name=="CreateDirectoryA" || api.name=="CreateMutexA")) {
+@@ -186 +182,3 @@ std::string Process::report() const {
+-    bool first=true;for(const auto& x:recent_transfers){if(!first)out<<',';first=false;out<<"{\"pc\":"<<x.pc<<",\"return\":"<<x.return_address<<",\"api\":"<<quote(x.api)<<",\"arguments\":[";for(std::size_t n=0;n<x.arguments.size();++n){if(n)out<<',';out<<x.arguments[n];}out<<"],\"detail\":"<<quote(x.detail)<<"}";}out<<"],\"gui\":"<<(gui_?gui_->report():"null")<<",\"directdraw\":"<<(directdraw_?directdraw_->report():"null")<<"}";return out.str();
++    bool first=true;for(const auto& x:recent_transfers){if(!first)out<<',';first=false;out<<"{\"pc\":"<<x.pc<<",\"return\":"<<x.return_address<<",\"api\":"<<quote(x.api)<<",\"arguments\":[";for(std::size_t n=0;n<x.arguments.size();++n){if(n)out<<',';out<<x.arguments[n];}out<<"],\"detail\":"<<quote(x.detail)<<"}";}out<<"],\"module_search_policy\":\"explicit-directories-and-owned-bridges\",\"module_lookups\":[";
++    first=true;for(const auto& e:win32_->module_lookups){if(!first)out<<',';first=false;out<<"{\"name\":"<<quote(e.name)<<",\"result\":"<<quote(e.result)<<",\"searched\":[";for(std::size_t n=0;n<e.searched.size();++n){if(n)out<<',';out<<quote(e.searched[n]);}out<<"]}";}
++    out<<"],\"gui\":"<<(gui_?gui_->report():"null")<<",\"directdraw\":"<<(directdraw_?directdraw_->report():"null")<<"}";return out.str();
+@@ -191 +189 @@ int run_program(int argc,char** argv,StepFunction step,const char* expected_sha2
+-        if(argc<2)throw std::runtime_error("usage: recompiled_program original.exe [--root data-directory] [--budget N] [--report report.json] [--allow-write]");
++        if(argc<2)throw std::runtime_error("usage: recompiled_program original.exe [--root data-directory] [--budget N] [--report report.json] [--allow-write] [--dll-dir guest-library-directory]");
+@@ -195 +193 @@ int run_program(int argc,char** argv,StepFunction step,const char* expected_sha2
+-            if(arg=="--root")options.data_root=value;else if(arg=="--report")report_path=value;else if(arg=="--command-line")options.command_line=value;
++            if(arg=="--root")options.data_root=value;else if(arg=="--dll-dir")options.dll_directories.emplace_back(value);else if(arg=="--report")report_path=value;else if(arg=="--command-line")options.command_line=value;
+diff --git a/src/runtime/win32.cpp b/src/runtime/win32.cpp
+index fa1f6c5..f75b3cc 100644
+--- a/src/runtime/win32.cpp
++++ b/src/runtime/win32.cpp
+@@ -324 +324,2 @@ void install_win32(Process& p) {
+-    kernel(p,"LoadLibraryA",1,[](auto& q){auto name=q.read_string(arg(q,0));auto result=q.module(name,false);if(!result)throw GuestFault(FaultKind::unsupported,q.cpu.eip,"module loading not implemented for "+name);return result;});
++    kernel(p,"LoadLibraryA",1,[](auto& q){return q.load_library(q.read_string(arg(q,0)));});
++    kernel(p,"FreeLibrary",1,[](auto& q){return q.free_library(arg(q,0));});
+diff --git a/tests/cpu_queries.cpp b/tests/cpu_queries.cpp
+new file mode 100644
+index 0000000..3ce5875
+--- /dev/null
++++ b/tests/cpu_queries.cpp
+@@ -0,0 +1,43 @@
++#include "winrecomp/cpu_queries.hpp"
++#include <iostream>
++#include <random>
++namespace {
++unsigned checks{};
++#define CHECK(x) do{++checks;if(!(x))throw std::runtime_error("CPU query assertion: " #x);}while(0)
++}
++int main(){try{
++    wr::Cpu s;wr::Memory m;m.map(0x10000,4096,3);s.r[wr::ESP]=0x10800;
++    std::mt19937 random(982531);
++    for(unsigned i=0;i<1024;++i){
++        auto flags=(random()&(wr::STATUS_FLAGS|wr::DF|0x200000u))|0x202u;
++        s.flags=flags;const auto sp=s.r[wr::ESP];
++        wr::push_flags(s,m,32);CHECK(m.load(sp-4,32)==flags);
++        s.flags=0x202;wr::pop_flags(s,m,32);CHECK(s.flags==flags && s.r[wr::ESP]==sp);
++        wr::push(s,m,0xffffffffu&~(0x100u|0x40000u|0x4000u));wr::pop_flags(s,m,32);
++        CHECK(s.flags==((wr::STATUS_FLAGS|wr::DF|0x200000u)|0x202u));
++        s.flags=flags;wr::push(s,m,0x2u,16);wr::pop_flags(s,m,16);
++        CHECK(s.flags==((flags&0x200000u)|0x202u));CHECK(s.r[wr::ESP]==sp);
++    }
++    for(auto flags:{0x100u,0x40000u}){
++        wr::push(s,m,flags);const auto old=s;bool caught=false;
++        try{wr::pop_flags(s,m,32);}catch(const wr::GuestFault& e){CHECK(e.kind==wr::FaultKind::unsupported);caught=true;}
++        CHECK(caught && s.r==old.r && s.flags==old.flags);wr::pop(s,m);
++    }
++    s.flags=0x10202;wr::push_flags(s,m,32);CHECK(wr::pop(s,m)==0x202);
++    // CPUID(0) is stable across cores. Compare direct native instruction output
++    // with the helper and verify that unrelated guest state is preserved.
++    wr::U32 a,b,c,d;
++#if defined(_MSC_VER)
++    int output[4];__cpuidex(output,0,0);a=wr::U32(output[0]);b=wr::U32(output[1]);c=wr::U32(output[2]);d=wr::U32(output[3]);
++#else
++    __asm__ volatile("cpuid":"=a"(a),"=b"(b),"=c"(c),"=d"(d):"a"(0),"c"(0));
++#endif
++    for(unsigned i=0;i<256;++i){
++        for(auto& reg:s.r)reg=random();s.r[wr::EAX]=0;s.r[wr::ECX]=0;
++        s.flags=0x202u|(random()&wr::STATUS_FLAGS);const auto before=s;
++        wr::host_cpuid(s);CHECK(s.r[wr::EAX]==a && s.r[wr::EBX]==b && s.r[wr::ECX]==c && s.r[wr::EDX]==d);
++        CHECK(s.flags==before.flags && s.defined_flags==before.defined_flags && s.eip==before.eip);
++        for(unsigned r:{wr::ESP,wr::EBP,wr::ESI,wr::EDI})CHECK(s.r[r]==before.r[r]);
++    }
++    std::cout<<checks<<" CPU flag/query assertions passed\n";return 0;
++}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+diff --git a/tests/directdraw_program.py b/tests/directdraw_program.py
+index bc4ab6d..7918c00 100644
+--- a/tests/directdraw_program.py
++++ b/tests/directdraw_program.py
+@@ -149 +149,5 @@ def main():
+-    assert mode_bytes==(original/'modes.bin').read_bytes() and len(mode_bytes)==32,'original/generated mode callback mismatch'
++    original_modes=(original/'modes.bin').read_bytes()
++    rows={'original':list(struct.unpack('<8I',original_modes)), 'generated':list(struct.unpack('<8I',mode_bytes))}
++    print('Native PE32 and generated x64 mode records:',rows,flush=True)
++    (args.out/'mode-comparison.json').write_text(json.dumps(rows,indent=2)+'\n')
++    assert mode_bytes==original_modes and len(mode_bytes)==32,rows
