@@ -29,6 +29,8 @@ public:
     virtual Status get_state(std::uint32_t,std::uint32_t&)=0;
     virtual Status triangles(std::span<const Vertex>)=0;
     // One stage, one level. Pixels are host-owned copies, never guest pointers.
+    virtual Status indexed_triangles(std::span<const Vertex>,std::span<const std::uint16_t>)=0;
+    virtual Status indexed_textured_triangles(std::span<const TexturedVertex>,std::span<const std::uint16_t>)=0;
     virtual Status texture(std::uint32_t width,std::uint32_t height,bool alpha,
                            std::span<const std::uint8_t>)=0;
     virtual Status unbind_texture()=0;

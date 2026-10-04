@@ -1,4 +1,5 @@
 #include "winrecomp/d3d9_host.hpp"
+#include "winrecomp/indexed_geometry.hpp"
 #include <cmath>
 #include <algorithm>
 #include <cstring>
@@ -55,14 +56,14 @@ class NativeDevice final:public Device {
     Com<IDirect3DDevice9> device;Com<IDirect3DSurface9> target,staging;
     Com<IDirect3DTexture9> texture_image;
     DWORD thread=GetCurrentThreadId();unsigned width{},height{};bool scene{};
-    Capabilities caps{};
+    Capabilities caps{};DWORD max_index{};
     bool valid() const{return device.p && GetCurrentThreadId()==thread;}
 public:
     Status initialize(IDirect3D9* factory,HWND window,unsigned w,unsigned h){
         if(!window || !IsWindow(window) || GetWindowThreadProcessId(window,nullptr)!=thread ||
            !w || !h || w>MaxSize || h>MaxSize)return Invalid;
         D3DCAPS9 c{};auto hr=factory->GetDeviceCaps(0,D3DDEVTYPE_HAL,&c);if(FAILED(hr))return Status(hr);
-        caps=bounded(c);auto texture_hr=texture_limits(factory,c,caps.texture);if(failed(texture_hr))return texture_hr;
+        max_index=c.MaxVertexIndex;caps=bounded(c);auto texture_hr=texture_limits(factory,c,caps.texture);if(failed(texture_hr))return texture_hr;
         if(!caps.max_primitives || !(caps.misc&D3DPMISCCAPS_CULLNONE))return Unavailable;
         D3DPRESENT_PARAMETERS pp{};pp.Windowed=TRUE;pp.hDeviceWindow=window;
         pp.BackBufferWidth=w;pp.BackBufferHeight=h;pp.BackBufferFormat=D3DFMT_UNKNOWN;
@@ -143,6 +144,25 @@ public:
             !std::isfinite(v.rhw) || v.rhw<=0)return Invalid;
         auto hr=device.p->SetFVF(D3DFVF_XYZRHW|D3DFVF_DIFFUSE);if(FAILED(hr))return Status(hr);
         return Status(device.p->DrawPrimitiveUP(D3DPT_TRIANGLELIST,UINT(vertices.size()/3),vertices.data(),sizeof(Vertex)));
+    }
+    template<class V> Status indexed(std::span<const V> vertices,std::span<const std::uint16_t> indices,DWORD fvf){
+        if(!valid() || !scene)return Invalid;
+        const auto range=geometry::index_range(vertices.size(),indices,max_index,caps.max_primitives);
+        if(!range || !geometry::referenced_vertices_valid(vertices,indices))return Invalid;
+        auto hr=device.p->SetFVF(fvf);if(FAILED(hr))return Status(hr);
+        // Base pointer remains vertex zero. first/count describe the referenced
+        // range, not an offset to add a second time. DX7 uses WORD indices.
+        return Status(device.p->DrawIndexedPrimitiveUP(D3DPT_TRIANGLELIST,
+            range->first,range->vertices,range->primitives,indices.data(),D3DFMT_INDEX16,
+            vertices.data(),sizeof(V)));
+    }
+    Status indexed_triangles(std::span<const Vertex> vertices,std::span<const std::uint16_t> indices)override{
+        if(texture_image.p)return Invalid;
+        return indexed(vertices,indices,D3DFVF_XYZRHW|D3DFVF_DIFFUSE);
+    }
+    Status indexed_textured_triangles(std::span<const TexturedVertex> vertices,std::span<const std::uint16_t> indices)override{
+        if(!texture_image.p)return Invalid;
+        return indexed(vertices,indices,D3DFVF_XYZRHW|D3DFVF_DIFFUSE|D3DFVF_TEX1);
     }
     Status texture(std::uint32_t w,std::uint32_t h,bool alpha,std::span<const std::uint8_t> bytes)override{
         if(!valid() || !texture_size(caps.texture,w,h,alpha) || bytes.size()!=std::size_t(w)*h*4)return Invalid;

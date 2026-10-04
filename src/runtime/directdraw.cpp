@@ -1,6 +1,7 @@
 #include "winrecomp/directdraw.hpp"
 #include "winrecomp/process.hpp"
 #include "winrecomp/d3d9_host.hpp"
+#include "winrecomp/indexed_geometry.hpp"
 #include <array>
 #include <bit>
 #include <cstring>
@@ -77,7 +78,7 @@ class Draw final:public DirectDrawBackend {
     std::map<std::uintptr_t,HWND> cooperative_windows;
     // Retain controlling identity references while using their addresses as keys.
     std::map<std::uintptr_t,std::shared_ptr<IUnknown>> root_identities;
-    std::uint64_t renderer9_devices{},renderer9_draws{},renderer9_clears{},renderer9_readbacks{};
+    std::uint64_t renderer9_devices{},renderer9_draws{},renderer9_indexed_draws{},renderer9_clears{},renderer9_readbacks{};
     std::map<std::uintptr_t,U32> monitors;
     // D3D enumeration names remain usable after EnumDevices returns. These
     // process-owned read-only strings are not temporary callback payloads.
@@ -644,7 +645,7 @@ public:
         for(auto kind:{Interface::device7,Interface::surface7,Interface::clipper,Interface::d3d7,Interface::compat3d7,Interface::unknown,Interface::draw1,Interface::draw7})for(auto& [address,value]:objects){(void)address;if(value.native && value.kind==kind){for(U32 n=0;n<value.guest_refs;++n)value.native->Release();value.native=nullptr;}}
         cooperative_windows.clear();root_identities.clear();
     }
-    std::string report() const override{std::ostringstream out;out<<"{\"backend\":"<<quote(p.options.legacy_d3d9?"ddraw-d3d9-bounded":"native-ddraw7")<<",\"d3d9_devices\":"<<renderer9_devices<<",\"d3d9_draws\":"<<renderer9_draws<<",\"d3d9_clears\":"<<renderer9_clears<<",\"d3d9_readbacks\":"<<renderer9_readbacks<<",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"mode_callbacks\":"<<mode_callbacks<<",\"d3d7_wrappers\":"<<d3d_wrappers<<",\"d3d_device_callbacks\":"<<device_callbacks<<",\"mode7_callbacks\":"<<mode7_callbacks<<",\"zformat_callbacks\":"<<zformat_callbacks<<",\"d3d_devices_created\":"<<render_devices<<",\"texture_callbacks\":"<<texture_callbacks<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
+    std::string report() const override{std::ostringstream out;out<<"{\"backend\":"<<quote(p.options.legacy_d3d9?"ddraw-d3d9-bounded":"native-ddraw7")<<",\"d3d9_devices\":"<<renderer9_devices<<",\"d3d9_draws\":"<<renderer9_draws<<",\"d3d9_indexed_draws\":"<<renderer9_indexed_draws<<",\"d3d9_clears\":"<<renderer9_clears<<",\"d3d9_readbacks\":"<<renderer9_readbacks<<",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"mode_callbacks\":"<<mode_callbacks<<",\"d3d7_wrappers\":"<<d3d_wrappers<<",\"d3d_device_callbacks\":"<<device_callbacks<<",\"mode7_callbacks\":"<<mode7_callbacks<<",\"zformat_callbacks\":"<<zformat_callbacks<<",\"d3d_devices_created\":"<<render_devices<<",\"texture_callbacks\":"<<texture_callbacks<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
 };
 U32 Draw::vtable(Interface kind){
     if(auto it=vtables.find(kind);it!=vtables.end())return it->second;
@@ -698,6 +699,7 @@ U32 Draw::vtable(Interface kind){
             if(slot==20)method(3,[this](Args a){auto d=object(a[0],Interface::compatdevice7).compat;auto hr=d->gpu->set_state(a[1],a[2]);if(hr==U32(E_NOTIMPL))stop("render state/value outside bounded D3D9 profile");return hr;});
             if(slot==21)method(3,[this](Args a){auto d=object(a[0],Interface::compatdevice7).compat;p.memory.check(a[2],4,Memory::Write);U32 value{};auto hr=d->gpu->get_state(a[1],value);if(hr==U32(E_NOTIMPL))stop("render-state query outside bounded D3D9 profile");if(!host9::failed(hr))p.memory.store(a[2],value,32);return hr;});
             if(slot==25)method(6,[this](Args a){return triangles9(a);});
+            if(slot==26)method(8,[this](Args a){return indexed_triangles9(a);});
             if(slot==34)method(3,[this](Args a){return get_texture9(a);});
             if(slot==35)method(3,[this](Args a){return set_texture9(a);});
             if(slot==36)method(4,[this](Args a){return stage9(a,false);});
