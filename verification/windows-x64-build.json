@@ -1,0 +1,128 @@
+{
+  "schema": "winrecomp.windows-x64-product-evidence.v1",
+  "priority": "Native Windows AMD64 product first. Build, Windows execution and playability are separate gates.",
+  "integrated_source_commit": "06e7e94343663af907a6a145a8504d0f49abf8c5",
+  "integrated_tree": "de67d4c6a60aaf345c19380a4171020b8a09362b",
+  "actual_e3_product": {
+    "input_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+    "runtime_source_commit": "7f6064ee4f5c703db5109a622a25ddf8d536085b",
+    "source_identity": "The integrated commit retains these runtime/core/build/test files byte-for-byte; only Windows driver/profile/workflow/docs files are added.",
+    "owned_source_hashes_verified": 66,
+    "input_guest": "PE32/i386",
+    "output_host": "Windows AMD64/PE32+",
+    "compilation_host": "Linux x64 cross-compilation, not native Windows",
+    "compiler": "Debian x86_64-w64-mingw32-g++-posix 14.2.0-19+27+b1",
+    "cxx_release_flags": "-O1 -DNDEBUG",
+    "link_flags": "-static -static-libgcc -static-libstdc++",
+    "profile": "examples/e3_2000/windows-x64.json",
+    "profile_sha256": "00e865e0b62756c50b7368ba9559a9d520072b372ab886bba3980f59969becf1",
+    "generated_manifest": {
+      "schema": "winrecomp.program.v1",
+      "sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+      "fixed_image_base": 4194304,
+      "entry": 4911384,
+      "instructions": 113949,
+      "partial": false,
+      "instruction_guard": "compare original bytes before each translated instruction"
+    },
+    "executable": {
+      "format": "PE32+",
+      "machine": "0x8664",
+      "architecture": "AMD64",
+      "entry_rva": "0x13f0",
+      "sections": 18,
+      "sha256": "17ec240504ca34a8c291598f02fcea8db4bb4ca145abc79a618c829ab283f370",
+      "size_bytes": 21219664,
+      "validation": "format and architecture, not execution"
+    },
+    "artifact_name": "blam_x64.exe",
+    "artifact_location": "private development workspace only; not in Git or CI",
+    "pe_import_dlls": [
+      "DDRAW.dll",
+      "GDI32.dll",
+      "KERNEL32.dll",
+      "msvcrt.dll",
+      "OPENGL32.dll",
+      "USER32.dll"
+    ],
+    "non_system_mingw_runtime_dll_imports": [],
+    "original_input_preserved": true,
+    "binary_identical_to_original": false,
+    "build_status": "completed",
+    "native_windows_execution": "not_run",
+    "wine_execution": "not_run",
+    "playability": "not_assessed",
+    "build_logs_sha256": {
+      "e3-cross-configure.log": "b79874fde50f9b43de55b2cb9364d53e746d3488a22cc07c8ee257611012bcf0",
+      "e3-cross-build.log": "2c643c4f799e896695a80aa8f1abb4051b1f161a11181b1f870f2a04eb5657d8",
+      "e3-cross-build-resume.log": "6fed8d050b7d668afcfd793d1c6d274dc7e7fe7ecd7dd78d014e91dd01646d8b"
+    },
+    "build_interruption": "The initial command hit the container wall-time limit. The same Ninja build resumed from completed objects and finished linking successfully; a final build returned success/no work. The interrupted attempt itself is not a successful build.",
+    "input_requirements": "Original SHA-matched executable is still read as guest data; original game assets are required.",
+    "limitations": [
+      "113949 admitted static locations are not a claim all game paths were found or executed.",
+      "A PE32+ machine/header inspection does not demonstrate Windows loader acceptance, an E3 frame or input handling.",
+      "Unknown runtime APIs/targets still stop explicitly.",
+      "This artifact is produced from actual E3 input, unlike the independently executed synthetic CI fixtures."
+    ]
+  },
+  "windows_driver_premerge": {
+    "source_commit": "58ae1f34e892073e48518fa1c811fbe6d959fb08",
+    "run_id": 37167187036,
+    "result": "success",
+    "unit_test_groups": 7,
+    "original_synthetic_PE32_execution": "passed",
+    "generated_synthetic_x64_execution": "passed",
+    "framebuffer_sha256": "df59acf2780167d7a0c7192876c77242d1f1694ca4902fd60437f96fe925c69c",
+    "artifact_id": 11289574927,
+    "artifact_sha256": "d3b99d5a3f2d48d33383045efbfc7010562aa26fa463e0df750d7144583d134f",
+    "fixed_failure": "The first run 37166986509 stopped at working-tree CRLF hash differences before compilation; exact Git blob hashing plus LF/CRLF-only checkout comparison now passes."
+  },
+  "previous_native_mingw_validation": {
+    "source_commit": "7f6064ee4f5c703db5109a622a25ddf8d536085b",
+    "run_id": 37165676428,
+    "native_windows_suites_passed": 20,
+    "artifact_id": 11288733931,
+    "artifact_sha256": "9a92415fc74c94e3efdea36d0a213bf22a92e75d71dd5eef8e0d19766f8c2331",
+    "scope": "Earlier completed Windows/MinGW synthetic/runtime/FP checks, freshly read. Not a new actual-E3 execution result."
+  },
+  "game_playable": false,
+  "new_planning_points_awarded": 0,
+  "privacy": "No original game binary, assets, disassembly or generated game source/executable was uploaded to GitHub or CI.",
+  "native_windows_combined_verification": {
+    "source_commit": "06e7e94343663af907a6a145a8504d0f49abf8c5",
+    "run_id": 37167613799,
+    "job_id": 111333761625,
+    "result": "success",
+    "unit_test_groups": 7,
+    "original_PE32_execution": "passed",
+    "generated_PE32plus_execution": "passed",
+    "framebuffer_sha256": "df59acf2780167d7a0c7192876c77242d1f1694ca4902fd60437f96fe925c69c",
+    "identical_framebuffers": true,
+    "generated_program": {
+      "format": "PE32+",
+      "machine": "0x8664",
+      "architecture": "AMD64",
+      "entry_rva": "0x4fc94",
+      "sections": 6,
+      "sha256": "434e0205dac83d0c3f5d107d6a48221e5104112e77086ac765e0ad204178bd09",
+      "size_bytes": 512512,
+      "validation": "format and architecture, not execution"
+    },
+    "analyzer": {
+      "format": "PE32+",
+      "machine": "0x8664",
+      "architecture": "AMD64",
+      "entry_rva": "0x355fc",
+      "sections": 6,
+      "sha256": "fc53924b3593e70561e4ed072cd95c1571d7df1b7422c41f4c69cd52070d092d",
+      "size_bytes": 693760,
+      "validation": "format and architecture, not execution"
+    },
+    "existing_output_preserved": true,
+    "input_preserved": true,
+    "artifact_id": 11290725965,
+    "artifact_sha256": "36a09aa203e2731eaac6439343b50fdc6bbc28ea8749e755b59aca1e4066b94e",
+    "scope": "New native MSVC/Windows execution of an author-written PE32 and its generated x64 output. This is not the private E3 executable."
+  }
+}

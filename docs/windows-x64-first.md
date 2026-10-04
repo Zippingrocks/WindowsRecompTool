@@ -1,85 +1,99 @@
-# Primary target: E3 PE32 to a native Windows x64 executable
+# Windows x64 first
 
-Windows x64 is the product target. Linux remains an analysis/regression host,
-not the place to demonstrate native Windows startup. The next actual-game
-acceptance result is a compiled **AMD64/PE32+ blam_x64.exe**, then its execution
-on Windows. Further generic discovery/research is secondary unless it blocks
-that exact input and target. Planning percentages do not replace these results.
+The primary product is a native Windows AMD64 executable generated from the
+original PE32/i386 input. Linux is a development host, not a substitute for
+Windows execution. Build, OS startup, a game scene and player control are
+separate acceptance milestones.
 
-## One build command on Windows
+## Actual E3 build completed
 
-Prerequisites: 64-bit Python 3, CMake 3.21+, Git, Visual Studio 2022 (or its Build
-Tools) with Desktop development with C++, an installed Windows SDK, and the
-pinned Zydis/Zycore source. The driver explicitly selects VS 2022, x64 target
-and x64 host tools. It does not require a separately initialized developer shell.
+The private `blam_x64.exe` is 21,219,664 bytes, AMD64/PE32+, SHA-256
+`17ec240504ca34a8c291598f02fcea8db4bb4ca145abc79a618c829ab283f370`.
+It was generated from the SHA-bound E3 input with 113,949 admitted instruction
+locations and no partial mode, then cross-compiled on Linux using Windows
+MinGW/GCC 14 POSIX, `-O1 -DNDEBUG`, and static GCC/C++ runtime linking.
+The Win64 ABI assembly helpers were used, not Linux SysV helpers. Both the
+format checker and MinGW objdump identify a Windows x64 executable.
+
+Its direct DLL imports are DDRAW, GDI32, KERNEL32, MSVCRT, OPENGL32 and USER32.
+No separate MinGW runtime DLL appears in that import table. The original
+executable is still required as SHA-matched guest data, together with game
+assets. Guest pointers/registers deliberately retain their original 32-bit
+layout; host execution is x64. This is not recovered original C++ source.
+
+**This actual E3 EXE has not been run on native Windows in this checkpoint.**
+It is not a gameplay result. More code locations, successful linking and valid
+headers do not establish that every path, import or game behavior works.
+
+## Native Windows/MSVC build route
+
+Use 64-bit Python 3, Git, CMake 3.21+, Visual Studio 2022 or its Build Tools
+with Desktop development with C++ and a Windows SDK. The driver selects
+`Visual Studio 17 2022`, `-A x64` and `-T host=x64` explicitly.
 
 ```powershell
 git submodule update --init --recursive third_party/zydis
 py -3 tools/windows_x64.py --input "D:\E3 2000\blam.exe" --profile examples/e3_2000/windows-x64.json --out local/windows-e3
 ```
 
-The input must match the E3 profile SHA-256. The output directory must be new.
-The script builds the analyzer, generates input-bound C++ without partial mode,
-builds the generated program with the actual Windows compiler/SDK and inspects
-both the analyzer and generated executable. Merely naming an ELF or a PE32 file
-`.exe` cannot pass. A native application EXE must have machine 0x8664, optional
-header magic 0x20B, valid file-backed entry code and a Windows subsystem. This
-bounded inspection is an architecture check, not proof the OS will load/run it.
+Use a fresh output directory. The driver builds and architecture-checks the
+tool, generates C++ without partial mode, builds the generated program and
+copies the verified output to `local/windows-e3/blam_x64.exe`. The original
+is not modified or launched. Stage logs and `build-report.json` are retained.
+The report explicitly says `built_windows_x64_not_executed`, `run_status:
+not_run` and `playability: not_assessed`. It rejects ELF, x86, ARM64, CLR and
+DLL outputs rather than trusting an EXE filename.
 
-Successful output:
-
-```text
-local/windows-e3/blam_x64.exe
-local/windows-e3/build-report.json
-local/windows-e3/logs/
-local/windows-e3/project/
-local/windows-e3/native-build/
-```
-
-`blam_x64.exe` is copied from the validated newly compiled artifact; the original
-x86 executable is never relabeled, patched or launched by this build driver.
-Build failures retain their stage logs and a failed report. Successful build
-reports say `built_windows_x64_not_executed`, `run_status: not_run` and
-`playability: not_assessed`. No success text claims that the game works.
-
-The generated program still needs the original SHA-bound executable as data,
-the original assets, and the MSVC runtime required by the compiler. The old
-32-bit guest memory layouts remain intentional; the program running them is
-native x64. This is not a recovered original C++ source project.
-
-## Separate, explicit execution on Windows
-
-Only after compilation and inspection, a private trusted-input run can use:
+A later, explicitly chosen private Windows run can use:
 
 ```powershell
 .\local\windows-e3\blam_x64.exe "D:\E3 2000\blam.exe" --root "D:\E3 2000" --report .\local\windows-e3\process.json --budget 100000000
 ```
 
-This command does not enable guest filesystem writes. Add `--allow-write` only
-when intentionally permitting the game to write within its data root. Keep
-assets and generated game code local; do not upload them to Git or hosted CI.
-The runtime is not an operating-system security sandbox.
+Writes remain disabled unless `--allow-write` is intentionally supplied.
+The runtime is not an OS security sandbox. Do not commit or upload game
+inputs, assets, generated source or the game-derived executable.
 
-Record Windows startup, the first **E3-generated** scene and player control as
-separate checkpoints. A successful synthetic program, tool build, ELF run,
-triangle, or expected unsupported API stop does not establish E3 playability.
+## Source and verification boundaries
 
-## Exact implementation scope
+Integrated source: `06e7e94343663af907a6a145a8504d0f49abf8c5`.
+The new driver was first tested at `58ae1f3`. It was combined with the existing
+`7f6064e` runtime, which already passed 20 native Windows MinGW suites.
+Runtime/core/build/test files remain byte-identical to that existing branch;
+this pass did not invent a new MinGW backend. Its bounded DirectDraw bridge
+is not a full graphics/audio/input implementation.
 
-This route is built on published `f093d0c` / implementation `b02db47`. The earlier
-reported local-only discovery commit `00dbad0` is not present in the restored
-workspace and is not secretly treated as included or tested. The Windows E3
-profile carries the verified static window-procedure candidate as a metadata
-seed so the published implementation can admit it without that optional pass.
-The seed is not a guarantee that its downstream message paths are complete.
+Native Windows/MSVC run `37167613799` passed the combined driver tests and
+executed the authored original PE32 and generated x64 fixture with identical
+framebuffers. This synthetic result is not execution of the actual E3 EXE.
+See `verification/windows-x64-build.json` for exact identities and scopes.
 
-The new Windows CI job runs this same build driver with a wholly author-written
-PE32 fixture, then executes original and recompiled programs on Windows and
-compares their framebuffers and semantic callback records. Its artifact contains
-only that synthetic executable and the WinRecomp tool, never E3. Actual-game
-build/startup results still require their own private Windows evidence.
+The previous local-only discovery commit `00dbad0` was absent from this
+restored workspace and is not assumed included. The Windows E3 profile
+instead supplies its rechecked static window-procedure candidate as a
+SHA-bound seed, without claiming all indirect targets have been recovered.
 
-## Specifications
+## Secondary cross-build reproduction
 
+The completed private artifact used the Linux analyzer to generate the E3
+project, then a Windows-target MinGW toolchain. The toolchain must set
+CMAKE_SYSTEM_NAME=Windows, CMAKE_SYSTEM_PROCESSOR=AMD64 and the matching
+x86_64-w64-mingw32 C/C++/ASM/resource compilers. Do not compile the generated
+project with the Linux native compiler and merely rename its output.
+
+```sh
+cmake -S . -B build-host -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+cmake --build build-host --target winrecomp --parallel 2
+python tools/create_project.py --tool build-host/winrecomp --exe local/e3/blam.exe --profile examples/e3_2000/windows-x64.json --out local/e3-windows-project
+cmake -S local/e3-windows-project -B local/e3-windows-build -G Ninja -DCMAKE_TOOLCHAIN_FILE=/absolute/path/to/mingw64.cmake -DWINRECOMP_SOURCE=/absolute/path/to/WinRecomp -DCMAKE_BUILD_TYPE=Release '-DCMAKE_CXX_FLAGS_RELEASE=-O1 -DNDEBUG' '-DCMAKE_EXE_LINKER_FLAGS=-static -static-libgcc -static-libstdc++'
+cmake --build local/e3-windows-build --target recompiled_program --parallel 4
+```
+
+Inspect `local/e3-windows-build/recompiled_program.exe` before copying it to
+`blam_x64.exe`. Compiler versions, paths and PE timestamps can change the
+binary hash: the recorded hash identifies this build, not a promise of
+bit-for-bit reproducibility. Native Windows/MSVC remains the primary route.
+
+Specifications:
 - https://cmake.org/cmake/help/latest/generator/Visual%20Studio%2017%202022.html
 - https://learn.microsoft.com/en-us/windows/win32/debug/pe-format
