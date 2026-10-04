@@ -50,16 +50,23 @@ struct NativeOwner {
 struct SurfaceLock {
     DDSURFACEDESC2 description{};U32 guest{};std::size_t size{},row_bytes{};bool readonly{};
 };
+// Guest texture identity is independent of the host DirectDraw storage caps.
+// Windows x64 may reject native DDSCAPS_TEXTURE even for system memory; the
+// actual texture lives in D3D9 and a native plain surface provides CPU storage.
+struct TextureModel { DDSCAPS2 caps{}; };
 struct CompatDevice {
     std::unique_ptr<host9::Device> gpu;
     IDirectDraw7* root{};IDirectDrawSurface7* target{};
+    std::shared_ptr<IDirectDrawSurface7> texture;
+    std::shared_ptr<TextureModel> texture_model;
     U32 width{},height{};
-    ~CompatDevice(){gpu.reset();if(target)target->Release();if(root)root->Release();}
+    ~CompatDevice(){gpu.reset();texture.reset();if(target)target->Release();if(root)root->Release();}
 };
 struct Object {
     Interface kind{};IUnknown* native{};U32 guest_refs{};
     std::unique_ptr<SurfaceLock> locked;
     std::shared_ptr<CompatDevice> compat;
+    std::shared_ptr<TextureModel> texture_model;
 };
 class Draw final:public DirectDrawBackend {
     Process& p;
@@ -85,12 +92,12 @@ class Draw final:public DirectDrawBackend {
     void api(const char* name,unsigned count,Function function){
         p.register_api("ddraw.dll",name,count,[this,count,function=std::move(function)](Process& q){enter();std::array<U32,8> args{};for(unsigned n=0;n<count;++n)args[n]=q.argument(n);return function(std::span(args).first(count));});
     }
-    U32 wrap(IUnknown* native,Interface kind){
+    U32 wrap(IUnknown* native,Interface kind,std::shared_ptr<TextureModel> texture_model={}){
         NativeOwner owner{native};
         for(auto& [address,value]:objects)if(value.native==native && value.kind==kind){if(value.guest_refs==0xffffffffu)stop("reference count overflow");++value.guest_refs;owner.keep();return address;}
         if(objects.size()>=MaxObjects)stop("COM object budget exhausted");
         const auto table=vtable(kind);Allocation memory(p,4);p.memory.store(memory.address,table,32);p.memory.protect(memory.address,4096,Memory::Read);
-        const auto at=memory.address;objects.emplace(at,Object{kind,native,1,{},{}});memory.keep();owner.keep();++created;if(kind==Interface::d3d7)++d3d_wrappers;return at;
+        const auto at=memory.address;objects.emplace(at,Object{kind,native,1,{},{},std::move(texture_model)});memory.keep();owner.keep();++created;if(kind==Interface::d3d7)++d3d_wrappers;return at;
     }
     U32 query(Object& value,Args args){
         const auto iid=guid(args[1]);p.memory.check(args[2],4,Memory::Write);
@@ -128,7 +135,7 @@ class Draw final:public DirectDrawBackend {
             for(unsigned n=0;n<8;++n){if(n==2)id<<'-';id<<std::setw(2)<<unsigned(iid.Data4[n]);}
             stop("native QueryInterface supports IID "+id.str()+" without a guest wrapper");
         }
-        p.memory.store(args[2],wrap(static_cast<IUnknown*>(result),kind),32);return U32(hr);
+        p.memory.store(args[2],wrap(static_cast<IUnknown*>(result),kind,value.texture_model),32);return U32(hr);
     }
     void destroy_lock(Object& value) noexcept {
         if(!value.locked)return;
@@ -139,7 +146,7 @@ class Draw final:public DirectDrawBackend {
     U32 release(Object& value){
         if(value.kind==Interface::compatdevice7){if(value.compat->gpu->in_scene())stop("release during active D3D9 scene");const auto left=--value.guest_refs;if(!left){value.compat.reset();++retired;}return left;}
         if(value.locked)stop("release of a locked surface");
-        const auto refs=value.native->Release();if(!--value.guest_refs){value.native=nullptr;++retired;}return refs;
+        const auto refs=value.native->Release();if(!--value.guest_refs){value.native=nullptr;value.texture_model.reset();++retired;}return refs;
     }
     U32 vtable(Interface);
     struct Enumeration {Draw* self;U32 callback,context;std::exception_ptr failure;unsigned visits{};};
@@ -490,17 +497,40 @@ class Draw final:public DirectDrawBackend {
         const bool render=(caps&(DDSCAPS_OFFSCREENPLAIN|DDSCAPS_3DDEVICE))==(DDSCAPS_OFFSCREENPLAIN|DDSCAPS_3DDEVICE)
             && !(caps&~DWORD(DDSCAPS_OFFSCREENPLAIN|DDSCAPS_3DDEVICE|DDSCAPS_SYSTEMMEMORY|DDSCAPS_VIDEOMEMORY))
             && (caps&(DDSCAPS_SYSTEMMEMORY|DDSCAPS_VIDEOMEMORY))!=(DDSCAPS_SYSTEMMEMORY|DDSCAPS_VIDEOMEMORY);
-        if(!plain && !render)stop("unmodelled offscreen surface capability combination");
+        const bool texture=p.options.legacy_d3d9 && caps==(DDSCAPS_TEXTURE|DDSCAPS_SYSTEMMEMORY);
+        if(!plain && !render && !texture)stop("unmodelled offscreen surface capability combination");
         if(!(d.dwFlags&DDSD_PIXELFORMAT) && !render)stop("plain offscreen surface requires an explicit pixel format");
         if(d.dwFlags&DDSD_PIXELFORMAT){
             p.memory.copy_out(at+72,std::span(reinterpret_cast<std::uint8_t*>(&d.ddpfPixelFormat),32));
             const auto& f=d.ddpfPixelFormat;
-            if(f.dwSize!=32 || f.dwFlags!=DDPF_RGB || f.dwFourCC || f.dwRGBBitCount!=32 || f.dwRBitMask!=0xff0000 || f.dwGBitMask!=0xff00 || f.dwBBitMask!=0xff || f.dwRGBAlphaBitMask)
+            if(f.dwSize!=32 || (f.dwFlags!=DDPF_RGB && !(texture && f.dwFlags==(DDPF_RGB|DDPF_ALPHAPIXELS))) || f.dwFourCC || f.dwRGBBitCount!=32 || f.dwRBitMask!=0xff0000 || f.dwGBitMask!=0xff00 || f.dwBBitMask!=0xff || f.dwRGBAlphaBitMask!=((f.dwFlags&DDPF_ALPHAPIXELS)?0xff000000u:0u))
                 stop("only an explicit X8R8G8B8 or a native default render format is supported");
         }
         d.dwHeight=p.memory.load(at+8,32);d.dwWidth=p.memory.load(at+12,32);
+        if(texture && ((d.dwWidth&(d.dwWidth-1)) || (d.dwHeight&(d.dwHeight-1)) || d.dwWidth>2048 || d.dwHeight>2048))stop("single-level power-of-two texture dimensions required");
         if(!d.dwWidth || !d.dwHeight || std::uint64_t(d.dwWidth)*d.dwHeight>MaxSurfaceBytes/4)stop("surface allocation budget");
         return d;
+    }
+    U32 create_surface(Args a){
+        auto description=read_description(a[1]);p.memory.check(a[2],4,Memory::Write);
+        if(a[3])stop("aggregated surfaces not supported");
+        std::shared_ptr<TextureModel> model;
+        if(p.options.legacy_d3d9 && (description.ddsCaps.dwCaps&DDSCAPS_TEXTURE)){
+            model=std::make_shared<TextureModel>();model->caps=description.ddsCaps;
+            // Allocate real CPU storage, not a host legacy texture interface.
+            // Pixel format and dimensions remain exactly those requested.
+            description.ddsCaps.dwCaps=DDSCAPS_OFFSCREENPLAIN|DDSCAPS_SYSTEMMEMORY;
+        }
+        IDirectDrawSurface7* surface{};
+        auto hr=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->CreateSurface(&description,&surface,nullptr);
+        if(SUCCEEDED(hr)){
+            if(!surface)stop("native CreateSurface returned success without storage");
+            p.memory.store(a[2],wrap(surface,Interface::surface7,std::move(model)),32);
+        }
+        return U32(hr);
+    }
+    void guest_surface_description(const Object& value,DDSURFACEDESC2& d){
+        if(value.texture_model){d.ddsCaps=value.texture_model->caps;d.dwFlags|=DDSD_CAPS;}
     }
     void write_description(U32 at,const DDSURFACEDESC2& d,U32 pixels=0){
         p.memory.check(at,DescSize,Memory::Write);
@@ -578,7 +608,7 @@ class Draw final:public DirectDrawBackend {
             const auto top=staging.address+(pitch<0?U32(stride*(d.dwHeight-1)):0);
             for(U32 y=0;y<d.dwHeight;++y){const auto offset=std::int64_t(y)*pitch;auto* native=static_cast<const std::uint8_t*>(d.lpSurface)+offset;p.memory.copy_in(U32(std::int64_t(top)+offset),std::span(native,std::size_t(row)));}
             if(state->readonly)p.memory.protect(staging.address,(bytes+4095)&~4095ull,Memory::Read);
-            write_description(a[2],d,top);state->guest=staging.keep();value.locked=std::move(state);++locks;return U32(hr);
+            auto guest=d;guest_surface_description(value,guest);write_description(a[2],guest,top);state->guest=staging.keep();value.locked=std::move(state);++locks;return U32(hr);
         }catch(...){s->Unlock(nullptr);throw;}
     }
     U32 unlock(Object& value,Args a){
@@ -630,7 +660,7 @@ U32 Draw::vtable(Interface kind){
         if(kind==Interface::draw1 && slot==8)method(5,[this](Args a){return enum_modes(a);});
         if(kind==Interface::draw7){
             if(slot==4)method(4,[this](Args a){return create_clipper(a);});
-            if(slot==6)method(4,[this](Args a){auto d=read_description(a[1]);p.memory.check(a[2],4,Memory::Write);if(a[3])stop("aggregated surfaces not supported");IDirectDrawSurface7* surface=nullptr;const auto hr=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->CreateSurface(&d,&surface,nullptr);if(SUCCEEDED(hr))p.memory.store(a[2],wrap(surface,Interface::surface7),32);return U32(hr);});
+            if(slot==6)method(4,[this](Args a){return create_surface(a);});
             if(slot==8)method(5,[this](Args a){return enum_modes7(a);});
             if(slot==11)method(3,[this](Args a){return draw_caps(a);});
             if(slot==12)method(2,[this](Args a){p.memory.check(a[1],DescSize,Memory::Read|Memory::Write);if(p.memory.load(a[1],32)!=DescSize)stop("GetDisplayMode description size");DDSURFACEDESC2 d{};d.dwSize=sizeof(d);auto hr=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->GetDisplayMode(&d);if(SUCCEEDED(hr)){if(d.lpSurface)stop("GetDisplayMode returned a native pixel pointer");write_description(a[1],d);}return U32(hr);});
@@ -657,7 +687,7 @@ U32 Draw::vtable(Interface kind){
         }
         if(kind==Interface::compatdevice7){
             if(slot==3)method(2,[this](Args a){object(a[0],Interface::compatdevice7);p.memory.check(a[1],DeviceDescSize,Memory::Write);D3DDEVICEDESC7 caps{};auto hr=caps9(caps);if(!host9::failed(hr))write_device(a[1],caps);return hr;});
-            if(slot==4)method(3,[this](Args a){object(a[0],Interface::compatdevice7);if(!a[1])return U32(DDERR_INVALIDPARAMS);p.memory.check(a[1],1,Memory::Execute);return U32(S_OK);});
+            if(slot==4)method(3,[this](Args a){return enum_textures9(a);});
             if(slot==5)method(1,[this](Args a){return begin9(a);});
             if(slot==6)method(1,[this](Args a){return end9(a);});
             if(slot==7)method(2,[this](Args a){auto d=object(a[0],Interface::compatdevice7).compat;p.memory.check(a[1],4,Memory::Write);d->root->AddRef();p.memory.store(a[1],wrap(d->root,Interface::compat3d7),32);return U32(S_OK);});
@@ -668,6 +698,10 @@ U32 Draw::vtable(Interface kind){
             if(slot==20)method(3,[this](Args a){auto d=object(a[0],Interface::compatdevice7).compat;auto hr=d->gpu->set_state(a[1],a[2]);if(hr==U32(E_NOTIMPL))stop("render state/value outside bounded D3D9 profile");return hr;});
             if(slot==21)method(3,[this](Args a){auto d=object(a[0],Interface::compatdevice7).compat;p.memory.check(a[2],4,Memory::Write);U32 value{};auto hr=d->gpu->get_state(a[1],value);if(hr==U32(E_NOTIMPL))stop("render-state query outside bounded D3D9 profile");if(!host9::failed(hr))p.memory.store(a[2],value,32);return hr;});
             if(slot==25)method(6,[this](Args a){return triangles9(a);});
+            if(slot==34)method(3,[this](Args a){return get_texture9(a);});
+            if(slot==35)method(3,[this](Args a){return set_texture9(a);});
+            if(slot==36)method(4,[this](Args a){return stage9(a,false);});
+            if(slot==37)method(4,[this](Args a){return stage9(a,true);});
         }
         if(kind==Interface::clipper){
             if(slot==4)method(2,[this](Args a){return get_clipper_window(a);});
@@ -678,7 +712,17 @@ U32 Draw::vtable(Interface kind){
             if(slot==15)method(2,[this](Args a){auto native=static_cast<IDirectDrawSurface7*>(object(a[0],Interface::surface7).native);p.memory.check(a[1],4,Memory::Write);IDirectDrawClipper* result{};auto hr=native->GetClipper(&result);if(SUCCEEDED(hr)){if(!result)stop("native GetClipper succeeded without an object");p.memory.store(a[1],wrap(result,Interface::clipper),32);}return U32(hr);});
             if(slot==28)method(2,[this](Args a){auto& surface=object(a[0],Interface::surface7);if(surface.locked)stop("SetClipper while surface is locked");auto clipper=a[1]?static_cast<IDirectDrawClipper*>(object(a[1],Interface::clipper).native):nullptr;return U32(static_cast<IDirectDrawSurface7*>(surface.native)->SetClipper(clipper));});
             if(slot==5)method(6,[this](Args a){auto& value=object(a[0],Interface::surface7);if(value.locked)stop("blit while surface is locked");check_target9(value.native);if(a[1] || a[2] || a[3] || (a[4]&~U32(DDBLT_COLORFILL|DDBLT_WAIT)) || !(a[4]&DDBLT_COLORFILL))stop("only whole-surface color fill is supported");p.memory.check(a[5],100,Memory::Read);if(p.memory.load(a[5],32)!=100)stop("DDBLTFX must have the 100-byte x86 layout");DDBLTFX fx{};fx.dwSize=sizeof(fx);fx.dwFillColor=p.memory.load(a[5]+80,32);auto hr=static_cast<IDirectDrawSurface7*>(value.native)->Blt(nullptr,nullptr,nullptr,a[4],&fx);if(SUCCEEDED(hr))++blits;return U32(hr);});
-            if(slot==22)method(2,[this](Args a){p.memory.check(a[1],DescSize,Memory::Read|Memory::Write);if(p.memory.load(a[1],32)!=DescSize)stop("GetSurfaceDesc description size");DDSURFACEDESC2 d{};d.dwSize=sizeof(d);auto hr=static_cast<IDirectDrawSurface7*>(object(a[0],Interface::surface7).native)->GetSurfaceDesc(&d);if(SUCCEEDED(hr)){if((d.dwFlags&DDSD_LPSURFACE) && d.lpSurface)stop("GetSurfaceDesc returned a live native pixel pointer; use Lock");write_description(a[1],d);}return U32(hr);});
+            if(slot==14)method(2,[this](Args a){
+                auto& value=object(a[0],Interface::surface7);p.memory.check(a[1],16,Memory::Write);
+                DDSCAPS2 caps{};auto hr=static_cast<IDirectDrawSurface7*>(value.native)->GetCaps(&caps);
+                if(SUCCEEDED(hr)){if(value.texture_model)caps=value.texture_model->caps;p.memory.copy_in(a[1],std::span(reinterpret_cast<const std::uint8_t*>(&caps),16));}return U32(hr);
+            });
+            if(slot==21)method(2,[this](Args a){
+                auto native=static_cast<IDirectDrawSurface7*>(object(a[0],Interface::surface7).native);p.memory.check(a[1],32,Memory::Read|Memory::Write);
+                if(p.memory.load(a[1],32)!=32)stop("GetPixelFormat description size");DDPIXELFORMAT f{};f.dwSize=32;auto hr=native->GetPixelFormat(&f);
+                if(SUCCEEDED(hr))write_texture_format(a[1],f);return U32(hr);
+            });
+            if(slot==22)method(2,[this](Args a){p.memory.check(a[1],DescSize,Memory::Read|Memory::Write);if(p.memory.load(a[1],32)!=DescSize)stop("GetSurfaceDesc description size");DDSURFACEDESC2 d{};d.dwSize=sizeof(d);auto& value=object(a[0],Interface::surface7);auto hr=static_cast<IDirectDrawSurface7*>(value.native)->GetSurfaceDesc(&d);if(SUCCEEDED(hr)){if((d.dwFlags&DDSD_LPSURFACE) && d.lpSurface)stop("GetSurfaceDesc returned a live native pixel pointer; use Lock");guest_surface_description(value,d);write_description(a[1],d);}return U32(hr);});
             if(slot==24)method(1,[this](Args a){return U32(static_cast<IDirectDrawSurface7*>(object(a[0],Interface::surface7).native)->IsLost());});
             if(slot==25)method(5,[this](Args a){auto& v=object(a[0],Interface::surface7);check_target9(v.native);return lock(v,a);});
             if(slot==32)method(2,[this](Args a){return unlock(object(a[0],Interface::surface7),a);});
