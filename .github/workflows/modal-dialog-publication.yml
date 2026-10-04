@@ -1,0 +1,136 @@
+name: Publish and verify modal dialogs
+on:
+  push:
+    branches: [work/dialog-publication]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      source_sha: ${{ steps.publish.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+      - name: Verify source-only patch before applying
+        shell: python
+        run: |
+          import base64,hashlib,lzma,subprocess,os
+          from pathlib import Path
+          checks=['4fb595f50446521e7ddbe308d0d6e167cd7bb92c0bdcce0bc7a0c7e904d2562f','3d6cba82c0d9075348b066ca2c9bdddb7fe04e5a72c81e5aca6350742e334d9b']
+          parts=[]
+          for i,want in enumerate(checks):
+              data=subprocess.check_output(['git','show',f'HEAD:publication/modal-{i}.b64'])
+              if hashlib.sha256(data).hexdigest()!=want: raise RuntimeError('Source segment mismatch')
+              parts.append(data)
+          decoder=lzma.LZMADecompressor(memlimit=128*1024*1024)
+          patch=decoder.decompress(base64.b64decode(b''.join(parts),validate=True),max_length=1024*1024)
+          if not decoder.eof or decoder.unused_data: raise RuntimeError('Invalid or oversized source patch')
+          if hashlib.sha256(patch).hexdigest()!='98e126faa687296bebb2def19cff5103474a8576877c7c11727098589551cc9c': raise RuntimeError('Patch checksum mismatch')
+          Path(os.environ['RUNNER_TEMP'],'modal.patch').write_bytes(patch)
+      - name: Publish exact readable source without workflow changes
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git worktree add --detach "$RUNNER_TEMP/modal-source" 015080d490ae0d847ce3953c12496af060be733d
+          cd "$RUNNER_TEMP/modal-source"
+          git apply --index "$RUNNER_TEMP/modal.patch"
+          test "$(git write-tree)" = 'cf0bd8b50fb89efb40e644cff869040f7bdd9db7'
+          test -z "$(git diff --cached --name-only -- .github/workflows)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: implement bounded native modal dialog and compiled callback boundary' -m 'Validated standard templates, typed controls, real modal message loops, nested callbacks, cleanup and semantic original-PE32 comparisons. Local Wine/Linux tests passed; native Windows validation follows. Does not resolve the separate native-x64 D3D7 availability defect. No game material included.'
+          git push origin HEAD:refs/heads/work/modal-dialogs
+          echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  verify:
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_sha }}
+          fetch-depth: 0
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - run: python -m pip install unicorn==2.1.2
+      - run: python tools/check_repository.py
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=ON
+      - run: cmake --build build --parallel 2
+      - name: Native Windows modal acceptance and directly affected GUI tests
+        if: runner.os == 'Windows'
+        run: ctest --test-dir build -R "^(dialog_template|dialog_boundary|dialog_program|gui_boundary|window_program|exception_unwind|resources|callback_abi)$" --output-on-failure
+      - name: All Linux-compatible regressions
+        if: runner.os == 'Linux'
+        run: ctest --test-dir build --output-on-failure
+      - name: Native i386 regression oracle
+        if: runner.os == 'Linux'
+        run: python tests/hardware_oracle.py --tool build/winrecomp --out build/hardware --vectors 64
+      - name: Preserve source and dependencies
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p build
+          git bundle create build/WinRecomp.bundle --all
+          git -C third_party/zydis bundle create "$GITHUB_WORKSPACE/build/Zydis.bundle" --all
+          git -C third_party/zydis/dependencies/zycore bundle create "$GITHUB_WORKSPACE/build/Zycore.bundle" --all
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: modal-dialog-${{ matrix.os }}
+          path: |
+            build/Testing/Temporary/LastTest.log
+            build/Testing/Temporary/LastTestsFailed.log
+            build/dialog_program/acceptance.json
+            build/dialog_program/process.json
+            build/*/report.json
+            build/*/hardware-report.json
+            build/WinRecomp.bundle
+            build/Zydis.bundle
+            build/Zycore.bundle
+          retention-days: 14
+  windows_dialog_memory:
+    needs: publish
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Configure all native C++ with AddressSanitizer
+        run: cmake -S . -B asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
+      - run: cmake --build asan --target winrecomp_dialog_boundary winrecomp_dialog_template winrecomp_gui_boundary winrecomp_exception_unwind winrecomp_resource_tests --parallel 2
+      - name: Native modal lifetime, template and failure-path tests
+        run: ctest --test-dir asan -R "^(dialog_boundary|dialog_template|gui_boundary|exception_unwind|resources)$" --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: modal-dialog-windows-asan
+          path: asan/Testing/Temporary/LastTest.log
+          retention-days: 14
