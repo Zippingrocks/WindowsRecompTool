@@ -68,6 +68,8 @@ class Draw final:public DirectDrawBackend {
     std::map<Interface,U32> vtables;
     std::unique_ptr<host9::Factory> renderer9;
     std::map<std::uintptr_t,HWND> cooperative_windows;
+    // Retain controlling identity references while using their addresses as keys.
+    std::map<std::uintptr_t,std::shared_ptr<IUnknown>> root_identities;
     std::uint64_t renderer9_devices{},renderer9_draws{},renderer9_clears{},renderer9_readbacks{};
     std::map<std::uintptr_t,U32> monitors;
     // D3D enumeration names remain usable after EnumDevices returns. These
@@ -610,6 +612,7 @@ public:
         for(auto& [address,value]:objects){(void)address;if(value.compat){value.compat.reset();value.guest_refs=0;}}
         for(auto& [address,value]:objects){(void)address;if(value.native)destroy_lock(value);}
         for(auto kind:{Interface::device7,Interface::surface7,Interface::clipper,Interface::d3d7,Interface::compat3d7,Interface::unknown,Interface::draw1,Interface::draw7})for(auto& [address,value]:objects){(void)address;if(value.native && value.kind==kind){for(U32 n=0;n<value.guest_refs;++n)value.native->Release();value.native=nullptr;}}
+        cooperative_windows.clear();root_identities.clear();
     }
     std::string report() const override{std::ostringstream out;out<<"{\"backend\":"<<quote(p.options.legacy_d3d9?"ddraw-d3d9-bounded":"native-ddraw7")<<",\"d3d9_devices\":"<<renderer9_devices<<",\"d3d9_draws\":"<<renderer9_draws<<",\"d3d9_clears\":"<<renderer9_clears<<",\"d3d9_readbacks\":"<<renderer9_readbacks<<",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"mode_callbacks\":"<<mode_callbacks<<",\"d3d7_wrappers\":"<<d3d_wrappers<<",\"d3d_device_callbacks\":"<<device_callbacks<<",\"mode7_callbacks\":"<<mode7_callbacks<<",\"zformat_callbacks\":"<<zformat_callbacks<<",\"d3d_devices_created\":"<<render_devices<<",\"texture_callbacks\":"<<texture_callbacks<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
 };

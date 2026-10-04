@@ -4,7 +4,12 @@
     std::uintptr_t identity9(IUnknown* native){
         IUnknown* id{};const auto hr=native->QueryInterface(IID_IUnknown,reinterpret_cast<void**>(&id));
         if(FAILED(hr) || !id)stop("native object has no controlling IUnknown");
-        auto key=reinterpret_cast<std::uintptr_t>(id);id->Release();return key;
+        NativeOwner owner{id};const auto key=reinterpret_cast<std::uintptr_t>(id);
+        if(!root_identities.contains(key)){
+            auto held=std::shared_ptr<IUnknown>(owner.keep(),[](IUnknown* p){p->Release();});
+            root_identities.emplace(key,std::move(held));
+        }
+        return key;
     }
     void check_target9(IUnknown* target){
         for(const auto& [at,o]:objects){(void)at;if(o.compat && o.compat->target==target && o.compat->gpu->in_scene())stop("render target access during an active D3D9 scene");}

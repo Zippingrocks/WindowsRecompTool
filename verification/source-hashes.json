@@ -63,7 +63,7 @@
     ".github/workflows/windowing.yml": "3bc079f58fa059bc8a343faf34fc7af03337907d4a5c24494a0242eaaf392ddf",
     "tests/exception_unwind.cpp": "3576dcdb5f9ace11e66ef7efbb230364a7d5802d8aa2af541a8cd39ac274a9ca",
     "include/winrecomp/directdraw.hpp": "c5a07b238734fa0dc2fdbdd1a7c17ecaa0d106ce59c9a240df7032f67098cce5",
-    "src/runtime/directdraw.cpp": "0a60e3cbb0713a6fbf097d35688f4b6a0b1568d491d247bb4a4fb54852481be1",
+    "src/runtime/directdraw.cpp": "a38e90b131968e3fcfadae3090290ece596da4806907a323198ea065e6eee8e3",
     "tests/directdraw_boundary.cpp": "7d8debbc996b6debd6b46478e2275f6a9ec414cad2e508726e536ee83be7f9bf",
     "tests/directdraw_program.py": "223f94ca5e5b23514227316946e642234c22483b7bbd0bc2bf4fbece3181ebfe",
     ".github/workflows/directdraw.yml": "8bb41c0f02e2b7a6ae6a6da637772f25d9f88d795e37c2eb96c796ec7f13262d",
@@ -92,7 +92,7 @@
     ".github/workflows/dialog-fixes.yml": "b6c37f8b887d13e69dafddfb1b2acb692cb9f3ff297edbf5ccf8adec99bbab14",
     "include/winrecomp/d3d9_host.hpp": "c148a6c74c4974544b436429921f11a92b9889128471579c581a172f056e4191",
     "src/runtime/d3d9_host.cpp": "e23768f0a94ba3ed97a521ff762dc40bbc1e4c282a6d6f5c04a23e260e14d538",
-    "src/runtime/directdraw_d3d9.hpp": "8906935732a9e58aeb8a2f94ca1abefe56e7bc5dd63fd2cc2614bad456f9051e",
+    "src/runtime/directdraw_d3d9.hpp": "166e99c22375b27524bdc67f29e3d85a3ff12732cf50989f4c81a423879a5fd8",
     "tests/d3d9_boundary.cpp": "d1721e956314cb4fcb47e1c3e25332cf2dc95e582cf7f5af8bececedf28ed3e1",
     "tests/d3d9_program.py": "17a17c7464bcf28ddd250d8ef72c6ea49aea7118efc52e75110eb6eac2254d2b"
   }
