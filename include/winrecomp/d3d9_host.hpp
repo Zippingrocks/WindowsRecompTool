@@ -48,6 +48,9 @@ public:
     virtual Status textured_triangles(std::span<const TexturedVertex>)=0;
     virtual Status upload(std::span<const std::uint8_t>)=0;
     virtual Status readback(std::vector<std::uint8_t>&)=0;
+    // Copy the owned render target to the device swap chain and display it.
+    // Presentation is legal only outside BeginScene/EndScene.
+    virtual Status present()=0;
 };
 class Factory {
 public:
