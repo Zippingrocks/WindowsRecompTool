@@ -1,0 +1,58 @@
+name: Native MinGW x64 verification
+on:
+  push:
+    branches: [work/mingw-diagnostics]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows_mingw:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      # MASM is used only for the independent original-byte FP oracle.
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Select native MinGW and expose its DLL dependencies to Python
+        shell: pwsh
+        run: |
+          if (!(Test-Path C:/mingw64/bin/g++.exe)) { throw 'Native MinGW compiler is unavailable; not a passing test.' }
+          'C:/mingw64/bin' | Out-File -FilePath $env:GITHUB_PATH -Append
+          New-Item -ItemType Directory -Force python-host | Out-Null
+          "import os`n_winrecomp_dlls = os.add_dll_directory(r'C:/mingw64/bin')" | Set-Content python-host/sitecustomize.py
+          "PYTHONPATH=$env:GITHUB_WORKSPACE/python-host" | Out-File -FilePath $env:GITHUB_ENV -Append
+          C:/mingw64/bin/g++.exe --version | Tee-Object compiler.txt
+      - run: python -m pip install unicorn==2.1.2
+      - run: python tools/check_repository.py
+      - name: Configure GNU Windows calling convention and COFF unwind helpers
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=ON -DCMAKE_C_COMPILER=C:/mingw64/bin/gcc.exe -DCMAKE_CXX_COMPILER=C:/mingw64/bin/g++.exe -DCMAKE_ASM_COMPILER=C:/mingw64/bin/gcc.exe
+      - name: Compile
+        run: cmake --build build --parallel 2
+      - name: Execute all native Windows suites with the independent original-byte oracles
+        run: ctest --test-dir build --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-mingw-windows
+          path: |
+            compiler.txt
+            build/Testing/Temporary/LastTest.log
+            build/conformance/report.json
+            build/floating/report.json
+            build/simd/report.json
+            build/controlflow/report.json
+            build/abi_callbacks/report.json
+            build/program/acceptance.json
+            build/window_program/acceptance.json
+            build/directdraw_program/acceptance.json
+          retention-days: 14
+          if-no-files-found: warn
