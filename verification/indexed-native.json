@@ -1,0 +1,239 @@
+{
+  "schema": "winrecomp.indexed-rendering-evidence.v1",
+  "observed_at_utc": "2026-10-04T17:42:17.898256+00:00",
+  "source_commit": "4ada6f5784aeb1fdd662cbf5d27c49bbbf62592c",
+  "source_tree": "d7d0cd964f4efae9f1ab892f0c2eef817ffbe8e1",
+  "source_branch": "work/d3d9-indexed",
+  "base_commit": "75ef8dd08ca596ad8d986f1e7b9892c18fc87bf8",
+  "recorded_source_hashes_verified": 99,
+  "publication": {
+    "workflow_commit": "2a149ee108bcb96ac62586e6ba8dcff1d24f21c3",
+    "workflow_run": 37220645029,
+    "source_published": true,
+    "main_promoted": false,
+    "note": "The publication workflow and readable source have distinct commit IDs. CI checks out the published implementation."
+  },
+  "native_windows": {
+    "host": "windows-2022 GitHub Actions runner, MSVC x64",
+    "workflow_run": 37220645029,
+    "job_id": 111490133873,
+    "conclusion": "success",
+    "selected_ctest_suites_passed": 19,
+    "new_suites": [
+      "indexed_geometry",
+      "d3d9_indexed",
+      "d3d9_indexed_program"
+    ],
+    "retained_previous_suites": [
+      "dialog_template",
+      "d3d9_textures",
+      "d3d9_boundary",
+      "dialog_boundary",
+      "processor",
+      "modules",
+      "gui_boundary",
+      "resources",
+      "core",
+      "exception_unwind",
+      "process",
+      "runtime",
+      "d3d9_texture_program",
+      "d3d9_program",
+      "modules_execution",
+      "callback_abi"
+    ],
+    "full_integration_claimed": false,
+    "scenes": [
+      {
+        "scene": "untextured",
+        "input_sha256": "99dcfe5d15766dc6989f09d43be09fc20cff4cbfd96ebb898a3cb5e6fced730f",
+        "pixels_per_run": 4096,
+        "native_original_runs": 2,
+        "native_generated_runs": 2,
+        "all_rgb_pixels_identical": true,
+        "output_sha256": "c048e32793d8e6d82ca5ab74314b0317a7227a7f9668599c939157b366b3828b",
+        "execution_summary": {
+          "exited": true,
+          "exit_code": 0,
+          "translated_guest_instructions": 29327,
+          "api_dispatches": 44,
+          "gui": {
+            "backend": "native-win32",
+            "windows_created": 1,
+            "windows_destroyed": 1,
+            "window_callbacks": 6,
+            "messages_dispatched": 0,
+            "gl_contexts_created": 0,
+            "swaps": 0,
+            "host_only_notifications": 1,
+            "host_only_message_ids": [
+              144
+            ],
+            "dialogs_created": 0,
+            "dialog_callbacks": 0,
+            "dialogs_completed": 0
+          },
+          "directdraw": {
+            "backend": "ddraw-d3d9-bounded",
+            "d3d9_devices": 1,
+            "d3d9_draws": 1,
+            "d3d9_indexed_draws": 1,
+            "d3d9_clears": 1,
+            "d3d9_readbacks": 2,
+            "objects_created": 5,
+            "objects_retired": 5,
+            "adapter_callbacks": 0,
+            "mode_callbacks": 0,
+            "d3d7_wrappers": 0,
+            "d3d_device_callbacks": 0,
+            "mode7_callbacks": 0,
+            "zformat_callbacks": 0,
+            "d3d_devices_created": 1,
+            "texture_callbacks": 0,
+            "surface_locks": 1,
+            "surface_unlocks": 1,
+            "blits": 0
+          }
+        }
+      },
+      {
+        "scene": "textured",
+        "input_sha256": "589e1da23bcae881aec9f6b07d8c69deaed0232708b1fbc8c88c71446029bdf7",
+        "pixels_per_run": 4096,
+        "native_original_runs": 2,
+        "native_generated_runs": 2,
+        "all_rgb_pixels_identical": true,
+        "output_sha256": "143ed8d65063571c9d6a0c2cab7b476c70258c93561046d4c25b314212a59db1",
+        "execution_summary": {
+          "exited": true,
+          "exit_code": 0,
+          "translated_guest_instructions": 29622,
+          "api_dispatches": 71,
+          "gui": {
+            "backend": "native-win32",
+            "windows_created": 1,
+            "windows_destroyed": 1,
+            "window_callbacks": 6,
+            "messages_dispatched": 0,
+            "gl_contexts_created": 0,
+            "swaps": 0,
+            "host_only_notifications": 1,
+            "host_only_message_ids": [
+              144
+            ],
+            "dialogs_created": 0,
+            "dialog_callbacks": 0,
+            "dialogs_completed": 0
+          },
+          "directdraw": {
+            "backend": "ddraw-d3d9-bounded",
+            "d3d9_devices": 1,
+            "d3d9_draws": 2,
+            "d3d9_indexed_draws": 2,
+            "d3d9_clears": 1,
+            "d3d9_readbacks": 3,
+            "objects_created": 7,
+            "objects_retired": 7,
+            "adapter_callbacks": 0,
+            "mode_callbacks": 0,
+            "d3d7_wrappers": 0,
+            "d3d_device_callbacks": 0,
+            "mode7_callbacks": 0,
+            "zformat_callbacks": 0,
+            "d3d_devices_created": 1,
+            "texture_callbacks": 0,
+            "surface_locks": 3,
+            "surface_unlocks": 3,
+            "blits": 0
+          }
+        }
+      }
+    ],
+    "pixel_exclusions": "Only the unused high X byte is masked equally by the original and generated authored fixtures. All 4096 RGB values are compared, no regions omitted.",
+    "raw_artifact_pixels_independently_rechecked": true,
+    "run_counts": "Two authored scenes; original x86 and generated x64 each run twice: eight executions total.",
+    "prior_unindexed_fixture_bytes": [
+      {
+        "scene": "untextured",
+        "same_original_fixture_bytes": true,
+        "sha256": "f64cf36f74810c8a481b0884e17177aba6260be631ce4ddb8210934b300e74e4"
+      },
+      {
+        "scene": "textured",
+        "same_original_fixture_bytes": true,
+        "sha256": "ba4e253808bc76edf0886d195c80f544cdb090ed517a3bf329eb108a43ddbcbf"
+      }
+    ]
+  },
+  "native_windows_asan": {
+    "job_id": 111490133885,
+    "conclusion": "success",
+    "suites_passed": 8,
+    "assertions": {
+      "indexed_geometry": 6252,
+      "d3d9_indexed": 228,
+      "d3d9_textures": 577,
+      "d3d9_boundary": 294,
+      "dialog_boundary": 1847,
+      "gui_boundary": 547,
+      "resources": 28,
+      "exception_unwind": 70
+    },
+    "scope": "Native Windows C++ index, GPU bridge, GUI and lifetime/failure tests. Not separately generated-project or whole-game sanitizer coverage."
+  },
+  "local_secondary_checks": {
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "release_ctest_passed": 21,
+    "release_ctest_failed": 0,
+    "complete_ctest_invocation": true,
+    "portable_index_validator_asan_ubsan_assertions": 6252,
+    "portable_index_validator_asan_ubsan_scope": "Standalone portable validator only; not Windows-only GPU code.",
+    "windows_target_cross_compile": "completed; not locally executed",
+    "wine_execution": "not_run",
+    "native_i386_execution": "not_run_this_pass",
+    "log_sha256": {
+      "wr-indexed-regressions.log": "34ffe694a5836fec18b902f2b476f80020c85c2725e4513c4c852b05ec77bfde",
+      "wr-indexed-local-focused.log": "30a3ce85e88b864ed1ae542b41b953268dfbab6c9c5ce3fcfefff421587ee933",
+      "wr-indexed-validator-asan.log": "268d9eb406502476c110ddded500cc125ab93cc2b297f4c0c23376d233833a1f",
+      "wr-indexed-win-build.log": "800a7a2e5d8bee9c37dd1476e91e82dfa61dcb4d5b6222a343d44003e6d00e74",
+      "wr-indexed-build.log": "ccdf3791d855484f4773cccd7de27364791f038d3f0955cebfcca50b4757f3a0",
+      "wr-indexed-configure.log": "ea486850b9ff93ff77a5623a400ab388c60cce649c34c7c1c1199ca74a8d2741"
+    },
+    "interrupted_attempts": "Earlier bounded container build/test commands were interrupted, not counted as passes. The resumed build and final 21-test CTest invocation completed successfully."
+  },
+  "artifacts": {
+    "windows": {
+      "id": 11310069529,
+      "sha256": "b507c379c7132dc0fe1d946fd5462741ff0fa2accfe2b679aa4075e2ff253f92"
+    },
+    "windows_asan": {
+      "id": 11309288464,
+      "sha256": "4015dc1946778d01d7923a69eb63e637b99fc652582d8aa17a6f05c9f101ecb9"
+    },
+    "acceptance_json_sha256": "769949983cf7005cabff93e21ca9b9212c2bc24218aaeb75a12e63ef5b122853"
+  },
+  "recovery": {
+    "source_restored_from_native_ci_bundle": true,
+    "git_fsck_passed": true,
+    "restored_source_matches_locally_tested_tree": true,
+    "source_hashes_matched": 99,
+    "upstream_gitlinks_checked": 9
+  },
+  "scope": {
+    "admitted": "WORD-indexed transformed/diffuse triangle lists, with or without one texture coordinate set; zero draw flags.",
+    "counts": "Up to 65535 vertices and indices, additionally checked against host index and primitive limits.",
+    "new_draws": "IDirect3DDevice7 slot 26 to native D3D9 DrawIndexedPrimitiveUP with owned copies, not a 32-bit renderer helper.",
+    "capability_claims": "No new depth, lighting, blending, transform or presentation capability advertised."
+  },
+  "limitations": [
+    "This is authored synthetic rendering, not E3 input, a game scene or player control.",
+    "Default display-mode parity remains unresolved in issue #2. The original directdraw_program test and equality assertion were not changed or accepted by this selected run.",
+    "Depth buffering, presentation/fullscreen, broader geometry/state/texture support, reliable actual-game Windows startup and gameplay remain unfinished.",
+    "Finite tests on the tested Windows runner do not prove visual fidelity or reliability on every machine.",
+    "No game executable, assets, disassembly or game-derived generated source was uploaded to CI or Git."
+  ],
+  "e3_execution": "not_run_this_pass",
+  "e3_scene": "not_demonstrated",
+  "playability": "not_demonstrated",
+  "new_roadmap_points": 0
+}

@@ -1,76 +1,64 @@
-# Development status: first native Windows x64 D3D7-on-D3D9 rendering proof
+# Development status: indexed rendering verified on native Windows x64
 
-**E3 is not demonstrated playable.** This checkpoint proves a bounded renderer
-path on native Windows, not a new actual-game run. The original 50/100 planning
-points remain unchanged; they are not a measurement of unknown remaining work.
+**E3 is not demonstrated playable.** The primary target is native Windows x64,
+with reliability and faithful visual output before release. Other platform ports
+are deferred. See `windows-quality-gates.md` for the enduring acceptance policy.
 
-## What now works on native Windows
+## Latest verified component
 
-Implementation: `20394a1446971c67ae18ae44e1439b6c2baf69f9`.
-Development branch: `work/d3d9-backend`.
-Select the explicit `--legacy-renderer d3d9` profile; native remains the default.
+Implementation: `4ada6f5784aeb1fdd662cbf5d27c49bbbf62592c`.
+Source tree: `d7d0cd964f4efae9f1ab892f0c2eef817ffbe8e1`.
+Development branch: `work/d3d9-indexed`, based on texture source `75ef8dd`.
+Native Windows run: `37220645029`, all three jobs completed successfully.
+The opt-in renderer remains `--legacy-renderer d3d9`.
 
-An authored original x86 PE32 program executes real legacy D3D7. Its compiled
-x64 counterpart executes the same guest calls through our native D3D9 HAL
-backend. Both exit zero and produce identical 64x64 low-24-bit RGB arrays:
-4,096 pixels, including 1,176 triangle pixels and 2,920 background pixels.
-SHA-256: `c048e32793d8e6d82ca5ab74314b0317a7227a7f9668599c939157b366b3828b`.
-The unused X byte is excluded equally by the original and generated fixtures;
-no image region is omitted. This is an offscreen target, not a presented frame.
+The legacy DrawIndexedPrimitive call now supports checked WORD-indexed triangle
+lists with transformed/diffuse vertices, optionally one texture coordinate set.
+The native backend submits actual indexed D3D9 drawing, not a fake success,
+interpreter, or 32-bit renderer subprocess. Shared/sparse vertices, nonzero
+minimum indices, legal degenerate triangles and high unsigned WORD indices
+are covered. Only referenced vertex payloads are treated as geometry.
 
-The generated fixture creates one owned window, one D3D9 device, clears once,
-draws once and performs two readbacks. No x86 rendering helper process or
-interpreter is used by the generated runtime. No E3 data is used in these tests.
+Two authored original x86/D3D7 scenes and their recompiled x64/D3D9 versions
+each executed twice on Windows: eight runs, every RGB pixel equal across the
+four outputs for each scene. Each output has 4096 pixels; no image region is
+excluded. Both fixtures mask only the same unused high X byte. The textured
+case also retains a texture across guest release and samples a post-bind edit.
+The previous unindexed original fixture bytes remain unchanged.
 
-## Verification: passing component, incomplete expanded integration
+## Completed verification for that source
 
-Run `37213956877` passed all jobs: the two new Windows renderer suites plus
-12 selected Windows runtime/modal suites, three Windows ASan suites, and all
-20 Linux suites plus 15,168 native-i386 comparisons across 237 fixtures.
+| Scope | Result |
+|---|---|
+| Native Windows/MSVC indexed range, boundary and original-vs-generated scenes | 3/3 suites passed |
+| Previous selected native Windows texture/runtime/dialog regressions | 16/16 suites passed |
+| Native Windows AddressSanitizer | 8/8 C++ boundary suites passed |
+| Secondary local Linux Release | 21/21 suites passed in a completed invocation |
+| Secondary portable index-validator ASan/UBSan | 6252 assertions passed |
 
-The expanded run `37214265230` and diagnostic repeat `37214817744` each
-passed both renderer suites, 13 of 14 other selected Windows suites, all four Windows ASan suites, and all 20 Linux
-suites. **They failed `directdraw_program` at the original/generated legacy
-mode-record comparison. These expanded runs are not green.** That test and its
-exact equality assertion remain intact. Issue #2 records the exact mismatch
-(39 x86 callbacks versus 13 x64), while both programs' surface pixels still match. This is not a full 35-suite Windows
-acceptance or permission to promote the accumulated candidate to main.
+The Windows ASan indexed checks include 6252 range/payload assertions and 228
+actual GPU-bridge bounds, pixel and lifetime assertions, plus unchanged texture,
+GUI, modal, resource and unwind tests. This is not a whole-game sanitizer claim.
+No new Wine or actual E3 run occurred. All 99 recorded source hashes match a
+fresh checkout restored from the native Windows CI bundle; Git integrity passed.
+See `../verification/indexed-native.json` for identities, output hashes and scope.
 
-Windows ASan passed 294 D3D9 bridge assertions, 130 default-DirectDraw
-assertions, 28 resource assertions and 70 unwind assertions. These native C++
-checks do not imply whole-game or separately generated-project sanitizer coverage.
-Local Linux Release passed all 20 suites in completed batches; one interrupted
-combined invocation was not counted as a pass. A Windows-target C++ cross-build
-also completed, but no local Wine or actual E3 run occurred in this pass.
+## Integration remains incomplete
 
-The first failed renderer run `37213532652` exposed a bare controlling-IUnknown
-pointer retained after releasing its reference. The fix retains native identity
-references while they are used as cooperative-window keys, through backend
-teardown. No test assertions or timeouts were weakened for the fix.
+These 19 selected Windows suites are not a passing full-runtime/game run.
+Issue #2's original/generated default display-mode mismatch remains unresolved;
+its test and exact equality check are unchanged. Main remains at `28903ea`
+pending acceptance of the accumulated integration, not merely this component.
+Depth buffering, presentation/fullscreen, additional geometry and state paths,
+lighting/blending and actual E3 gameplay are unfinished. No such capability
+is advertised as implemented by this indexed change.
 
-## Remaining Windows compatibility gaps
+The earlier E3-derived Windows x64 program reached its Choose Rasterizer dialog
+request under Wine. That remains historical game evidence, not native Windows
+game execution or a result from this candidate. Synthetic renderer/dialog tests
+cannot be combined into an imaginary successful E3 run. No new game scene,
+input response, sound or playability result is claimed.
 
-The default display-mode mismatch is preserved independently of this new
-opt-in renderer. Prior native probe run `37177109318` showed legacy x86 hosts
-exposing 8/16/32-bit modes while the tested x64 hosts exposed only 32-bit modes.
-These are scoped runner observations, not all Windows installations or proof
-that every mode-list difference has the same cause. We do not invent extra
-modes that the renderer cannot actually support just to pass the old test.
-
-The D3D9 renderer currently supports only the default adapter, an owned normal
-window, X8R8G8B8 targets, transformed-diffuse untextured triangle lists and a
-bounded set of states. Texture/depth resources, indexed geometry, broad state
-coverage, presentation/fullscreen and E3 rendering remain unfinished. Capabilities
-do not advertise those missing features. CPU/DirectDraw writes between scenes
-are synchronized through real D3D9 upload/readback as a correctness-first path.
-
-## Preservation
-
-The readable implementation and permanent CI are published on the development
-branch. All 93 recorded source hashes were restored from a remote CI Git bundle,
-compared byte-for-byte with the locally tested source, and Git integrity checked.
-Main remains at the earlier `28903ea` checkpoint pending integration. Issues and
-`verification/d3d9-native.json` retain both the passing proof and failed checks.
-Historical runtime, windowing, modal and real-input evidence remains separate.
-No game binary, assets, disassembly, generated game source or game executable
-was committed or uploaded. No new E3 frame, sound, input or gameplay claim.
+The original 50/100 roadmap planning checkpoint remains historical bookkeeping;
+no new points are awarded here. The source and evidence are published on the
+development branch, while game files remain private and outside Git/CI.
