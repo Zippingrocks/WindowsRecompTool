@@ -1,0 +1,42 @@
+name: Native display compatibility measurement
+on:
+  push:
+    branches: [work/mode-compatibility]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native_modes:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: x64
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x86
+      - name: Measure original x86 native API across metadata profiles
+        run: python tools/display_mode_probe.py --arch x86 --out local/mode-probe/x86
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: ${{ !cancelled() }}
+        with:
+          arch: x64
+      - name: Measure x64 on the same Windows host
+        if: ${{ !cancelled() }}
+        run: python tools/display_mode_probe.py --arch x64 --out local/mode-probe/x64
+      - name: Retain native observations, not a claimed product pass
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-display-metadata-measurements
+          path: |
+            local/mode-probe/*/observations.json
+            local/mode-probe/*/*.log
+          retention-days: 14
+          if-no-files-found: error
