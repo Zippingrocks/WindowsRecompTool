@@ -19,7 +19,7 @@ jobs:
         run: |
           import hashlib,json,os,subprocess
           from pathlib import Path
-          expected='f24b6b5a6b703d67844f6d597b31559b6ae6fba0'
+          expected='1a9cb09f5ae79c048da654e82e659d0b949d96d5'
           head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
           if head!=expected: raise RuntimeError(f'unexpected presentation head {head}')
           paths=['include/winrecomp/d3d9_host.hpp','src/runtime/d3d9_host.cpp','tests/d3d9_boundary.cpp']
