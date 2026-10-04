@@ -1,64 +1,76 @@
-# Development status: indexed rendering verified on native Windows x64
+# Development status: D16 depth verified on native Windows x64
 
-**E3 is not demonstrated playable.** The primary target is native Windows x64,
-with reliability and faithful visual output before release. Other platform ports
-are deferred. See `windows-quality-gates.md` for the enduring acceptance policy.
+**E3 is not demonstrated playable.** Native Windows x64 remains the first
+product target; reliability and faithful visual output take precedence over
+rushing a release or increasing a planning percentage. Other ports are deferred.
 
-## Latest verified component
+## Latest implementation and independent Windows proof
 
-Implementation: `4ada6f5784aeb1fdd662cbf5d27c49bbbf62592c`.
-Source tree: `d7d0cd964f4efae9f1ab892f0c2eef817ffbe8e1`.
-Development branch: `work/d3d9-indexed`, based on texture source `75ef8dd`.
-Native Windows run: `37220645029`, all three jobs completed successfully.
-The opt-in renderer remains `--legacy-renderer d3d9`.
+Tested source: `3bcf4348e19b6f8e09b936f4e74037f1fb97aa5a`.
+Tree: `dedc464692730c2b80353dfeea102d946e70268f`.
+Branch: `work/d3d9-depth`, based on the accepted indexed component at `5ef5819`.
+Native Windows run: `37223574327`; all three jobs completed successfully.
+The renderer remains an explicit `--legacy-renderer d3d9` selection.
 
-The legacy DrawIndexedPrimitive call now supports checked WORD-indexed triangle
-lists with transformed/diffuse vertices, optionally one texture coordinate set.
-The native backend submits actual indexed D3D9 drawing, not a fake success,
-interpreter, or 32-bit renderer subprocess. Shared/sparse vertices, nonzero
-minimum indices, legal degenerate triangles and high unsigned WORD indices
-are covered. Only referenced vertex payloads are treated as geometry.
+An authored original PE32 program uses native legacy Direct3D 7 and its generated
+x64 counterpart uses our D3D9 bridge. Both execute twice on actual Windows.
+All four outputs match for every RGB pixel of 14 depth-test scenes: 4,096
+pixels per scene, 57,344 per execution. Each scene uses a nonindexed draw and
+an indexed draw in separate scenes. Eight comparison functions, disabled
+testing/writes, independent color/depth clears and detach/rebind retention
+are exercised. Only the same unused X byte is masked on both sides; no image
+region is excluded. Independent expected-color checks also pass.
 
-Two authored original x86/D3D7 scenes and their recompiled x64/D3D9 versions
-each executed twice on Windows: eight runs, every RGB pixel equal across the
-four outputs for each scene. Each output has 4096 pixels; no image region is
-excluded. Both fixtures mask only the same unused high X byte. The textured
-case also retains a texture across guest release and samples a post-bind edit.
-The previous unindexed original fixture bytes remain unchanged.
+Output SHA-256: `8956f636f1d483d1f9e8a20024114360366b90dc1b7b7aac24671c4cd98b0e4e`.
+These are synthetic offscreen rendering results, not E3 or presentation.
 
-## Completed verification for that source
+## What was added
+
+The bounded backend now has real D16 native GPU depth storage, checked legacy
+descriptors and attachment/COM ownership, depth testing/writes/comparisons,
+color-versus-depth clear separation and retained contents across scenes and
+reattachment. Unsupported depth formats, stencil, W-buffer mode, CPU depth
+access and cross-device migration are explicitly rejected. Capability reports
+are checked against real native format and comparison support.
+
+See `depth-buffering.md` and `../verification/depth-native.json` for precise
+scope, source identities, output files, artifact hashes and retained failures.
+
+## Completed verification
 
 | Scope | Result |
 |---|---|
-| Native Windows/MSVC indexed range, boundary and original-vs-generated scenes | 3/3 suites passed |
-| Previous selected native Windows texture/runtime/dialog regressions | 16/16 suites passed |
-| Native Windows AddressSanitizer | 8/8 C++ boundary suites passed |
-| Secondary local Linux Release | 21/21 suites passed in a completed invocation |
-| Secondary portable index-validator ASan/UBSan | 6252 assertions passed |
+| Native Windows/MSVC new depth boundary and original/generated scenes | 2/2 suites passed |
+| Retained selected Windows indexed/texture/runtime/GUI regressions | 19/19 suites passed |
+| Native Windows AddressSanitizer boundary tests | 9/9 suites passed |
+| Secondary local Linux Release regressions | 21/21 passed in four completed batches |
 
-The Windows ASan indexed checks include 6252 range/payload assertions and 228
-actual GPU-bridge bounds, pixel and lifetime assertions, plus unchanged texture,
-GUI, modal, resource and unwind tests. This is not a whole-game sanitizer claim.
-No new Wine or actual E3 run occurred. All 99 recorded source hashes match a
-fresh checkout restored from the native Windows CI bundle; Git integrity passed.
-See `../verification/indexed-native.json` for identities, output hashes and scope.
+The Windows ASan depth suite passed 1,108 assertions, alongside the previous
+index, texture, GUI, modal, resource and unwind tests. Its result does not cover
+the separately generated executable or a whole game. The first native attempt
+failed compilation because a test variable collided with an SDK macro; renaming
+that variable fixed the compilation without changing runtime behavior, tests'
+assertions, timeouts or the original PE32 fixture. That failed run is retained.
 
-## Integration remains incomplete
+The CI source bundle was restored into an independent checkout. All 102 recorded
+source hashes match the locally prepared source, and Git object integrity
+passes. All four downloaded pixel files were independently compared, and the
+original authored PE32 bytes were reconstructed and matched to their SHA.
 
-These 19 selected Windows suites are not a passing full-runtime/game run.
-Issue #2's original/generated default display-mode mismatch remains unresolved;
-its test and exact equality check are unchanged. Main remains at `28903ea`
-pending acceptance of the accumulated integration, not merely this component.
-Depth buffering, presentation/fullscreen, additional geometry and state paths,
-lighting/blending and actual E3 gameplay are unfinished. No such capability
-is advertised as implemented by this indexed change.
+## Remaining gates
 
-The earlier E3-derived Windows x64 program reached its Choose Rasterizer dialog
-request under Wine. That remains historical game evidence, not native Windows
-game execution or a result from this candidate. Synthetic renderer/dialog tests
-cannot be combined into an imaginary successful E3 run. No new game scene,
-input response, sound or playability result is claimed.
+D16 is not complete depth/stencil support or a promise about every precision
+boundary and graphics driver. The new depth scenes are untextured; textures
+are regressed separately, not claimed as a combined textured-depth acceptance.
+Presentation/fullscreen, broader graphics states/formats, lighting/blending,
+error recovery and the actual E3 Windows integration still need work.
 
-The original 50/100 roadmap planning checkpoint remains historical bookkeeping;
-no new points are awarded here. The source and evidence are published on the
-development branch, while game files remain private and outside Git/CI.
+Issue #2's original/generated default display-mode mismatch remains unresolved.
+Its equality test is unchanged. These 21 selected Windows tests are not a green
+full integration run, and main remains separate at its earlier checkpoint.
+No actual E3 or Wine execution occurred in this pass. The historical E3 startup
+under Wine does not establish native Windows game rendering or player control.
+
+No original game executable/assets, disassembly or generated game source is
+committed or uploaded. No new planning points or playability milestone are
+awarded. The implementation and evidence are preserved on the development branch.

@@ -1,0 +1,306 @@
+{
+  "schema": "winrecomp.depth-native-evidence.v1",
+  "observed_at_utc": "2026-10-04T18:26:17.149272+00:00",
+  "source_commit": "3bcf4348e19b6f8e09b936f4e74037f1fb97aa5a",
+  "source_tree": "dedc464692730c2b80353dfeea102d946e70268f",
+  "runtime_implementation_introduced_at": "87650784e9c7c9e61d7e0e65c4e4169060225d25",
+  "source_branch": "work/d3d9-depth",
+  "source_hash_count": 102,
+  "publication_workflow_commit": "3f1b13269214ca34607d87f62b5b77701d65e4b7",
+  "workflow_run_id": 37223574327,
+  "windows": {
+    "platform": "Windows Server 2022 x64 GitHub runner",
+    "compiler": "MSVC 19.44.35229, x64",
+    "new_suites_passed": 2,
+    "retained_selected_suites_passed": 19,
+    "total_selected_suites_passed": 21,
+    "new_suites": [
+      "d3d9_depth",
+      "d3d9_depth_program"
+    ],
+    "retained_suites": [
+      "indexed_geometry",
+      "dialog_template",
+      "d3d9_indexed",
+      "d3d9_textures",
+      "d3d9_boundary",
+      "dialog_boundary",
+      "processor",
+      "modules",
+      "gui_boundary",
+      "resources",
+      "core",
+      "exception_unwind",
+      "process",
+      "runtime",
+      "d3d9_indexed_program",
+      "d3d9_texture_program",
+      "d3d9_program",
+      "modules_execution",
+      "callback_abi"
+    ],
+    "full_integration_run_claimed": false,
+    "original_vs_generated": {
+      "schema": "winrecomp.depth-native.v1",
+      "host": "native Windows",
+      "original": "PE32 x86 D3D7",
+      "generated": "compiled PE32+ x64 D3D9",
+      "input_sha256": "ad6438e4d33a6fa534b33c57b0d194a263321e25fe7e1145a6bdbeba72c7b01a",
+      "scenes": [
+        "less",
+        "less_equal_tie",
+        "less_tie",
+        "greater",
+        "greater_equal_tie",
+        "equal",
+        "not_equal",
+        "never",
+        "always",
+        "writes_disabled",
+        "testing_disabled",
+        "color_clear_preserves_depth",
+        "depth_clear_preserves_color",
+        "detach_rebind_preserves_depth"
+      ],
+      "pixels_per_scene": 4096,
+      "executions": 4,
+      "all_rgb_pixels_identical": true,
+      "output_sha256": "8956f636f1d483d1f9e8a20024114360366b90dc1b7b7aac24671c4cd98b0e4e",
+      "scope": "Authored offscreen D16, eight Z comparisons, disable/write/clear/rebind; not E3 or presentation"
+    },
+    "outputs_verified_directly": [
+      {
+        "folder": "d3d9_depth_program/generated-d3d9-0",
+        "output_bytes": 229376,
+        "output_sha256": "8956f636f1d483d1f9e8a20024114360366b90dc1b7b7aac24671c4cd98b0e4e",
+        "process_report_sha256": "8fdaaaec1d651b1abdac0323eb78725043888b886e381b3c58c9db1670716137",
+        "process_summary": {
+          "exited": true,
+          "exit_code": 0,
+          "native_instructions": 408026,
+          "api_calls": 207
+        }
+      },
+      {
+        "folder": "d3d9_depth_program/generated-d3d9-1",
+        "output_bytes": 229376,
+        "output_sha256": "8956f636f1d483d1f9e8a20024114360366b90dc1b7b7aac24671c4cd98b0e4e",
+        "process_report_sha256": "8fdaaaec1d651b1abdac0323eb78725043888b886e381b3c58c9db1670716137",
+        "process_summary": {
+          "exited": true,
+          "exit_code": 0,
+          "native_instructions": 408026,
+          "api_calls": 207
+        }
+      },
+      {
+        "folder": "d3d9_depth_program/original-d3d7-0",
+        "output_bytes": 229376,
+        "output_sha256": "8956f636f1d483d1f9e8a20024114360366b90dc1b7b7aac24671c4cd98b0e4e"
+      },
+      {
+        "folder": "d3d9_depth_program/original-d3d7-1",
+        "output_bytes": 229376,
+        "output_sha256": "8956f636f1d483d1f9e8a20024114360366b90dc1b7b7aac24671c4cd98b0e4e"
+      }
+    ],
+    "retained_rendering_artifacts": [
+      {
+        "path": "d3d9_indexed_program/acceptance.json",
+        "sha256": "a5e25b0cdffe0eaa53cdd0182d028b9135b1df59e981455c0b2172755413f922",
+        "schema": "winrecomp.indexed-native.v1",
+        "result": "Retained test completed successfully in the current Windows job."
+      },
+      {
+        "path": "d3d9_texture_program/acceptance.json",
+        "sha256": "3046a0d32d7c32e021276c31d123281c859ec965484fe92b56cf34a74cf9a8d4",
+        "schema": "winrecomp.d3d9-texture-proof.v1",
+        "result": "Retained test completed successfully in the current Windows job."
+      },
+      {
+        "path": "d3d9_program/acceptance.json",
+        "sha256": "2c4120f3834aac7b8cdd66b69da286a81d77e32baf560368214d2bf21087fe3f",
+        "schema": "winrecomp.d3d9-render-proof.v1",
+        "result": "Retained test completed successfully in the current Windows job."
+      }
+    ],
+    "generated_execution": {
+      "exited": true,
+      "exit_code": 0,
+      "native_instructions": 408026,
+      "api_calls": 207,
+      "gui": {
+        "backend": "native-win32",
+        "windows_created": 1,
+        "windows_destroyed": 1,
+        "window_callbacks": 6,
+        "messages_dispatched": 0,
+        "gl_contexts_created": 0,
+        "swaps": 0,
+        "host_only_notifications": 1,
+        "host_only_message_ids": [
+          144
+        ],
+        "dialogs_created": 0,
+        "dialog_callbacks": 0,
+        "dialogs_completed": 0
+      },
+      "directdraw": {
+        "backend": "ddraw-d3d9-bounded",
+        "d3d9_devices": 1,
+        "d3d9_draws": 28,
+        "d3d9_indexed_draws": 14,
+        "d3d9_clears": 16,
+        "d3d9_readbacks": 44,
+        "d3d9_depth_surfaces": 1,
+        "d3d9_depth_binds": 2,
+        "objects_created": 6,
+        "objects_retired": 6,
+        "adapter_callbacks": 0,
+        "mode_callbacks": 0,
+        "d3d7_wrappers": 0,
+        "d3d_device_callbacks": 0,
+        "mode7_callbacks": 0,
+        "zformat_callbacks": 0,
+        "d3d_devices_created": 1,
+        "texture_callbacks": 0,
+        "surface_locks": 14,
+        "surface_unlocks": 14,
+        "blits": 0
+      }
+    },
+    "instruction_counter_note": "native_instructions in the process report counts executed translated guest instructions, not physical host machine instructions."
+  },
+  "windows_asan": {
+    "suites_passed": 9,
+    "assertions": {
+      "d3d9_depth": 1108,
+      "indexed_geometry": 6252,
+      "d3d9_indexed": 228,
+      "d3d9_textures": 577,
+      "d3d9_boundary": 294,
+      "dialog_boundary": 1847,
+      "gui_boundary": 547,
+      "resources": 28,
+      "exception_unwind": 70
+    },
+    "scope": "Native C++ depth/graphics/GUI/memory boundary tests, not the separately generated program or a full game."
+  },
+  "local_secondary": {
+    "platform": "Linux x64 GCC 14.2",
+    "release_suites_passed": 21,
+    "execution": "Four completed batches (14+4+2+1); not one completed full-suite command.",
+    "log_sha256": {
+      "depth-host-small.log": "49cca1df6a6f34321c2f255c11245040c4fbc52c482e2d72f38ed24dd26a72a0",
+      "depth-host-math.log": "0d603cb18cb1ef5d8a8a55d8a9c2943d30fcd38207ae4b9cccc2876f12d8bec7",
+      "depth-host-conformance.log": "605316e7029171af033885d46b49432f22959d6e5a30c2db0a2a70a7d2ba210f",
+      "depth-host-program.log": "39dbbcc356a9839e00a0d16a8f649fe22bb62735954a70187aaebad4b3e4dca1"
+    },
+    "interrupted_combined_run_counted_as_pass": false,
+    "wine_execution_this_pass": false,
+    "actual_e3_execution_this_pass": false,
+    "native_i386_or_sanitizer_rerun_claimed": false
+  },
+  "artifacts": {
+    "windows": {
+      "id": 11311058954,
+      "sha256": "a726816eb787803e280167d7d2c095e75a6a1ef878b92bc00240521673e91b39"
+    },
+    "windows_asan": {
+      "id": 11311242431,
+      "sha256": "372c1753b86241d5a39cc1cd9e3ec928c772bdb12ed65496fb4897548da71293"
+    }
+  },
+  "retained_failure": {
+    "run_id": 37223265281,
+    "stage": "Compile depth boundary test on MSVC; runtime compiled. No test pass claimed.",
+    "cause": "Local test variable small collided with the Windows SDK small macro.",
+    "repair": "Rename one local identifier to smaller_depth and update its source hash. No runtime, assertion, timeout or original PE32 fixture change."
+  },
+  "limitations": [
+    "D16 only; other depth/stencil formats, W-buffering, CPU depth access and cross-device migration are unsupported.",
+    "Exact binary-fraction fixture depths do not establish every quantization boundary or every driver.",
+    "The new original fixture is untextured depth; textured rendering is regressed separately, not a combined textured-depth acceptance claim.",
+    "All RGB result pixels are compared, not raw hardware Z-buffer data. Only the same unused X byte is masked by both programs.",
+    "Offscreen synthetic scenes are not presentation, an E3 scene, or player control.",
+    "Issue #2 display-mode parity and full accumulated integration remain incomplete. The existing mode equality assertion is unchanged.",
+    "No original game input/assets, disassembly or game-derived generated code is committed or sent to hosted CI."
+  ],
+  "game_playable": false,
+  "new_planning_points_awarded": 0,
+  "verification_notes": "Full source and process reports remain in the hashed CI artifacts. This summary retains source identities, counts, results and output hashes; pixel files were compared directly and all 102 recorded source files matched the recovered checkout.",
+  "jobs": [
+    {
+      "id": 111498559145,
+      "name": "publish",
+      "conclusion": "success"
+    },
+    {
+      "id": 111498586312,
+      "name": "windows",
+      "conclusion": "success"
+    },
+    {
+      "id": 111498586276,
+      "name": "windows_memory",
+      "conclusion": "success"
+    }
+  ],
+  "fixture_bytes_reconstructed_and_sha_matched": true,
+  "scene_color_histograms": {
+    "less": {
+      "0x183050": 2920,
+      "0xff0000": 1176
+    },
+    "less_equal_tie": {
+      "0x183050": 2920,
+      "0x0000ff": 1176
+    },
+    "less_tie": {
+      "0x183050": 2920,
+      "0xff0000": 1176
+    },
+    "greater": {
+      "0x183050": 2920,
+      "0xff0000": 1176
+    },
+    "greater_equal_tie": {
+      "0x183050": 2920,
+      "0x0000ff": 1176
+    },
+    "equal": {
+      "0x183050": 2920,
+      "0x0000ff": 1176
+    },
+    "not_equal": {
+      "0x183050": 2920,
+      "0xff0000": 1176
+    },
+    "never": {
+      "0x183050": 4096
+    },
+    "always": {
+      "0x183050": 2920,
+      "0x0000ff": 1176
+    },
+    "writes_disabled": {
+      "0x183050": 2920,
+      "0x0000ff": 1176
+    },
+    "testing_disabled": {
+      "0x183050": 2920,
+      "0x0000ff": 1176
+    },
+    "color_clear_preserves_depth": {
+      "0x183050": 4096
+    },
+    "depth_clear_preserves_color": {
+      "0x183050": 2920,
+      "0x0000ff": 1176
+    },
+    "detach_rebind_preserves_depth": {
+      "0x183050": 2920,
+      "0xff0000": 1176
+    }
+  }
+}
