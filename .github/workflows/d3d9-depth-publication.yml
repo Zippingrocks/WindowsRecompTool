@@ -1,0 +1,141 @@
+name: Native Windows D16 depth verification
+on:
+  push:
+    branches: [work/d3d9-depth-publication]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      source_sha: ${{ steps.publish.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+      - name: Validate and publish exact owned source
+        id: publish
+        shell: python
+        run: |
+          import base64,hashlib,json,lzma,os,subprocess
+          from pathlib import Path
+          def git(*args,cwd=None):
+              return subprocess.check_output(['git',*args],cwd=cwd)
+          encoded=b''.join(git('show',f'HEAD:publication/depth-{i}.b64') for i in range(4))
+          assert hashlib.sha256(encoded).hexdigest()=='ee27f475e2999a0031a5b11db51fbfb4e72cd7e72a1aa4dd3b06bf056166b5f7','Source transfer mismatch'
+          decoder=lzma.LZMADecompressor(memlimit=128*1024*1024)
+          patch=decoder.decompress(base64.b64decode(encoded,validate=True),max_length=1024*1024)
+          assert decoder.eof and not decoder.unused_data,'Oversized or invalid source patch'
+          assert hashlib.sha256(patch).hexdigest()=='3e6de33dd67c6ed9953b7cbc5360dd8473fc1172d43daa238fa7cc760fa70c3b','Patch checksum mismatch'
+          folder=Path(os.environ['RUNNER_TEMP'])/'depth-source'
+          patchfile=Path(os.environ['RUNNER_TEMP'])/'depth.patch';patchfile.write_bytes(patch)
+          base='5ef58195e80f03dd611a878fb39dc87a6862672f'
+          git('worktree','add','--detach',str(folder),base)
+          git('apply','--index',str(patchfile),cwd=folder)
+          expected={'CMakeLists.txt','include/winrecomp/d3d9_host.hpp','src/runtime/d3d9_host.cpp','src/runtime/directdraw.cpp','src/runtime/directdraw_d3d9.hpp','src/runtime/directdraw_depth.hpp','tests/d3d9_boundary.cpp','tests/d3d9_depth.cpp','tests/d3d9_depth_program.py','verification/source-hashes.json'}
+          assert set(git('diff','--cached','--name-only',cwd=folder).decode().splitlines())==expected,'Unexpected changed path'
+          hashes=json.loads(git('show',':verification/source-hashes.json',cwd=folder))['sha256']
+          assert len(hashes)==102,'Unexpected source snapshot count'
+          for name,want in hashes.items():
+              assert hashlib.sha256(git('show',':'+name,cwd=folder)).hexdigest()==want,name
+          branch='refs/heads/work/d3d9-depth'
+          existing=git('ls-remote','origin',branch).decode().split()
+          if existing:
+              sha=existing[0];git('fetch','origin',sha,cwd=folder)
+              assert git('rev-parse',sha+'^{tree}',cwd=folder)==git('write-tree',cwd=folder),'Development branch changed; refusing to overwrite'
+          else:
+              git('config','user.name','github-actions[bot]',cwd=folder)
+              git('config','user.email','41898282+github-actions[bot]@users.noreply.github.com',cwd=folder)
+              git('commit','-m','feat: implement bounded D16 depth resources and D3D7-on-D3D9 occlusion','-m','Checked depth formats and host support, explicit surface attachment ownership, preserved depth across scenes and rebinds, depth comparison/write states and color/depth clear separation. Native Windows original-versus-generated tests follow; no game or full renderer claim.',cwd=folder)
+              sha=git('rev-parse','HEAD',cwd=folder).decode().strip()
+              git('push','origin','HEAD:'+branch,cwd=folder)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as stream:stream.write('source_sha='+sha+'\n')
+          print('Published readable source',sha)
+  windows:
+    needs: publish
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_sha }}
+          fetch-depth: 0
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: x64
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - run: python -m pip install unicorn==2.1.2
+      - run: python tools/check_repository.py
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=ON
+      - name: Compile current Windows source
+        id: compile
+        run: cmake --build build --parallel 2
+      - name: Native Windows depth lifetime and original x86 occlusion comparison
+        run: ctest --test-dir build -R "^(d3d9_depth|d3d9_depth_program)$" --output-on-failure
+      - name: Retain previous selected indexed, texture and runtime checks
+        if: ${{ !cancelled() && steps.compile.outcome == 'success' }}
+        run: ctest --test-dir build -R "^(indexed_geometry|d3d9_indexed|d3d9_indexed_program|d3d9_textures|d3d9_texture_program|d3d9_boundary|d3d9_program|gui_boundary|dialog_boundary|dialog_template|resources|exception_unwind|core|processor|modules|process|runtime|callback_abi|modules_execution)$" --output-on-failure
+      - name: Preserve readable source and pinned dependencies
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p build
+          git bundle create build/WinRecomp.bundle --all
+          git -C third_party/zydis bundle create "$GITHUB_WORKSPACE/build/Zydis.bundle" --all
+          git -C third_party/zydis/dependencies/zycore bundle create "$GITHUB_WORKSPACE/build/Zycore.bundle" --all
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: depth-windows-msvc
+          path: |
+            build/Testing/Temporary/LastTest.log
+            build/Testing/Temporary/LastTestsFailed.log
+            build/d3d9_depth_program/acceptance.json
+            build/d3d9_depth_program/*/depth.bin
+            build/d3d9_depth_program/*/process.json
+            build/d3d9_depth_program/*/run.log
+            build/d3d9_indexed_program/acceptance.json
+            build/d3d9_texture_program/acceptance.json
+            build/d3d9_program/acceptance.json
+            build/WinRecomp.bundle
+            build/Zydis.bundle
+            build/Zycore.bundle
+          retention-days: 14
+          if-no-files-found: warn
+  windows_memory:
+    needs: publish
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - run: cmake -S . -B asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
+      - run: cmake --build asan --target winrecomp_d3d9_depth winrecomp_indexed_geometry winrecomp_d3d9_indexed winrecomp_d3d9_textures winrecomp_d3d9_boundary winrecomp_gui_boundary winrecomp_dialog_boundary winrecomp_exception_unwind winrecomp_resource_tests --parallel 2
+      - name: Native Windows depth, index and graphics lifetime checks
+        run: ctest --test-dir asan -R "^(d3d9_depth|indexed_geometry|d3d9_indexed|d3d9_textures|d3d9_boundary|gui_boundary|dialog_boundary|exception_unwind|resources)$" --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: depth-windows-asan
+          path: asan/Testing/Temporary/LastTest.log
+          retention-days: 14
+          if-no-files-found: warn
