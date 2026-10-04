@@ -314,19 +314,7 @@ public:
         if(FAILED(hr))return Status(hr);
         return Status(device.p->Present(nullptr,nullptr,nullptr,nullptr));
     }
-    Status front_pixel(std::uint32_t x,std::uint32_t y,std::uint32_t& rgb) override{
-        if(!valid() || scene)return Invalid;
-        D3DDISPLAYMODE mode{};auto hr=device.p->GetDisplayMode(0,&mode);if(FAILED(hr))return Status(hr);
-        if(x>=mode.Width || y>=mode.Height)return Invalid;
-        Com<IDirect3DSurface9> front;
-        hr=device.p->CreateOffscreenPlainSurface(mode.Width,mode.Height,mode.Format,D3DPOOL_SYSTEMMEM,&front.p,nullptr);
-        if(FAILED(hr) || !front.p)return FAILED(hr)?Status(hr):Invalid;
-        hr=device.p->GetFrontBufferData(0,front.p);if(FAILED(hr))return Status(hr);
-        D3DLOCKED_RECT lock{};hr=front.p->LockRect(&lock,nullptr,D3DLOCK_READONLY);if(FAILED(hr))return Status(hr);
-        if(lock.Pitch<=0 || !lock.pBits || unsigned(lock.Pitch)<mode.Width*4){front.p->UnlockRect();return Invalid;}
-        std::uint32_t pixel{};std::memcpy(&pixel,static_cast<const std::uint8_t*>(lock.pBits)+std::size_t(y)*lock.Pitch+std::size_t(x)*4,4);
-        const auto unlock=front.p->UnlockRect();if(FAILED(unlock))return Status(unlock);rgb=pixel&0x00ffffffu;return Ok;
-    }
+
 };
 class NativeFactory final:public Factory {
     Com<IDirect3D9> factory;DWORD thread=GetCurrentThreadId();
