@@ -30,44 +30,43 @@ jobs:
           from pathlib import Path
           def git(*args,cwd=None):
               return subprocess.check_output(['git',*args],cwd=cwd)
-          checks=['5290b881c3284161514da586ebaa1f523350cee079a3b0ccc072bf306fa80236','cfa00a68cb11efa577d5785b748c93f0165dd101676d3e6e3d0b705050ef92c9']
-          parts=[]
-          for i,want in enumerate(checks):
-              raw=git('show',f'HEAD:publication/texture-{i}.b64')
-              if hashlib.sha256(raw).hexdigest()!=want: raise RuntimeError('Source segment mismatch')
-              parts.append(raw)
+          raw=git('show','HEAD:publication/texture-storage.b64')
+          if hashlib.sha256(raw).hexdigest()!='f8bfd909fc5089aa31d85765f01ce042976afdeb91d2570141c34786b8c0dff5':
+              raise RuntimeError('Source segment mismatch')
           decoder=lzma.LZMADecompressor(memlimit=128*1024*1024)
-          patch=decoder.decompress(base64.b64decode(b''.join(parts),validate=True),max_length=256*1024)
-          if not decoder.eof or decoder.unused_data or hashlib.sha256(patch).hexdigest()!='9d7770f68b2bb03bf1c2aee11d9092cbe4936694af9942cc7d251abd24d7a3fc':
+          patch=decoder.decompress(base64.b64decode(raw,validate=True),max_length=256*1024)
+          if not decoder.eof or decoder.unused_data or hashlib.sha256(patch).hexdigest()!='7a069dce863e2345c76719c2b0b4c495f881d348de65a10a313ce22265e34fad':
               raise RuntimeError('Invalid or changed source patch')
-          expected=json.loads(git('show','HEAD:publication/texture-source-files.json'))
-          allowed={'CMakeLists.txt','include/winrecomp/d3d9_host.hpp','src/runtime/d3d9_host.cpp','src/runtime/directdraw.cpp','src/runtime/directdraw_d3d9.hpp','tests/d3d9_boundary.cpp','tests/d3d9_program.py','tests/d3d9_texture_program.py','tests/d3d9_textures.cpp'}
-          if set(expected)!=allowed: raise RuntimeError('Unexpected source paths')
+          expected={
+              'src/runtime/d3d9_host.cpp':'08d03833c8fcd16365e4bc4b604448883c07982f5f80285f8f69430de8a08cd1',
+              'src/runtime/directdraw.cpp':'e0c9f660f9d5ef9aad96a33946081594c32aa37df5cbaeee6e8b4f686db43c72',
+              'src/runtime/directdraw_d3d9.hpp':'0a6343364d740526f43ab38db192413916df1c7cf0d7c092101c5d67bfdae7a6',
+              'tests/d3d9_textures.cpp':'5d110953998b7544962732c92a9f58462638328894aa1656622106fac5366c96'}
           folder=Path(os.environ['RUNNER_TEMP'])/'texture-source'
           patch_path=Path(os.environ['RUNNER_TEMP'])/'texture.patch';patch_path.write_bytes(patch)
-          git('worktree','add','--detach',str(folder),'41f62c05865a8edb08cb2d113f515ccece8e222f')
+          base='72df061fd7cc0e5f3f0a32ac8646bebedc42bee1'
+          git('worktree','add','--detach',str(folder),base)
           git('apply','--index',str(patch_path),cwd=folder)
-          names=set(git('diff','--cached','--name-only',cwd=folder).decode().splitlines())
-          if names!=allowed: raise RuntimeError('Patch changed unexpected files')
+          if set(git('diff','--cached','--name-only',cwd=folder).decode().splitlines())!=set(expected):
+              raise RuntimeError('Patch changed unexpected files')
           for name,want in expected.items():
               if hashlib.sha256(git('show',':'+name,cwd=folder)).hexdigest()!=want:
                   raise RuntimeError('Source mismatch: '+name)
           record=folder/'verification/source-hashes.json'
           value=json.loads(record.read_text());value['sha256'].update(expected)
-          value['note']='Exact owned source for opt-in bounded single-stage D3D9 textures; no game material.'
           record.write_text(json.dumps(value,indent=2)+'\n')
           git('add','verification/source-hashes.json',cwd=folder)
           branch='refs/heads/work/d3d9-textures'
           existing=git('ls-remote','origin',branch).decode().split()
-          if existing:
-              sha=existing[0]
-              git('fetch','origin',sha,cwd=folder)
+          if not existing: raise RuntimeError('Expected existing texture development branch')
+          if existing[0]!=base:
+              sha=existing[0];git('fetch','origin',sha,cwd=folder)
               if git('rev-parse',sha+'^{tree}',cwd=folder)!=git('write-tree',cwd=folder):
-                  raise RuntimeError('Existing development branch differs; refusing to overwrite')
+                  raise RuntimeError('Development branch changed; refusing to overwrite')
           else:
               git('config','user.name','github-actions[bot]',cwd=folder)
               git('config','user.email','41898282+github-actions[bot]@users.noreply.github.com',cwd=folder)
-              git('commit','-m','feat: add bounded single-stage D3D7 textures on native x64 D3D9','-m','Checked ARGB/XRGB formats, sampler translation, owned uploads, post-bind CPU edits and retained texture lifetime. Original and generated synthetic textured scenes are independently tested on Windows by the publication workflow. No E3 execution or full renderer claim.',cwd=folder)
+              git('commit','-m','fix: back guest textures without native x64 legacy texture support','-m','Keep real CPU storage in an offscreen surface and real sampling in D3D9. Retain guest texture capabilities across descriptor queries, locks, COM aliases and GetTexture after release. The original textured PE32 and exact pixel comparison remain unchanged. Native Windows validation follows.',cwd=folder)
               sha=git('rev-parse','HEAD',cwd=folder).decode().strip()
               git('push','origin','HEAD:'+branch,cwd=folder)
           with open(os.environ['GITHUB_OUTPUT'],'a') as stream: stream.write('source_sha='+sha+'\n')
