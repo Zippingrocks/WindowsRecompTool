@@ -79,6 +79,16 @@ void run(){
         CHECK(com(p,device,20,{device,state,value})==D3D_OK);
         CHECK(com(p,device,21,{device,state,out})==D3D_OK && p.memory.load(out,32)==value);
     }
+    CHECK(com(p,device,20,{device,D3DRENDERSTATE_SRCBLEND,D3DBLEND_SRCALPHA})==D3D_OK);
+    CHECK(com(p,device,20,{device,D3DRENDERSTATE_DESTBLEND,D3DBLEND_INVSRCALPHA})==D3D_OK);
+    CHECK(com(p,device,20,{device,D3DRENDERSTATE_ALPHABLENDENABLE,TRUE})==D3D_OK);
+    CHECK(com(p,device,21,{device,D3DRENDERSTATE_SRCBLEND,out})==D3D_OK && p.memory.load(out,32)==D3DBLEND_SRCALPHA);
+    CHECK(com(p,device,21,{device,D3DRENDERSTATE_DESTBLEND,out})==D3D_OK && p.memory.load(out,32)==D3DBLEND_INVSRCALPHA);
+    CHECK(com(p,device,21,{device,D3DRENDERSTATE_ALPHABLENDENABLE,out})==D3D_OK && p.memory.load(out,32)==TRUE);
+    fault([&]{com(p,device,20,{device,D3DRENDERSTATE_SRCBLEND,D3DBLEND_DESTCOLOR});},wr::FaultKind::unsupported);
+    CHECK(com(p,device,20,{device,D3DRENDERSTATE_ALPHABLENDENABLE,FALSE})==D3D_OK);
+    CHECK(com(p,device,20,{device,D3DRENDERSTATE_SRCBLEND,D3DBLEND_ONE})==D3D_OK);
+    CHECK(com(p,device,20,{device,D3DRENDERSTATE_DESTBLEND,D3DBLEND_ZERO})==D3D_OK);
     fault([&]{com(p,device,20,{device,7,1});},wr::FaultKind::unsupported);
     CHECK(com(p,device,21,{device,7,out})==D3D_OK && p.memory.load(out,32)==0);
     fault([&]{com(p,device,21,{device,7,out+1});},wr::FaultKind::memory);
