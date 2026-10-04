@@ -14,8 +14,12 @@ struct Vertex {float x,y,z,rhw;std::uint32_t diffuse;};
 struct TexturedVertex {float x,y,z,rhw;std::uint32_t diffuse;float u,v;};
 struct TextureLimits {std::uint32_t width{},height{},aspect{},ops{},filters{},address{},caps{};bool alpha{};};
 struct Viewport {std::uint32_t x,y,width,height;float min_z,max_z;};
-struct Capabilities {std::uint32_t misc{},shade{},max_primitives{};float max_w{};TextureLimits texture{};};
+struct Capabilities {std::uint32_t misc{},shade{},max_primitives{};float max_w{};TextureLimits texture{};std::uint32_t depth_compare{};bool depth16{};};
 static_assert(sizeof(Vertex)==20 && sizeof(TexturedVertex)==28 && sizeof(Viewport)==24);
+class Depth {
+public:
+    virtual ~Depth()=default;
+};
 class Device {
 public:
     virtual ~Device()=default;
@@ -23,6 +27,11 @@ public:
     virtual Status begin()=0;
     virtual Status end()=0;
     virtual Status clear(std::uint32_t color)=0;
+    // Depth storage belongs to the creating native device. Rebinding on that
+    // device preserves its contents; copying between devices is not implicit.
+    virtual Status create_depth(std::shared_ptr<Depth>&)=0;
+    virtual Status bind_depth(const std::shared_ptr<Depth>&)=0;
+    virtual Status clear_buffers(std::uint32_t flags,std::uint32_t color,float z)=0;
     virtual Status set_viewport(const Viewport&)=0;
     virtual Status get_viewport(Viewport&)=0;
     virtual Status set_state(std::uint32_t,std::uint32_t)=0;

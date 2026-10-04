@@ -1,9 +1,9 @@
 # WinRecomp
 
 > Windows x64 first: the development renderer now has native Windows
-> original-x86 versus recompiled-x64 acceptance for indexed untextured/textured
-> test scenes. **E3 itself is not demonstrated playable.** New source and
-> evidence are on development branches, not yet promoted to main.
+> original-x86 versus recompiled-x64 acceptance for indexed drawing, textures
+> and bounded D16 depth-test scenes. **E3 itself is not demonstrated playable.**
+> New source and evidence are on development branches, not yet promoted to main.
 > Read `docs/status.md` for exact current scope and `docs/windows-quality-gates.md`
 > for the reliability and visual-fidelity gates.
 
@@ -32,9 +32,10 @@ native Windows GUI AddressSanitizer checks passed. See `docs/windowing.md` and
 `verification/windowing-ci.json` for the exact source and acceptance evidence.
 
 The opt-in `--legacy-renderer d3d9` backend implements a bounded D3D7-on-D3D9
-path with single-stage textures and WORD-indexed triangle lists. Native Windows
-CI compares authored original PE32 and generated x64 output pixel-for-pixel;
-depth, presentation and broad state/geometry compatibility remain unfinished.
+path with single-stage textures, WORD-indexed triangle lists and D16 depth
+buffers. Native Windows CI compares authored original PE32 and generated x64
+output pixel-for-pixel. Presentation, additional depth/stencil formats and broad
+state/geometry compatibility remain unfinished. See `docs/depth-buffering.md`.
 
 **E3 is not playable yet.** The last recorded actual E3 startup reached its
 Choose Rasterizer dialog request under Wine. That is distinct from both the
