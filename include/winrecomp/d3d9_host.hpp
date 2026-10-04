@@ -14,7 +14,7 @@ struct Vertex {float x,y,z,rhw;std::uint32_t diffuse;};
 struct TexturedVertex {float x,y,z,rhw;std::uint32_t diffuse;float u,v;};
 struct TextureLimits {std::uint32_t width{},height{},aspect{},ops{},filters{},address{},caps{};bool alpha{};};
 struct Viewport {std::uint32_t x,y,width,height;float min_z,max_z;};
-struct Capabilities {std::uint32_t misc{},shade{},max_primitives{};float max_w{};TextureLimits texture{};std::uint32_t depth_compare{};bool depth16{};};
+struct Capabilities {std::uint32_t misc{},shade{},max_primitives{};float max_w{};TextureLimits texture{};std::uint32_t depth_compare{};bool depth16{};std::uint32_t src_blend{},dst_blend{};};
 static_assert(sizeof(Vertex)==20 && sizeof(TexturedVertex)==28 && sizeof(Viewport)==24);
 class Depth {
 public:
