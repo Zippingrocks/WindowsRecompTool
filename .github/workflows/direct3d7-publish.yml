@@ -1,0 +1,152 @@
+name: Direct3D 7 source and native verification
+on:
+  push:
+    branches: [work/direct3d7-publish]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: direct3d7-publication
+  cancel-in-progress: false
+jobs:
+  hydrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      source_commit: ${{ steps.publish.outputs.source_commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: transport
+      - uses: actions/checkout@v4
+        with:
+          ref: 9c7e077ed8615cdad2da4c847cf2b173084e7117
+          fetch-depth: 0
+          path: source
+      - name: Verify immutable source snapshot before applying it
+        shell: python
+        run: |
+          import base64,gzip,hashlib,json,os,subprocess
+          from pathlib import Path
+          p=Path('transport/.d3d7-transfer')
+          m=json.loads((p/'manifest.json').read_text())
+          assert m['base_commit']=='9c7e077ed8615cdad2da4c847cf2b173084e7117'
+          assert m['parts']==['part%d.txt'%n for n in range(6)]
+          packed=base64.b64decode(''.join((p/n).read_text().strip() for n in m['parts']),validate=True)
+          assert hashlib.sha256(packed).hexdigest()==m['gzip_sha256'], 'compressed transfer mismatch'
+          raw=gzip.decompress(packed)
+          assert len(raw)==m['patch_bytes'] and hashlib.sha256(raw).hexdigest()==m['patch_sha256'], 'patch mismatch'
+          patch=Path(os.environ['RUNNER_TEMP'])/'direct3d7.patch'
+          patch.write_bytes(raw)
+          subprocess.run(['git','-C','source','apply','--index',str(patch)],check=True)
+          actual=subprocess.check_output(['git','-C','source','write-tree'],text=True).strip()
+          assert actual==m['expected_tree'], 'hydrated source tree differs'
+          print('Verified exact source tree:',actual)
+      - name: Publish exact source without moving main
+        id: publish
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: publish checked Direct3D7 enumeration and pending startup runtime'
+          git push origin HEAD:refs/heads/work/direct3d7
+          echo "source_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  verify:
+    needs: hydrate
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.hydrate.outputs.source_commit }}
+          fetch-depth: 0
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - run: python -m pip install unicorn==2.1.2
+      - name: Validate exact owned source and decoder pins
+        run: python tools/check_repository.py
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=ON
+      - name: Compile
+        run: cmake --build build --parallel 2
+      - name: Run native boundaries, original-versus-generated programs and all regressions
+        run: ctest --test-dir build --output-on-failure
+      - name: Independent native i386 integer execution
+        if: runner.os == 'Linux'
+        run: python tests/hardware_oracle.py --tool build/winrecomp --out build/hardware --vectors 64
+      - name: Preserve source history even when tests fail
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p build
+          git bundle create build/WinRecomp.bundle --all
+          git -C third_party/zydis bundle create "$GITHUB_WORKSPACE/build/Zydis.bundle" --all
+          git -C third_party/zydis/dependencies/zycore bundle create "$GITHUB_WORKSPACE/build/Zycore.bundle" --all
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: direct3d7-${{ matrix.os }}
+          path: |
+            build/d3d7_program/acceptance.json
+            build/d3d7_program/process.json
+            build/directdraw_program/acceptance.json
+            build/window_program/acceptance.json
+            build/modules_execution/report.json
+            build/conformance/report.json
+            build/controlflow/report.json
+            build/floating/report.json
+            build/simd/report.json
+            build/abi_callbacks/report.json
+            build/program/acceptance.json
+            build/hardware/hardware-report.json
+            build/Testing/Temporary/LastTest.log
+            build/WinRecomp.bundle
+            build/Zydis.bundle
+            build/Zycore.bundle
+          retention-days: 14
+          if-no-files-found: warn
+  windows_memory:
+    needs: hydrate
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.hydrate.outputs.source_commit }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Configure native Windows boundaries with AddressSanitizer
+        run: cmake -S . -B asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
+      - name: Compile native boundary and cleanup tests
+        run: cmake --build asan --target winrecomp_d3d7_boundary winrecomp_legacy_modes winrecomp_directdraw_boundary winrecomp_gui_boundary winrecomp_exception_unwind winrecomp_resource_tests winrecomp_module_tests winrecomp_processor_tests --parallel 2
+      - name: Exercise error paths, lifetime and native API comparisons
+        run: ctest --test-dir asan -R "^(d3d7_boundary|legacy_modes|directdraw_boundary|gui_boundary|exception_unwind|resources|modules|processor)$" --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: direct3d7-windows-asan
+          path: asan/Testing/Temporary/LastTest.log
+          retention-days: 14
+          if-no-files-found: warn

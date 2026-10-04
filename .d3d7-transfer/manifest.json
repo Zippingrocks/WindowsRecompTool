@@ -1,0 +1,8 @@
+{
+  "base_commit": "9c7e077ed8615cdad2da4c847cf2b173084e7117",
+  "expected_tree": "1f687a3265d209cfce6df773424f91875485caa9",
+  "patch_bytes": 110944,
+  "patch_sha256": "2dac792167d9a4a1df6026a20cf59eda64756322ba2e9d01d1f294d567f56b41",
+  "gzip_sha256": "75bae81d6745ccfa5abf61c7a661bf50afd534b86daae532fb1529fae8d1978b",
+  "parts": ["part0.txt", "part1.txt", "part2.txt", "part3.txt", "part4.txt", "part5.txt"]
+}
