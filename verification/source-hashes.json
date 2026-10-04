@@ -104,7 +104,6 @@
     "src/runtime/directdraw_depth.hpp": "84105ddd7f1c3c1b6dbd94aa8aaae0d4364e7d1f6c50eb312eb3e77af249d1d5",
     "tests/d3d9_depth.cpp": "1e51f37c41842387bfb226b00c339d6b915acdc4bc655a61c835feea2b5cde47",
     "tests/d3d9_depth_program.py": "734e05ca3595cffb99b913b2ce146435bcd8d2e9c0e130a38080be6c5b429959",
-    "tests/d3d9_combined.cpp": "84bba182b6bca8338ef5d5a263449095194652f86051974ab2290a46e9f4234b",
-    ".github/workflows/d3d9-combined.yml": "3d9658f7fc76a4bfb6f9c0e4e14d7cc858f7d2c447d85577001872401b0a8cff"
+    "tests/d3d9_combined.cpp": "84bba182b6bca8338ef5d5a263449095194652f86051974ab2290a46e9f4234b"
   }
 }
