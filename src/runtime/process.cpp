@@ -27,8 +27,9 @@ Process::Process(StepFunction step,ProcessOptions opts):win32_(std::make_unique<
     options.data_root=std::filesystem::canonical(options.data_root);
     install_win32(*this);
     gui_=install_gui(*this);
+    directdraw_=install_directdraw(*this);
 }
-Process::~Process(){if(gui_)gui_->shutdown();}
+Process::~Process(){if(directdraw_)directdraw_->shutdown();if(gui_)gui_->shutdown();}
 const Image& Process::source_image() const {if(!source_image_)throw std::runtime_error("no loaded source image");return *source_image_;}
 Win32State& Process::state(){return *win32_;}
 void Process::load(const Image& image) {
@@ -182,7 +183,7 @@ U32 Process::put_string(const std::string& string){auto p=allocate_bytes(string.
 U32 Process::put_wstring(const std::u16string& string){auto p=allocate_bytes((string.size()+1)*2);for(std::size_t n=0;n<=string.size();++n)memory.store(p+U32(n*2),n==string.size()?0:U32(string[n]),16);return p;}
 std::string Process::report() const {
     std::ostringstream out;out<<"{\"schema\":\"winrecomp.process.v1\",\"input_sha256\":"<<quote(input_sha256)<<",\"exited\":"<<(exited_?"true":"false")<<",\"exit_code\":"<<exit_code_<<",\"eip\":"<<cpu.eip<<",\"esp\":"<<cpu.r[ESP]<<",\"native_instructions\":"<<executed_instructions<<",\"api_calls\":"<<api_calls<<",\"budget_left\":"<<budget<<",\"recent_transfers\":[";
-    bool first=true;for(const auto& x:recent_transfers){if(!first)out<<',';first=false;out<<"{\"pc\":"<<x.pc<<",\"return\":"<<x.return_address<<",\"api\":"<<quote(x.api)<<",\"arguments\":[";for(std::size_t n=0;n<x.arguments.size();++n){if(n)out<<',';out<<x.arguments[n];}out<<"],\"detail\":"<<quote(x.detail)<<"}";}out<<"],\"gui\":"<<(gui_?gui_->report():"null")<<"}";return out.str();
+    bool first=true;for(const auto& x:recent_transfers){if(!first)out<<',';first=false;out<<"{\"pc\":"<<x.pc<<",\"return\":"<<x.return_address<<",\"api\":"<<quote(x.api)<<",\"arguments\":[";for(std::size_t n=0;n<x.arguments.size();++n){if(n)out<<',';out<<x.arguments[n];}out<<"],\"detail\":"<<quote(x.detail)<<"}";}out<<"],\"gui\":"<<(gui_?gui_->report():"null")<<",\"directdraw\":"<<(directdraw_?directdraw_->report():"null")<<"}";return out.str();
 }
 int run_program(int argc,char** argv,StepFunction step,const char* expected_sha256) {
     std::unique_ptr<Process> process;std::string report_path;

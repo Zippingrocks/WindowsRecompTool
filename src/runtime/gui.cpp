@@ -118,6 +118,7 @@ public:
         else {auto name=p.read_string(value,256);if(auto it=classes.find(name);it!=classes.end())return it->second;}
         throw InvalidHandle{1407};
     }
+    std::uintptr_t native_window(U32 id) override {enter();return reinterpret_cast<std::uintptr_t>(hwnd(id,true));}
     void install();
     U32 register_class(Args);
     U32 create_window(Args);

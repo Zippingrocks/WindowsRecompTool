@@ -1,0 +1,109 @@
+name: Native DirectDraw verification
+on:
+  push:
+    branches: [work/directdraw]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-directdraw
+  cancel-in-progress: false
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: false
+      - name: Initialize pinned decoder
+        run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - run: python -m pip install unicorn==2.1.2
+      - name: Verify exact implementation source and upstream pins
+        run: python tools/check_repository.py
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=ON
+      - name: Compile
+        id: compile
+        run: cmake --build build --parallel 2
+      - name: Original PE32 versus generated x64 graphics boundaries
+        if: runner.os == 'Windows'
+        run: ctest --test-dir build -R "^(window_program|directdraw_program)$" --output-on-failure
+      - name: Complete runtime and conformance regressions
+        if: ${{ !cancelled() && steps.compile.outcome == 'success' }}
+        run: ctest --test-dir build -E "^(window_program|directdraw_program)$" --output-on-failure
+      - name: Native i386 integer oracle
+        if: runner.os == 'Linux'
+        run: python tests/hardware_oracle.py --tool build/winrecomp --out build/hardware --vectors 64
+      - name: Retain source for reproducible workspaces
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p build
+          git bundle create build/WinRecomp.bundle --all
+          git -C third_party/zydis bundle create "$GITHUB_WORKSPACE/build/Zydis.bundle" --all
+          git -C third_party/zydis/dependencies/zycore bundle create "$GITHUB_WORKSPACE/build/Zycore.bundle" --all
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: directdraw-${{ matrix.os }}
+          path: |
+            build/directdraw_program/acceptance.json
+            build/directdraw_program/process.json
+            build/window_program/acceptance.json
+            build/window_program/process.json
+            build/window_program/synthetic-frame.ppm
+            build/conformance/report.json
+            build/controlflow/report.json
+            build/floating/report.json
+            build/simd/report.json
+            build/abi_callbacks/report.json
+            build/program/acceptance.json
+            build/hardware/hardware-report.json
+            build/Testing/Temporary/LastTest.log
+            build/WinRecomp.bundle
+            build/Zydis.bundle
+            build/Zycore.bundle
+          retention-days: 14
+          if-no-files-found: warn
+  windows_gui_memory:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Configure native boundary with Windows AddressSanitizer
+        run: cmake -S . -B asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
+      - name: Compile native GUI boundary tests
+        run: cmake --build asan --target winrecomp_exception_unwind winrecomp_gui_boundary winrecomp_directdraw_boundary winrecomp_resource_tests --parallel 2
+      - name: Run native window failure-path and resource tests
+        run: ctest --test-dir asan -R "^(exception_unwind|gui_boundary|directdraw_boundary|resources)$" --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: directdraw-windows-asan
+          path: asan/Testing/Temporary/LastTest.log
+          retention-days: 14
+          if-no-files-found: warn
