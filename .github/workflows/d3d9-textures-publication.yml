@@ -1,0 +1,162 @@
+name: Native Windows textured D3D7-on-D3D9 verification
+on:
+  push:
+    branches: [work/d3d9-texture-publication]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: d3d9-texture-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      source_sha: ${{ steps.publish.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: false
+      - name: Verify and publish exact readable source
+        id: publish
+        shell: python
+        run: |
+          import base64,hashlib,json,lzma,os,subprocess
+          from pathlib import Path
+          def git(*args,cwd=None):
+              return subprocess.check_output(['git',*args],cwd=cwd)
+          checks=['5290b881c3284161514da586ebaa1f523350cee079a3b0ccc072bf306fa80236','cfa00a68cb11efa577d5785b748c93f0165dd101676d3e6e3d0b705050ef92c9']
+          parts=[]
+          for i,want in enumerate(checks):
+              raw=git('show',f'HEAD:publication/texture-{i}.b64')
+              if hashlib.sha256(raw).hexdigest()!=want: raise RuntimeError('Source segment mismatch')
+              parts.append(raw)
+          decoder=lzma.LZMADecompressor(memlimit=128*1024*1024)
+          patch=decoder.decompress(base64.b64decode(b''.join(parts),validate=True),max_length=256*1024)
+          if not decoder.eof or decoder.unused_data or hashlib.sha256(patch).hexdigest()!='9d7770f68b2bb03bf1c2aee11d9092cbe4936694af9942cc7d251abd24d7a3fc':
+              raise RuntimeError('Invalid or changed source patch')
+          expected=json.loads(git('show','HEAD:publication/texture-source-files.json'))
+          allowed={'CMakeLists.txt','include/winrecomp/d3d9_host.hpp','src/runtime/d3d9_host.cpp','src/runtime/directdraw.cpp','src/runtime/directdraw_d3d9.hpp','tests/d3d9_boundary.cpp','tests/d3d9_program.py','tests/d3d9_texture_program.py','tests/d3d9_textures.cpp'}
+          if set(expected)!=allowed: raise RuntimeError('Unexpected source paths')
+          folder=Path(os.environ['RUNNER_TEMP'])/'texture-source'
+          patch_path=Path(os.environ['RUNNER_TEMP'])/'texture.patch';patch_path.write_bytes(patch)
+          git('worktree','add','--detach',str(folder),'41f62c05865a8edb08cb2d113f515ccece8e222f')
+          git('apply','--index',str(patch_path),cwd=folder)
+          names=set(git('diff','--cached','--name-only',cwd=folder).decode().splitlines())
+          if names!=allowed: raise RuntimeError('Patch changed unexpected files')
+          for name,want in expected.items():
+              if hashlib.sha256(git('show',':'+name,cwd=folder)).hexdigest()!=want:
+                  raise RuntimeError('Source mismatch: '+name)
+          record=folder/'verification/source-hashes.json'
+          value=json.loads(record.read_text());value['sha256'].update(expected)
+          value['note']='Exact owned source for opt-in bounded single-stage D3D9 textures; no game material.'
+          record.write_text(json.dumps(value,indent=2)+'\n')
+          git('add','verification/source-hashes.json',cwd=folder)
+          branch='refs/heads/work/d3d9-textures'
+          existing=git('ls-remote','origin',branch).decode().split()
+          if existing:
+              sha=existing[0]
+              git('fetch','origin',sha,cwd=folder)
+              if git('rev-parse',sha+'^{tree}',cwd=folder)!=git('write-tree',cwd=folder):
+                  raise RuntimeError('Existing development branch differs; refusing to overwrite')
+          else:
+              git('config','user.name','github-actions[bot]',cwd=folder)
+              git('config','user.email','41898282+github-actions[bot]@users.noreply.github.com',cwd=folder)
+              git('commit','-m','feat: add bounded single-stage D3D7 textures on native x64 D3D9','-m','Checked ARGB/XRGB formats, sampler translation, owned uploads, post-bind CPU edits and retained texture lifetime. Original and generated synthetic textured scenes are independently tested on Windows by the publication workflow. No E3 execution or full renderer claim.',cwd=folder)
+              sha=git('rev-parse','HEAD',cwd=folder).decode().strip()
+              git('push','origin','HEAD:'+branch,cwd=folder)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as stream: stream.write('source_sha='+sha+'\n')
+          print('Published source '+sha)
+  verify:
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_sha }}
+          fetch-depth: 0
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - run: python -m pip install unicorn==2.1.2
+      - run: python tools/check_repository.py
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=ON
+      - run: cmake --build build --parallel 2
+      - name: Native Windows textured and unchanged untextured rendering
+        if: runner.os == 'Windows'
+        run: ctest --test-dir build -R "^(d3d9_textures|d3d9_texture_program|d3d9_boundary|d3d9_program|gui_boundary|dialog_boundary|dialog_template|resources|exception_unwind|core|processor|modules|process|runtime|callback_abi|modules_execution)$" --output-on-failure
+      - name: Complete Linux-compatible regressions
+        if: runner.os == 'Linux'
+        run: ctest --test-dir build --output-on-failure
+      - name: Native i386 instruction oracle
+        if: runner.os == 'Linux'
+        run: python tests/hardware_oracle.py --tool build/winrecomp --out build/hardware --vectors 64
+      - name: Preserve source and decoder dependencies
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p build
+          git bundle create build/WinRecomp.bundle --all
+          git -C third_party/zydis bundle create "$GITHUB_WORKSPACE/build/Zydis.bundle" --all
+          git -C third_party/zydis/dependencies/zycore bundle create "$GITHUB_WORKSPACE/build/Zycore.bundle" --all
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: d3d9-textures-${{ matrix.os }}
+          path: |
+            build/Testing/Temporary/LastTest.log
+            build/Testing/Temporary/LastTestsFailed.log
+            build/d3d9_texture_program/acceptance.json
+            build/d3d9_texture_program/process.json
+            build/d3d9_texture_program/*.log
+            build/d3d9_texture_program/*/triangle.bin
+            build/d3d9_program/acceptance.json
+            build/d3d9_program/process.json
+            build/*/report.json
+            build/*/hardware-report.json
+            build/WinRecomp.bundle
+            build/Zydis.bundle
+            build/Zycore.bundle
+          retention-days: 14
+  windows_memory:
+    needs: publish
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - run: cmake -S . -B asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
+      - run: cmake --build asan --target winrecomp_d3d9_textures winrecomp_d3d9_boundary winrecomp_gui_boundary winrecomp_dialog_boundary winrecomp_exception_unwind winrecomp_resource_tests --parallel 2
+      - name: Native texture memory, COM lifetime and failure paths
+        run: ctest --test-dir asan -R "^(d3d9_textures|d3d9_boundary|gui_boundary|dialog_boundary|exception_unwind|resources)$" --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: d3d9-textures-windows-asan
+          path: asan/Testing/Temporary/LastTest.log
+          retention-days: 14

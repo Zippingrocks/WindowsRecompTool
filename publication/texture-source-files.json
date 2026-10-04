@@ -1,0 +1,11 @@
+{
+  "CMakeLists.txt": "f3da16b93778cc09602a0b679c2f4900946abbb15b9cc3d408d8f9406158b3e5",
+  "include/winrecomp/d3d9_host.hpp": "7ef6506c11fcded8e967f02f64fde0f5bca45fa0006b27ee4265e23b8fcc7685",
+  "src/runtime/d3d9_host.cpp": "3e6aac1e9c04d44d8f4338796fe4169501442f6e403ac56dcc8f13d8dbd8948f",
+  "src/runtime/directdraw.cpp": "d20a6659c3d65d5c581d498a7feeab9eecd52f70f81e756927d2012e4278cc44",
+  "src/runtime/directdraw_d3d9.hpp": "553deecc182be705d988dde1a1b83e332c7daabbf4da4c9a9eb0c635ae50b6f3",
+  "tests/d3d9_boundary.cpp": "8b1e84465baa108048ba7947c19d46b8535a091b1e1d0696551098d9647b1ceb",
+  "tests/d3d9_program.py": "879cb7a80496d6462193205d5fe5f11ff7224dfdfb8be36642d077a015954880",
+  "tests/d3d9_texture_program.py": "5d63f7969c2eca95bffb49652a0cea028cf4ce6c98a96e1e1ce3e344e5318b65",
+  "tests/d3d9_textures.cpp": "b8f50d99680b2dd9e6ee28a90d30a31512a5a4dec62929da97fbca54ae00e711"
+}
