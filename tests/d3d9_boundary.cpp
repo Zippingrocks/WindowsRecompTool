@@ -104,7 +104,7 @@ void run(){
     pixels=lock_target(0x11);CHECK((p.memory.load(pixels,32)&0xffffff)==0x56789a);CHECK(com(p,surface,32,{surface,0})==DD_OK);
     // Present the current target through a guest primary-surface Blt. The test
     // then samples the actual window DC, not the offscreen render target.
-    for(auto [off,value]:{std::pair<U32,U32>{4,DDSD_CAPS},{104,DDSCAPS_PRIMARYSURFACE}})p.memory.store(desc+off,value,32);
+    for(auto [off,value]:{std::pair<U32,U32>{4,DDSD_CAPS},{104,DDSCAPS_PRIMARYSURFACE},{108,0},{112,0},{116,0}})p.memory.store(desc+off,value,32);
     p.memory.store(desc,124,32);CHECK(com(p,dd,6,{dd,desc,out,0})==DD_OK);auto primary=p.memory.load(out,32);
     auto native_window=reinterpret_cast<HWND>(p.gui()->native_window(window));CHECK(native_window!=nullptr);
     RECT client{};CHECK(GetClientRect(native_window,&client));CHECK(client.right==64 && client.bottom==64);
