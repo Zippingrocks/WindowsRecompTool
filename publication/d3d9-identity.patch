@@ -19,7 +19,7 @@ index b86d458..ce0fe76 100644
      }
      std::string report() const override{std::ostringstream out;out<<"{\"backend\":"<<quote(p.options.legacy_d3d9?"ddraw-d3d9-bounded":"native-ddraw7")<<",\"d3d9_devices\":"<<renderer9_devices<<",\"d3d9_draws\":"<<renderer9_draws<<",\"d3d9_clears\":"<<renderer9_clears<<",\"d3d9_readbacks\":"<<renderer9_readbacks<<",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"mode_callbacks\":"<<mode_callbacks<<",\"d3d7_wrappers\":"<<d3d_wrappers<<",\"d3d_device_callbacks\":"<<device_callbacks<<",\"mode7_callbacks\":"<<mode7_callbacks<<",\"zformat_callbacks\":"<<zformat_callbacks<<",\"d3d_devices_created\":"<<render_devices<<",\"texture_callbacks\":"<<texture_callbacks<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
  };
- diff --git a/src/runtime/directdraw_d3d9.hpp b/src/runtime/directdraw_d3d9.hpp
+diff --git a/src/runtime/directdraw_d3d9.hpp b/src/runtime/directdraw_d3d9.hpp
 index 9b40ab1..526a5e3 100644
 --- a/src/runtime/directdraw_d3d9.hpp
 +++ b/src/runtime/directdraw_d3d9.hpp
@@ -37,7 +37,7 @@ index 9b40ab1..526a5e3 100644
      }
      void check_target9(IUnknown* target){
          for(const auto& [at,o]:objects){(void)at;if(o.compat && o.compat->target==target && o.compat->gpu->in_scene())stop("render target access during an active D3D9 scene");}
- diff --git a/verification/source-hashes.json b/verification/source-hashes.json
+diff --git a/verification/source-hashes.json b/verification/source-hashes.json
 index 1affb79..9954561 100644
 --- a/verification/source-hashes.json
 +++ b/verification/source-hashes.json
