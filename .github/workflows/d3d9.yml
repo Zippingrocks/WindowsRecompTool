@@ -39,6 +39,20 @@ jobs:
       - name: Native Windows affected GUI and default DirectDraw regressions
         if: ${{ !cancelled() && runner.os == 'Windows' && steps.compile.outcome == 'success' }}
         run: ctest --test-dir build -R "^(dialog_template|dialog_boundary|dialog_program|gui_boundary|window_program|exception_unwind|resources|callback_abi|core|runtime|process|modules|directdraw_boundary|directdraw_program)$" --output-on-failure
+      - name: Retain unchanged display-mode failure observations
+        if: always() && runner.os == 'Windows'
+        shell: python
+        run: |
+          from pathlib import Path
+          import struct,json
+          rows={}
+          for label in ('original','generated'):
+              path=Path('build/directdraw_program',label,'modes.bin')
+              if path.is_file():
+                  data=path.read_bytes()
+                  rows[label]={'bytes':len(data),'words':list(struct.unpack('<8I',data)) if len(data)==32 else None}
+          print(json.dumps(rows,indent=2))
+          Path('build/mode-observations.json').write_text(json.dumps(rows,indent=2)+'\n')
       - name: All Linux-compatible regressions
         if: runner.os == 'Linux'
         run: ctest --test-dir build --output-on-failure
@@ -65,6 +79,12 @@ jobs:
             build/d3d9_program/original-d3d7/triangle.bin
             build/d3d9_program/generated-d3d9/triangle.bin
             build/d3d9_program/*.log
+            build/directdraw_program/original/modes.bin
+            build/directdraw_program/generated/modes.bin
+            build/directdraw_program/original/surface.bin
+            build/directdraw_program/generated/surface.bin
+            build/directdraw_program/process.json
+            build/mode-observations.json
             build/*/report.json
             build/*/acceptance.json
             build/*/hardware-report.json
