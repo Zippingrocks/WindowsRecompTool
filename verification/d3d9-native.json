@@ -1,0 +1,258 @@
+{
+  "schema": "winrecomp.d3d9-native-evidence.v1",
+  "implementation_commit": "20394a1446971c67ae18ae44e1439b6c2baf69f9",
+  "expanded_ci_checkout": "a32fb59b4a14a589c41a6c97ea539e3985cd08a2",
+  "expanded_ci_tree": "2f230af57606442febbf85b4c7db68693aae2e02",
+  "source_hash_count": 93,
+  "publication_branch": "work/d3d9-backend",
+  "profile": "--legacy-renderer d3d9; explicitly opt-in, native remains default",
+  "first_native_acceptance": {
+    "run_id": 37213956877,
+    "windows_renderer_suites_passed": 2,
+    "windows_other_focused_suites_passed": 12,
+    "windows_asan_suites_passed": 3,
+    "linux_suites_passed": 20,
+    "all_jobs_succeeded": true
+  },
+  "expanded_acceptance": {
+    "run_id": 37214265230,
+    "windows_renderer_suites_passed": 2,
+    "windows_other_selected_passed": 13,
+    "windows_other_selected_failed": 1,
+    "failed_test": "directdraw_program: original/generated legacy mode callback record mismatch",
+    "windows_job_conclusion": "failure",
+    "overall_conclusion": "failure",
+    "windows_asan_suites_passed": 4,
+    "linux_suites_passed": 20,
+    "full_windows_35_suite_run_claimed": false
+  },
+  "original_vs_generated": {
+    "schema": "winrecomp.d3d9-render-proof.v1",
+    "original": "native Windows x86 D3D7",
+    "generated": "native Windows x64 D3D9, compiled guest",
+    "identical_pixels": true,
+    "width": 64,
+    "height": 64,
+    "framebuffer_sha256": "c048e32793d8e6d82ca5ab74314b0317a7227a7f9668599c939157b366b3828b",
+    "runs": [
+      {
+        "path": "original-d3d7",
+        "exit_code": 0
+      },
+      {
+        "path": "generated-d3d9",
+        "exit_code": 0
+      }
+    ],
+    "scope": "Authored untextured transformed triangle; not E3, full D3D7, textures, depth or presentation",
+    "normalization": "Both original and generated guest fixtures write X8R8G8B8 pixels masked to their defined low 24 bits; no pixels or image regions omitted.",
+    "offscreen_only": true,
+    "presented_frame": false
+  },
+  "generated_execution": {
+    "translated_guest_instructions": 29325,
+    "api_dispatches": 44,
+    "gui": {
+      "backend": "native-win32",
+      "windows_created": 1,
+      "windows_destroyed": 1,
+      "window_callbacks": 6,
+      "messages_dispatched": 0,
+      "gl_contexts_created": 0,
+      "swaps": 0,
+      "host_only_notifications": 1,
+      "host_only_message_ids": [
+        144
+      ],
+      "dialogs_created": 0,
+      "dialog_callbacks": 0,
+      "dialogs_completed": 0
+    },
+    "directdraw": {
+      "backend": "ddraw-d3d9-bounded",
+      "d3d9_devices": 1,
+      "d3d9_draws": 1,
+      "d3d9_clears": 1,
+      "d3d9_readbacks": 2,
+      "objects_created": 5,
+      "objects_retired": 5,
+      "adapter_callbacks": 0,
+      "mode_callbacks": 0,
+      "d3d7_wrappers": 0,
+      "d3d_device_callbacks": 0,
+      "mode7_callbacks": 0,
+      "zformat_callbacks": 0,
+      "d3d_devices_created": 1,
+      "texture_callbacks": 0,
+      "surface_locks": 1,
+      "surface_unlocks": 1,
+      "blits": 0
+    },
+    "exited": true,
+    "exit_code": 0
+  },
+  "native_windows_asan": {
+    "suites": [
+      "d3d9_boundary",
+      "directdraw_boundary",
+      "resources",
+      "exception_unwind"
+    ],
+    "assertions": {
+      "d3d9_boundary": 294,
+      "directdraw_boundary": 130,
+      "resources": 28,
+      "exception_unwind": 70
+    },
+    "scope": "Native C++ bridge tests; not the generated guest project or game under ASan"
+  },
+  "linux": {
+    "suites_passed": 20,
+    "suites": [
+      "dialog_template",
+      "processor",
+      "modules",
+      "resources",
+      "core",
+      "fp_faults",
+      "target_fp_selector",
+      "nls_data",
+      "exception_unwind",
+      "nls",
+      "process",
+      "runtime",
+      "frontend",
+      "modules_execution",
+      "callback_abi",
+      "program",
+      "controlflow",
+      "simd",
+      "floating",
+      "conformance"
+    ],
+    "native_i386_comparisons": 15168,
+    "native_i386_cases": 237,
+    "hardware_all_passed": true
+  },
+  "local": {
+    "linux_release_passed": 20,
+    "completed_batches": [
+      14,
+      1,
+      3,
+      1,
+      1
+    ],
+    "combined_timeout_counted_as_pass": false,
+    "windows_target_boundary_cross_compiled": true,
+    "wine_execution_this_pass": false,
+    "native_windows_executed_locally": false
+  },
+  "repaired_defect": {
+    "first_failed_run": 37213532652,
+    "cause": "Bare controlling-IUnknown pointer used as cooperative-window identity after its native reference was released",
+    "repair": "Retain controlling native identity reference while its pointer is a key; release after devices/surfaces at backend teardown",
+    "native_assertions_removed": false,
+    "timeouts_relaxed": false
+  },
+  "artifacts": {
+    "expanded_windows": {
+      "id": 11308285230,
+      "sha256": "992f4fd927a9869a9147b52dd0867268ffbce5caf925fd0007ee3b20e63609b9"
+    },
+    "expanded_linux": {
+      "id": 11307638394,
+      "sha256": "5f14c197fdad673c9c7ef37c92dacfd690441f02f2f8f3be139701b3f6080e93"
+    },
+    "expanded_windows_asan": {
+      "id": 11307348970,
+      "sha256": "30fb60b60923fa4dd59c275f2756bb9c569539a93fa32c8ba71a73e2410f9716"
+    },
+    "first_fixed_windows": {
+      "id": 11307862479,
+      "sha256": "bdbed41a1503d892def8c4be8cabbc89e2a6849a2be4a7b9dbd08c2bbde6ee2f"
+    },
+    "diagnostic_windows": {
+      "id": 11308600101,
+      "sha256": "d37de4490b15a2b8a682a55e4ff44ce4ee46375312208f860c286953a86b4aa1"
+    },
+    "diagnostic_linux": {
+      "id": 11308011363,
+      "sha256": "1aea67b15965eff29131110101337123ef03f24951eac29f699955604501dfea"
+    },
+    "diagnostic_asan": {
+      "id": 11307982550,
+      "sha256": "eafe8fcbe2e83e90a5040c8ff3203f80c47e12a4c77913b006ce6776e39b42cd"
+    }
+  },
+  "recovery": {
+    "remote_ci_git_bundle_restored": true,
+    "git_fsck_exit_code": 0,
+    "recorded_source_hashes_match_local_and_remote": 93
+  },
+  "legacy_modes": {
+    "status": "known default-path compatibility mismatch remains; equality assertion retained",
+    "prior_native_probe_run": 37177109318,
+    "prior_probe_source": "a545e4cf76948d6ce9e809e226b7ca15d0c77af5",
+    "prior_probe_artifact": 11293488403,
+    "prior_probe_artifact_sha256": "7ddc18ae329745ab81b278e18d4bce59368203ede3b30e36560860bbcfe200c1",
+    "observation": "On that runner, legacy/no-manifest x86 reported 39 modes including 8/16/32bpp; x64 reported 13 modes, 32bpp only. Windows-8-aware x86 profiles also reported 13. This is scoped host evidence, not universal Windows behavior.",
+    "latest_records": {
+      "original": {
+        "bytes": 32,
+        "words": [
+          39,
+          108,
+          1920,
+          1080,
+          8,
+          0,
+          0,
+          0
+        ]
+      },
+      "generated": {
+        "bytes": 32,
+        "words": [
+          13,
+          108,
+          1920,
+          1080,
+          32,
+          16711680,
+          65280,
+          255
+        ]
+      }
+    },
+    "surface_readbacks_identical": true,
+    "surface_readback_sha256": "56819e0e623424c60cc501d12dbe39bd1cb885377aa794c14834a74daf361ac6"
+  },
+  "limitations": [
+    "Actual E3 was not executed in this pass; no E3 frame, input, sound or playability evidence.",
+    "D3D9 scope: default adapter, normal owned window, X8R8G8B8 <=2048x2048, transformed diffuse untextured triangle lists, bounded viewport/states and scene lifecycle.",
+    "Textures, depth, lights, indexed geometry, full state/method coverage, presentation and fullscreen are not supported by this backend.",
+    "Caps intentionally do not advertise unavailable features; complete DX7 HRESULT/error parity is not claimed.",
+    "No x86 renderer helper process or interpreter used by the generated native x64 runtime.",
+    "Default native D3D7 host availability and legacy display-mode differences are not solved by this bounded renderer.",
+    "No original game files, assets, generated game code or executable uploaded to CI or Git."
+  ],
+  "game_playable": false,
+  "new_roadmap_points_awarded": 0,
+  "accepted_roadmap_points": 50,
+  "main_promoted": false,
+  "diagnostic_revalidation": {
+    "checkout": "96b75112006297c02f38508348ddfd8bed4165a5",
+    "run_id": 37214817744,
+    "renderer_suites_passed": 2,
+    "other_windows_selected_passed": 13,
+    "other_windows_selected_failed": 1,
+    "failed_test": "directdraw_program",
+    "windows_asan_suites_passed": 4,
+    "linux_suites_passed": 20,
+    "native_i386_comparisons": 15168,
+    "overall_conclusion": "failure",
+    "tests_weakened": false,
+    "issue_number": 2
+  }
+}
