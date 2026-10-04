@@ -6,6 +6,7 @@
 #include <exception>
 #include <map>
 #include <sstream>
+#include <iomanip>
 #include <thread>
 #include <vector>
 #include <utility>
@@ -15,6 +16,7 @@
 #define DIRECTDRAW_VERSION 0x0700
 #include <windows.h>
 #include <ddraw.h>
+#include <d3d.h>
 #endif
 namespace wr {
 #ifndef _WIN32
@@ -26,7 +28,7 @@ std::unique_ptr<DirectDrawBackend> install_directdraw(Process&){return std::make
 namespace {
 using Args=std::span<const U32>;
 using Function=std::function<U32(Args)>;
-enum class Interface {unknown,draw1,draw7,surface7};
+enum class Interface {unknown,draw1,draw7,surface7,direct3d7};
 constexpr std::size_t DescSize=124,MaxSurfaceBytes=16u*1024*1024;
 constexpr U32 MaxObjects=256;
 struct Allocation {
@@ -53,7 +55,7 @@ class Draw final:public DirectDrawBackend {
     std::map<U32,Object> objects;
     std::map<Interface,U32> vtables;
     std::map<std::uintptr_t,U32> monitors;
-    std::uint64_t created{},retired{},enumerated{},mode_callbacks{},locks{},unlocks{},blits{};
+    std::uint64_t created{},retired{},enumerated{},mode_callbacks{},device_callbacks{},zformat_callbacks{},locks{},unlocks{},blits{};
     [[noreturn]]void stop(const std::string& why){throw GuestFault(FaultKind::unsupported,p.cpu.eip,"DirectDraw: "+why);}
     void enter(){if(stopped || GetCurrentThreadId()!=thread)stop("foreign-thread or retired backend");}
     GUID guid(U32 address){GUID value{};static_assert(sizeof(value)==16);p.memory.copy_out(address,std::span(reinterpret_cast<std::uint8_t*>(&value),16));return value;}
@@ -75,10 +77,17 @@ class Draw final:public DirectDrawBackend {
         else if(IsEqualIID(iid,IID_IDirectDraw))kind=Interface::draw1;
         else if(IsEqualIID(iid,IID_IDirectDraw7))kind=Interface::draw7;
         else if(IsEqualIID(iid,IID_IDirectDrawSurface7))kind=Interface::surface7;
+        else if(IsEqualIID(iid,IID_IDirect3D7))kind=Interface::direct3d7;
         else supported=false;
         void* result=nullptr;const auto hr=value.native->QueryInterface(iid,&result);
         if(FAILED(hr)){p.memory.store(args[2],0,32);return U32(hr);}
-        if(!supported){static_cast<IUnknown*>(result)->Release();stop("native QueryInterface supports an interface without a guest wrapper");}
+        if(!result)stop("native QueryInterface returned success without an object");
+        if(!supported){
+            static_cast<IUnknown*>(result)->Release();std::ostringstream id;
+            id<<std::hex<<std::setfill('0')<<std::setw(8)<<iid.Data1<<'-'<<std::setw(4)<<iid.Data2<<'-'<<std::setw(4)<<iid.Data3<<'-';
+            for(unsigned n=0;n<8;++n){if(n==2)id<<'-';id<<std::setw(2)<<unsigned(iid.Data4[n]);}
+            stop("native QueryInterface supports IID "+id.str()+" without a guest wrapper");
+        }
         p.memory.store(args[2],wrap(static_cast<IUnknown*>(result),kind),32);return U32(hr);
     }
     void destroy_lock(Object& value) noexcept {
@@ -174,6 +183,7 @@ class Draw final:public DirectDrawBackend {
         if(call.failure)std::rethrow_exception(call.failure);
         return U32(hr);
     }
+    #include "d3d7_enumeration.hpp"
     DDSURFACEDESC2 read_description(U32 at){
         p.memory.check(at,DescSize,Memory::Read);if(p.memory.load(at,32)!=DescSize)stop("DDSURFACEDESC2 must have the 124-byte x86 layout");
         DDSURFACEDESC2 d{};d.dwSize=sizeof(d);d.dwFlags=p.memory.load(at+4,32);d.dwHeight=p.memory.load(at+8,32);d.dwWidth=p.memory.load(at+12,32);
@@ -239,13 +249,13 @@ public:
     void shutdown() noexcept override{
         if(stopped)return;stopped=true;
         for(auto& [address,value]:objects){(void)address;if(value.native)destroy_lock(value);}
-        for(auto kind:{Interface::surface7,Interface::unknown,Interface::draw1,Interface::draw7})for(auto& [address,value]:objects){(void)address;if(value.native && value.kind==kind){for(U32 n=0;n<value.guest_refs;++n)value.native->Release();value.native=nullptr;}}
+        for(auto kind:{Interface::surface7,Interface::direct3d7,Interface::unknown,Interface::draw1,Interface::draw7})for(auto& [address,value]:objects){(void)address;if(value.native && value.kind==kind){for(U32 n=0;n<value.guest_refs;++n)value.native->Release();value.native=nullptr;}}
     }
-    std::string report() const override{std::ostringstream out;out<<"{\"backend\":\"native-ddraw7\",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"mode_callbacks\":"<<mode_callbacks<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
+    std::string report() const override{std::ostringstream out;out<<"{\"backend\":\"native-ddraw7\",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"mode_callbacks\":"<<mode_callbacks<<",\"device_callbacks\":"<<device_callbacks<<",\"zformat_callbacks\":"<<zformat_callbacks<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
 };
 U32 Draw::vtable(Interface kind){
     if(auto it=vtables.find(kind);it!=vtables.end())return it->second;
-    const unsigned count=kind==Interface::unknown?3u:kind==Interface::draw1?23u:kind==Interface::draw7?30u:49u;
+    const unsigned count=kind==Interface::unknown?3u:kind==Interface::draw1?23u:kind==Interface::draw7?30u:kind==Interface::direct3d7?8u:49u;
     Allocation table(p,count*4);
     for(unsigned slot=0;slot<count;++slot){
         const auto name=std::string("WinRecompCOM.")+std::to_string(unsigned(kind))+"."+std::to_string(slot);
@@ -256,10 +266,18 @@ U32 Draw::vtable(Interface kind){
         else if(slot==2)method(1,[this,kind](Args a){return release(object(a[0],kind));});
         if(kind==Interface::draw1 && slot==8)method(5,[this](Args a){return enum_modes(a);});
         if(kind==Interface::draw7){
+            if(slot==8)method(5,[this](Args a){return enum_modes7(a);});
+            if(slot==11)method(3,[this](Args a){return draw_caps(a);});
+            if(slot==27)method(3,[this](Args a){return device_identifier(a);});
             if(slot==6)method(4,[this](Args a){auto d=read_description(a[1]);p.memory.check(a[2],4,Memory::Write);if(a[3])stop("aggregated surfaces not supported");IDirectDrawSurface7* surface=nullptr;const auto hr=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->CreateSurface(&d,&surface,nullptr);if(SUCCEEDED(hr))p.memory.store(a[2],wrap(surface,Interface::surface7),32);return U32(hr);});
             if(slot==12)method(2,[this](Args a){p.memory.check(a[1],DescSize,Memory::Read|Memory::Write);if(p.memory.load(a[1],32)!=DescSize)stop("GetDisplayMode description size");DDSURFACEDESC2 d{};d.dwSize=sizeof(d);auto hr=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->GetDisplayMode(&d);if(SUCCEEDED(hr)){if(d.lpSurface)stop("GetDisplayMode returned a native pixel pointer");write_description(a[1],d);}return U32(hr);});
             if(slot==20)method(3,[this](Args a){if(a[2]!=DDSCL_NORMAL)stop("only normal/windowed cooperative mode is supported");auto window=reinterpret_cast<HWND>(p.gui()->native_window(a[1]));return U32(static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->SetCooperativeLevel(window,a[2]));});
             if(slot==26)method(1,[this](Args a){return U32(static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->TestCooperativeLevel());});
+        }
+        if(kind==Interface::direct3d7){
+            if(slot==3)method(3,[this](Args a){return enum_devices(a);});
+            if(slot==6)method(4,[this](Args a){return enum_zformats(a);});
+            if(slot==7)method(1,[this](Args a){return U32(static_cast<IDirect3D7*>(object(a[0],Interface::direct3d7).native)->EvictManagedTextures());});
         }
         if(kind==Interface::surface7){
             if(slot==5)method(6,[this](Args a){auto& value=object(a[0],Interface::surface7);if(value.locked)stop("blit while surface is locked");if(a[1] || a[2] || a[3] || (a[4]&~U32(DDBLT_COLORFILL|DDBLT_WAIT)) || !(a[4]&DDBLT_COLORFILL))stop("only whole-surface color fill is supported");p.memory.check(a[5],100,Memory::Read);if(p.memory.load(a[5],32)!=100)stop("DDBLTFX must have the 100-byte x86 layout");DDBLTFX fx{};fx.dwSize=sizeof(fx);fx.dwFillColor=p.memory.load(a[5]+80,32);auto hr=static_cast<IDirectDrawSurface7*>(value.native)->Blt(nullptr,nullptr,nullptr,a[4],&fx);if(SUCCEEDED(hr))++blits;return U32(hr);});

@@ -8,6 +8,13 @@
     4402970,
     4403405,
     4586112,
+    4600000,
+    4600448,
+    4601920,
+    4602064,
+    4602144,
+    4602224,
+    4602336,
     4637984,
     4638400,
     4721232,
@@ -53,6 +60,38 @@
         4586112
       ],
       "basis": "Individually observed untranslated code targets during private x64 E3 startup under Wine. Checked as file-backed executable code before admission. 0x0046C6C0 is the legacy EnumDisplayModes callback supplied at 0x0046C5A7."
+    }
+  ],
+  "module_fallback_seeds": [
+    {
+      "target": 4602336,
+      "basis": "Actual recompiled Windows x64 E3 under Wine reached an untranslated target after its own null-result Glide library branch. Observed in the explicit no-Glide guest DLL namespace; no original code patched."
+    },
+    {
+      "target": 4600000,
+      "basis": "Observed callback argument to DirectDrawEnumerateExA in the x64 E3 Wine execution after the configured missing-Glide fallback. File-backed executable address; not an inferred callback."
+    }
+  ],
+  "direct3d7_seeds": [
+    {
+      "target": 4600448,
+      "basis": "Observed EnumDevices callback argument and untranslated callback stop in actual E3 Windows x64 program under Wine. Native IDirect3D7 QI succeeded; no original code modified."
+    },
+    {
+      "target": 4601920,
+      "basis": "Observed IDirectDraw7::EnumDisplayModes callback argument and actual untranslated callback stop in E3 Windows x64 under Wine."
+    },
+    {
+      "target": 4602064,
+      "basis": "Observed indirect target inside the DX7 mode callback in actual E3 Windows x64 under Wine; not statically assumed."
+    },
+    {
+      "target": 4602144,
+      "basis": "Observed IDirect3D7::EnumZBufferFormats callback argument and untranslated callback stop in actual E3 Windows x64 under Wine."
+    },
+    {
+      "target": 4602224,
+      "basis": "Observed indirect destination inside the actual E3 z-format callback in Wine; original bytes preserved."
     }
   ]
 }

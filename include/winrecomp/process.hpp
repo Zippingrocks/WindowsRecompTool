@@ -15,6 +15,9 @@ struct ProcessOptions {
     std::filesystem::path data_root{"."};
     std::string command_line{"program.exe"},image_name{"program.exe"};
     bool allow_file_write{false};
+    ProcessorProfile processor_profile{ProcessorProfile::unspecified};
+    // Explicit guest DLL namespace. Empty means missing-module decisions stop.
+    std::vector<std::filesystem::path> dll_search_roots;
     std::string user_name{"WinRecomp"};
 };
 class Process {
@@ -28,7 +31,9 @@ private:
     std::unique_ptr<Image> source_image_;
     std::map<U32,Api> apis_;
     std::map<std::string,U32> api_names_;
-    std::map<std::string,U32> modules_;
+    struct Module {U32 handle{},references{1};bool imported{true};};
+    std::map<std::string,Module> modules_;
+    std::map<std::pair<U32,std::string>,U32> dynamic_exports_;
     U32 next_thunk_{0xf0000000},next_module_{0xe0000000};
     StepFunction step_{};
     bool loaded_{},exited_{};
@@ -42,6 +47,8 @@ public:
     std::string input_sha256;
     std::uint64_t budget{},executed_instructions{},api_calls{};
     std::deque<Transfer> recent_transfers;
+    struct ModuleProbe {std::string requested,normalized;std::vector<std::string> searched;std::string outcome;};
+    std::deque<ModuleProbe> module_probes;
     explicit Process(StepFunction step,ProcessOptions opts={});
     ~Process();
     Process(const Process&)=delete;Process& operator=(const Process&)=delete;
@@ -51,6 +58,9 @@ public:
     U32 resolve(const std::string& dll,const std::string& name,bool allow_unimplemented=false);
     U32 module(const std::string& dll,bool create=false);
     std::string module_name(U32 handle) const;
+    U32 load_library(const std::string& name);
+    U32 free_library(U32 handle);
+    U32 module_export(U32 handle,const std::string& symbol);
     bool dispatch_api();
     U32 argument(unsigned index);
     U32 callback(U32 address,std::span<const U32> args,bool stdcall=true);

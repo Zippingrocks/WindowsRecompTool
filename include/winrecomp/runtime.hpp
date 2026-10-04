@@ -15,9 +15,11 @@ namespace wr {
 using U32=std::uint32_t;
 constexpr U32 CF=1, PF=4, AF=16, ZF=64, SF=128, OF=2048, STATUS_FLAGS=CF|PF|AF|ZF|SF|OF;
 enum RegisterIndex { EAX, ECX, EDX, EBX, ESP, EBP, ESI, EDI };
+enum class ProcessorProfile : U32 { unspecified=0, scalar_v1=1 };
 struct Cpu {
     std::array<U32,8> r{};
     U32 eip{}, flags{0x202}, defined_flags{STATUS_FLAGS};
+    ProcessorProfile processor_profile{ProcessorProfile::unspecified};
     U32 fs_base{}, gs_base{};
     bool fs_valid{}, gs_valid{};
     FpState fp;
