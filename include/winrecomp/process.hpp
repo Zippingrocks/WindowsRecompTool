@@ -15,6 +15,8 @@ struct ProcessOptions {
     std::filesystem::path data_root{"."};
     std::string command_line{"program.exe"},image_name{"program.exe"};
     bool allow_file_write{false};
+    // Explicit, bounded legacy Direct3D7 -> native D3D9 diagnostic profile.
+    bool legacy_d3d9{false};
     ProcessorProfile processor_profile{ProcessorProfile::unspecified};
     // Explicit guest DLL namespace. Empty means missing-module decisions stop.
     std::vector<std::filesystem::path> dll_search_roots;

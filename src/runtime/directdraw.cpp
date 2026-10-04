@@ -1,5 +1,6 @@
 #include "winrecomp/directdraw.hpp"
 #include "winrecomp/process.hpp"
+#include "winrecomp/d3d9_host.hpp"
 #include <array>
 #include <bit>
 #include <cstring>
@@ -27,12 +28,12 @@ namespace wr {
 namespace {class UnavailableDraw final:public DirectDrawBackend {
 public:void shutdown() noexcept override{}std::string report() const override{return "{\"backend\":\"unavailable\"}";}
 };}
-std::unique_ptr<DirectDrawBackend> install_directdraw(Process&){return std::make_unique<UnavailableDraw>();}
+std::unique_ptr<DirectDrawBackend> install_directdraw(Process& p){if(p.options.legacy_d3d9)throw std::runtime_error("D3D9 renderer requires Windows");return std::make_unique<UnavailableDraw>();}
 #else
 namespace {
 using Args=std::span<const U32>;
 using Function=std::function<U32(Args)>;
-enum class Interface {unknown,draw1,draw7,surface7,d3d7,clipper,device7};
+enum class Interface {unknown,draw1,draw7,surface7,d3d7,clipper,device7,compat3d7,compatdevice7};
 constexpr std::size_t DescSize=124,MaxSurfaceBytes=16u*1024*1024;
 constexpr U32 MaxObjects=256;
 struct Allocation {
@@ -49,15 +50,25 @@ struct NativeOwner {
 struct SurfaceLock {
     DDSURFACEDESC2 description{};U32 guest{};std::size_t size{},row_bytes{};bool readonly{};
 };
+struct CompatDevice {
+    std::unique_ptr<host9::Device> gpu;
+    IDirectDraw7* root{};IDirectDrawSurface7* target{};
+    U32 width{},height{};
+    ~CompatDevice(){gpu.reset();if(target)target->Release();if(root)root->Release();}
+};
 struct Object {
     Interface kind{};IUnknown* native{};U32 guest_refs{};
     std::unique_ptr<SurfaceLock> locked;
+    std::shared_ptr<CompatDevice> compat;
 };
 class Draw final:public DirectDrawBackend {
     Process& p;
     DWORD thread{GetCurrentThreadId()};bool stopped{};
     std::map<U32,Object> objects;
     std::map<Interface,U32> vtables;
+    std::unique_ptr<host9::Factory> renderer9;
+    std::map<std::uintptr_t,HWND> cooperative_windows;
+    std::uint64_t renderer9_devices{},renderer9_draws{},renderer9_clears{},renderer9_readbacks{};
     std::map<std::uintptr_t,U32> monitors;
     // D3D enumeration names remain usable after EnumDevices returns. These
     // process-owned read-only strings are not temporary callback payloads.
@@ -68,7 +79,7 @@ class Draw final:public DirectDrawBackend {
     [[noreturn]]void stop(const std::string& why){throw GuestFault(FaultKind::unsupported,p.cpu.eip,"DirectDraw: "+why);}
     void enter(){if(stopped || GetCurrentThreadId()!=thread)stop("foreign-thread or retired backend");}
     GUID guid(U32 address){GUID value{};static_assert(sizeof(value)==16);p.memory.copy_out(address,std::span(reinterpret_cast<std::uint8_t*>(&value),16));return value;}
-    Object& object(U32 address,Interface kind){auto it=objects.find(address);if(it==objects.end() || !it->second.native || it->second.kind!=kind)stop("stale or wrong-interface guest COM object");return it->second;}
+    Object& object(U32 address,Interface kind){auto it=objects.find(address);if(it==objects.end() || (!it->second.native && !it->second.compat) || !it->second.guest_refs || it->second.kind!=kind)stop("stale or wrong-interface guest COM object");return it->second;}
     void api(const char* name,unsigned count,Function function){
         p.register_api("ddraw.dll",name,count,[this,count,function=std::move(function)](Process& q){enter();std::array<U32,8> args{};for(unsigned n=0;n<count;++n)args[n]=q.argument(n);return function(std::span(args).first(count));});
     }
@@ -77,10 +88,26 @@ class Draw final:public DirectDrawBackend {
         for(auto& [address,value]:objects)if(value.native==native && value.kind==kind){if(value.guest_refs==0xffffffffu)stop("reference count overflow");++value.guest_refs;owner.keep();return address;}
         if(objects.size()>=MaxObjects)stop("COM object budget exhausted");
         const auto table=vtable(kind);Allocation memory(p,4);p.memory.store(memory.address,table,32);p.memory.protect(memory.address,4096,Memory::Read);
-        const auto at=memory.address;objects.emplace(at,Object{kind,native,1,{}});memory.keep();owner.keep();++created;if(kind==Interface::d3d7)++d3d_wrappers;return at;
+        const auto at=memory.address;objects.emplace(at,Object{kind,native,1,{},{}});memory.keep();owner.keep();++created;if(kind==Interface::d3d7)++d3d_wrappers;return at;
     }
     U32 query(Object& value,Args args){
         const auto iid=guid(args[1]);p.memory.check(args[2],4,Memory::Write);
+        if(value.kind==Interface::compatdevice7){
+            if(IsEqualIID(iid,IID_IUnknown) || IsEqualIID(iid,IID_IDirect3DDevice7)){
+                if(value.guest_refs==0xffffffffu)stop("reference count overflow");
+                ++value.guest_refs;p.memory.store(args[2],args[0],32);return U32(S_OK);
+            }
+            p.memory.store(args[2],0,32);return U32(E_NOINTERFACE);
+        }
+        if(p.options.legacy_d3d9 && IsEqualIID(iid,IID_IDirect3D7) &&
+           (value.kind==Interface::draw1 || value.kind==Interface::draw7 || value.kind==Interface::unknown || value.kind==Interface::compat3d7)){
+            host9::Capabilities caps{};const auto available=factory9().capabilities(caps);
+            if(host9::failed(available)){p.memory.store(args[2],0,32);return available;}
+            IDirectDraw7* root{};auto hr=value.native->QueryInterface(IID_IDirectDraw7,reinterpret_cast<void**>(&root));
+            if(FAILED(hr)){p.memory.store(args[2],0,32);return U32(hr);}
+            // The adapter's controlling IUnknown remains the actual Draw root.
+            p.memory.store(args[2],wrap(root,Interface::compat3d7),32);return U32(S_OK);
+        }
         Interface kind=Interface::unknown;bool supported=true;
         if(IsEqualIID(iid,IID_IUnknown))kind=Interface::unknown;
         else if(IsEqualIID(iid,IID_IDirectDraw))kind=Interface::draw1;
@@ -108,6 +135,7 @@ class Draw final:public DirectDrawBackend {
         value.locked.reset();
     }
     U32 release(Object& value){
+        if(value.kind==Interface::compatdevice7){if(value.compat->gpu->in_scene())stop("release during active D3D9 scene");const auto left=--value.guest_refs;if(!left){value.compat.reset();++retired;}return left;}
         if(value.locked)stop("release of a locked surface");
         const auto refs=value.native->Release();if(!--value.guest_refs){value.native=nullptr;++retired;}return refs;
     }
@@ -564,35 +592,37 @@ class Draw final:public DirectDrawBackend {
         }
         auto result=static_cast<IDirectDrawSurface7*>(value.native)->Unlock(nullptr);if(SUCCEEDED(result)){p.memory.release(state.guest);value.locked.reset();++unlocks;}return U32(result);
     }
+    #include "directdraw_d3d9.hpp"
     void install(){
         api("DirectDrawEnumerateExA",3,[this](Args a){p.memory.check(a[0],1,Memory::Execute);Enumeration call{this,a[0],a[1],{},0};const auto hr=DirectDrawEnumerateExA(enumerate,&call,a[2]);if(call.failure)std::rethrow_exception(call.failure);return U32(hr);});
         api("DirectDrawCreateEx",4,[this](Args a){
-            p.memory.check(a[1],4,Memory::Write);const auto iid=guid(a[2]);if(!IsEqualIID(iid,IID_IDirectDraw7))return U32(DDERR_INVALIDPARAMS);if(a[3])stop("COM aggregation is not supported");
+            if(p.options.legacy_d3d9 && a[0])stop("D3D9 profile supports only the default adapter");p.memory.check(a[1],4,Memory::Write);const auto iid=guid(a[2]);if(!IsEqualIID(iid,IID_IDirectDraw7))return U32(DDERR_INVALIDPARAMS);if(a[3])stop("COM aggregation is not supported");
             GUID id{};GUID* ptr=nullptr;if(a[0] && a[0]<=2)ptr=reinterpret_cast<GUID*>(std::uintptr_t(a[0]));else if(a[0]){id=guid(a[0]);ptr=&id;}
             IDirectDraw7* object=nullptr;const auto hr=DirectDrawCreateEx(ptr,reinterpret_cast<void**>(&object),IID_IDirectDraw7,nullptr);if(SUCCEEDED(hr))p.memory.store(a[1],wrap(object,Interface::draw7),32);return U32(hr);
         });
-        api("DirectDrawCreate",3,[this](Args a){p.memory.check(a[1],4,Memory::Write);if(a[2])stop("COM aggregation is not supported");GUID id{};GUID* ptr=nullptr;if(a[0] && a[0]<=2)ptr=reinterpret_cast<GUID*>(std::uintptr_t(a[0]));else if(a[0]){id=guid(a[0]);ptr=&id;}IDirectDraw* object=nullptr;const auto hr=DirectDrawCreate(ptr,&object,nullptr);if(SUCCEEDED(hr))p.memory.store(a[1],wrap(object,Interface::draw1),32);return U32(hr);});
+        api("DirectDrawCreate",3,[this](Args a){if(p.options.legacy_d3d9 && a[0])stop("D3D9 profile supports only the default adapter");p.memory.check(a[1],4,Memory::Write);if(a[2])stop("COM aggregation is not supported");GUID id{};GUID* ptr=nullptr;if(a[0] && a[0]<=2)ptr=reinterpret_cast<GUID*>(std::uintptr_t(a[0]));else if(a[0]){id=guid(a[0]);ptr=&id;}IDirectDraw* object=nullptr;const auto hr=DirectDrawCreate(ptr,&object,nullptr);if(SUCCEEDED(hr))p.memory.store(a[1],wrap(object,Interface::draw1),32);return U32(hr);});
     }
 public:
     explicit Draw(Process& q):p(q){install();}
     ~Draw() override{shutdown();}
     void shutdown() noexcept override{
         if(stopped)return;stopped=true;
+        for(auto& [address,value]:objects){(void)address;if(value.compat){value.compat.reset();value.guest_refs=0;}}
         for(auto& [address,value]:objects){(void)address;if(value.native)destroy_lock(value);}
-        for(auto kind:{Interface::device7,Interface::surface7,Interface::clipper,Interface::d3d7,Interface::unknown,Interface::draw1,Interface::draw7})for(auto& [address,value]:objects){(void)address;if(value.native && value.kind==kind){for(U32 n=0;n<value.guest_refs;++n)value.native->Release();value.native=nullptr;}}
+        for(auto kind:{Interface::device7,Interface::surface7,Interface::clipper,Interface::d3d7,Interface::compat3d7,Interface::unknown,Interface::draw1,Interface::draw7})for(auto& [address,value]:objects){(void)address;if(value.native && value.kind==kind){for(U32 n=0;n<value.guest_refs;++n)value.native->Release();value.native=nullptr;}}
     }
-    std::string report() const override{std::ostringstream out;out<<"{\"backend\":\"native-ddraw7\",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"mode_callbacks\":"<<mode_callbacks<<",\"d3d7_wrappers\":"<<d3d_wrappers<<",\"d3d_device_callbacks\":"<<device_callbacks<<",\"mode7_callbacks\":"<<mode7_callbacks<<",\"zformat_callbacks\":"<<zformat_callbacks<<",\"d3d_devices_created\":"<<render_devices<<",\"texture_callbacks\":"<<texture_callbacks<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
+    std::string report() const override{std::ostringstream out;out<<"{\"backend\":"<<quote(p.options.legacy_d3d9?"ddraw-d3d9-bounded":"native-ddraw7")<<",\"d3d9_devices\":"<<renderer9_devices<<",\"d3d9_draws\":"<<renderer9_draws<<",\"d3d9_clears\":"<<renderer9_clears<<",\"d3d9_readbacks\":"<<renderer9_readbacks<<",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"mode_callbacks\":"<<mode_callbacks<<",\"d3d7_wrappers\":"<<d3d_wrappers<<",\"d3d_device_callbacks\":"<<device_callbacks<<",\"mode7_callbacks\":"<<mode7_callbacks<<",\"zformat_callbacks\":"<<zformat_callbacks<<",\"d3d_devices_created\":"<<render_devices<<",\"texture_callbacks\":"<<texture_callbacks<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
 };
 U32 Draw::vtable(Interface kind){
     if(auto it=vtables.find(kind);it!=vtables.end())return it->second;
-    const unsigned count=kind==Interface::unknown?3u:kind==Interface::draw1?23u:kind==Interface::draw7?30u:kind==Interface::d3d7?8u:kind==Interface::clipper?9u:49u;
+    const unsigned count=kind==Interface::unknown?3u:kind==Interface::draw1?23u:kind==Interface::draw7?30u:(kind==Interface::d3d7 || kind==Interface::compat3d7)?8u:kind==Interface::clipper?9u:49u;
     Allocation table(p,count*4);
     for(unsigned slot=0;slot<count;++slot){
         const auto name=std::string("WinRecompCOM.")+std::to_string(unsigned(kind))+"."+std::to_string(slot);
         unsigned argc=1;Function fn=[this,kind,slot](Args a)->U32{object(a[0],kind);stop("unimplemented COM method "+std::to_string(unsigned(kind))+":"+std::to_string(slot));};
         auto method=[&](unsigned n,Function f){argc=n;fn=std::move(f);};
         if(slot==0)method(3,[this,kind](Args a){return query(object(a[0],kind),a);});
-        else if(slot==1)method(1,[this,kind](Args a){auto& value=object(a[0],kind);if(value.guest_refs==0xffffffffu)stop("reference count overflow");const auto result=value.native->AddRef();++value.guest_refs;return result;});
+        else if(slot==1)method(1,[this,kind](Args a){auto& value=object(a[0],kind);if(value.guest_refs==0xffffffffu)stop("reference count overflow");const auto result=value.compat?value.guest_refs+1:value.native->AddRef();++value.guest_refs;return result;});
         else if(slot==2)method(1,[this,kind](Args a){return release(object(a[0],kind));});
         if(kind==Interface::draw1 && slot==8)method(5,[this](Args a){return enum_modes(a);});
         if(kind==Interface::draw7){
@@ -601,7 +631,7 @@ U32 Draw::vtable(Interface kind){
             if(slot==8)method(5,[this](Args a){return enum_modes7(a);});
             if(slot==11)method(3,[this](Args a){return draw_caps(a);});
             if(slot==12)method(2,[this](Args a){p.memory.check(a[1],DescSize,Memory::Read|Memory::Write);if(p.memory.load(a[1],32)!=DescSize)stop("GetDisplayMode description size");DDSURFACEDESC2 d{};d.dwSize=sizeof(d);auto hr=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->GetDisplayMode(&d);if(SUCCEEDED(hr)){if(d.lpSurface)stop("GetDisplayMode returned a native pixel pointer");write_description(a[1],d);}return U32(hr);});
-            if(slot==20)method(3,[this](Args a){if(a[2]!=DDSCL_NORMAL)stop("only normal/windowed cooperative mode is supported");auto window=guest_window(a[1]);return U32(static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->SetCooperativeLevel(window,a[2]));});
+            if(slot==20)method(3,[this](Args a){if(a[2]!=DDSCL_NORMAL)stop("only normal/windowed cooperative mode is supported");auto window=guest_window(a[1]);auto root=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native);const auto hr=root->SetCooperativeLevel(window,a[2]);if(SUCCEEDED(hr))cooperative_windows[identity9(root)]=window;return U32(hr);});
             if(slot==27)method(3,[this](Args a){return device_identifier(a);});
             if(slot==26)method(1,[this](Args a){return U32(static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->TestCooperativeLevel());});
         }
@@ -617,6 +647,25 @@ U32 Draw::vtable(Interface kind){
             if(slot==7)method(2,[this](Args a){auto native=static_cast<IDirect3DDevice7*>(object(a[0],Interface::device7).native);p.memory.check(a[1],4,Memory::Write);IDirect3D7* result{};auto hr=native->GetDirect3D(&result);if(SUCCEEDED(hr)){if(!result)stop("native device returned no Direct3D interface");p.memory.store(a[1],wrap(result,Interface::d3d7),32);}return U32(hr);});
             if(slot==9)method(2,[this](Args a){auto native=static_cast<IDirect3DDevice7*>(object(a[0],Interface::device7).native);p.memory.check(a[1],4,Memory::Write);IDirectDrawSurface7* result{};auto hr=native->GetRenderTarget(&result);if(SUCCEEDED(hr)){if(!result)stop("native device returned no render target");p.memory.store(a[1],wrap(result,Interface::surface7),32);}return U32(hr);});
         }
+        if(kind==Interface::compat3d7){
+            if(slot==3)method(3,[this](Args a){return enum_devices9(a);});
+            if(slot==4)method(4,[this](Args a){return create_device9(a);});
+            if(slot==6)method(4,[this](Args a){object(a[0],Interface::compat3d7);if(!IsEqualIID(guid(a[1]),IID_IDirect3DHALDevice))return U32(DDERR_INVALIDPARAMS);if(!a[2])return U32(DDERR_INVALIDPARAMS);p.memory.check(a[2],1,Memory::Execute);return U32(S_OK);});
+        }
+        if(kind==Interface::compatdevice7){
+            if(slot==3)method(2,[this](Args a){object(a[0],Interface::compatdevice7);p.memory.check(a[1],DeviceDescSize,Memory::Write);D3DDEVICEDESC7 caps{};auto hr=caps9(caps);if(!host9::failed(hr))write_device(a[1],caps);return hr;});
+            if(slot==4)method(3,[this](Args a){object(a[0],Interface::compatdevice7);if(!a[1])return U32(DDERR_INVALIDPARAMS);p.memory.check(a[1],1,Memory::Execute);return U32(S_OK);});
+            if(slot==5)method(1,[this](Args a){return begin9(a);});
+            if(slot==6)method(1,[this](Args a){return end9(a);});
+            if(slot==7)method(2,[this](Args a){auto d=object(a[0],Interface::compatdevice7).compat;p.memory.check(a[1],4,Memory::Write);d->root->AddRef();p.memory.store(a[1],wrap(d->root,Interface::compat3d7),32);return U32(S_OK);});
+            if(slot==9)method(2,[this](Args a){auto d=object(a[0],Interface::compatdevice7).compat;p.memory.check(a[1],4,Memory::Write);d->target->AddRef();p.memory.store(a[1],wrap(d->target,Interface::surface7),32);return U32(S_OK);});
+            if(slot==10)method(7,[this](Args a){return clear9(a);});
+            if(slot==13)method(2,[this](Args a){auto d=object(a[0],Interface::compatdevice7).compat;host9::Viewport v{};p.memory.copy_out(a[1],std::span(reinterpret_cast<std::uint8_t*>(&v),sizeof(v)));return d->gpu->set_viewport(v);});
+            if(slot==15)method(2,[this](Args a){auto d=object(a[0],Interface::compatdevice7).compat;p.memory.check(a[1],24,Memory::Write);host9::Viewport v{};auto hr=d->gpu->get_viewport(v);if(!host9::failed(hr))p.memory.copy_in(a[1],std::span(reinterpret_cast<const std::uint8_t*>(&v),sizeof(v)));return hr;});
+            if(slot==20)method(3,[this](Args a){auto d=object(a[0],Interface::compatdevice7).compat;auto hr=d->gpu->set_state(a[1],a[2]);if(hr==U32(E_NOTIMPL))stop("render state/value outside bounded D3D9 profile");return hr;});
+            if(slot==21)method(3,[this](Args a){auto d=object(a[0],Interface::compatdevice7).compat;p.memory.check(a[2],4,Memory::Write);U32 value{};auto hr=d->gpu->get_state(a[1],value);if(hr==U32(E_NOTIMPL))stop("render-state query outside bounded D3D9 profile");if(!host9::failed(hr))p.memory.store(a[2],value,32);return hr;});
+            if(slot==25)method(6,[this](Args a){return triangles9(a);});
+        }
         if(kind==Interface::clipper){
             if(slot==4)method(2,[this](Args a){return get_clipper_window(a);});
             if(slot==6)method(2,[this](Args a){auto native=static_cast<IDirectDrawClipper*>(object(a[0],Interface::clipper).native);p.memory.check(a[1],4,Memory::Write);BOOL changed{};auto hr=native->IsClipListChanged(&changed);if(SUCCEEDED(hr))p.memory.store(a[1],U32(changed),32);return U32(hr);});
@@ -625,10 +674,10 @@ U32 Draw::vtable(Interface kind){
         if(kind==Interface::surface7){
             if(slot==15)method(2,[this](Args a){auto native=static_cast<IDirectDrawSurface7*>(object(a[0],Interface::surface7).native);p.memory.check(a[1],4,Memory::Write);IDirectDrawClipper* result{};auto hr=native->GetClipper(&result);if(SUCCEEDED(hr)){if(!result)stop("native GetClipper succeeded without an object");p.memory.store(a[1],wrap(result,Interface::clipper),32);}return U32(hr);});
             if(slot==28)method(2,[this](Args a){auto& surface=object(a[0],Interface::surface7);if(surface.locked)stop("SetClipper while surface is locked");auto clipper=a[1]?static_cast<IDirectDrawClipper*>(object(a[1],Interface::clipper).native):nullptr;return U32(static_cast<IDirectDrawSurface7*>(surface.native)->SetClipper(clipper));});
-            if(slot==5)method(6,[this](Args a){auto& value=object(a[0],Interface::surface7);if(value.locked)stop("blit while surface is locked");if(a[1] || a[2] || a[3] || (a[4]&~U32(DDBLT_COLORFILL|DDBLT_WAIT)) || !(a[4]&DDBLT_COLORFILL))stop("only whole-surface color fill is supported");p.memory.check(a[5],100,Memory::Read);if(p.memory.load(a[5],32)!=100)stop("DDBLTFX must have the 100-byte x86 layout");DDBLTFX fx{};fx.dwSize=sizeof(fx);fx.dwFillColor=p.memory.load(a[5]+80,32);auto hr=static_cast<IDirectDrawSurface7*>(value.native)->Blt(nullptr,nullptr,nullptr,a[4],&fx);if(SUCCEEDED(hr))++blits;return U32(hr);});
+            if(slot==5)method(6,[this](Args a){auto& value=object(a[0],Interface::surface7);if(value.locked)stop("blit while surface is locked");check_target9(value.native);if(a[1] || a[2] || a[3] || (a[4]&~U32(DDBLT_COLORFILL|DDBLT_WAIT)) || !(a[4]&DDBLT_COLORFILL))stop("only whole-surface color fill is supported");p.memory.check(a[5],100,Memory::Read);if(p.memory.load(a[5],32)!=100)stop("DDBLTFX must have the 100-byte x86 layout");DDBLTFX fx{};fx.dwSize=sizeof(fx);fx.dwFillColor=p.memory.load(a[5]+80,32);auto hr=static_cast<IDirectDrawSurface7*>(value.native)->Blt(nullptr,nullptr,nullptr,a[4],&fx);if(SUCCEEDED(hr))++blits;return U32(hr);});
             if(slot==22)method(2,[this](Args a){p.memory.check(a[1],DescSize,Memory::Read|Memory::Write);if(p.memory.load(a[1],32)!=DescSize)stop("GetSurfaceDesc description size");DDSURFACEDESC2 d{};d.dwSize=sizeof(d);auto hr=static_cast<IDirectDrawSurface7*>(object(a[0],Interface::surface7).native)->GetSurfaceDesc(&d);if(SUCCEEDED(hr)){if((d.dwFlags&DDSD_LPSURFACE) && d.lpSurface)stop("GetSurfaceDesc returned a live native pixel pointer; use Lock");write_description(a[1],d);}return U32(hr);});
             if(slot==24)method(1,[this](Args a){return U32(static_cast<IDirectDrawSurface7*>(object(a[0],Interface::surface7).native)->IsLost());});
-            if(slot==25)method(5,[this](Args a){return lock(object(a[0],Interface::surface7),a);});
+            if(slot==25)method(5,[this](Args a){auto& v=object(a[0],Interface::surface7);check_target9(v.native);return lock(v,a);});
             if(slot==32)method(2,[this](Args a){return unlock(object(a[0],Interface::surface7),a);});
         }
         api(name.c_str(),argc,std::move(fn));p.memory.store(table.address+4*slot,p.resolve("ddraw.dll",name),32);

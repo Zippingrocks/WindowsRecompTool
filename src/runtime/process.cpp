@@ -196,11 +196,12 @@ std::string Process::report() const {
 int run_program(int argc,char** argv,StepFunction step,const char* expected_sha256) {
     std::unique_ptr<Process> process;std::string report_path;
     try {
-        if(argc<2)throw std::runtime_error("usage: recompiled_program original.exe [--root data-directory] [--budget N] [--report report.json] [--dll-root directory] [--cpu-profile scalar-v1] [--allow-write]");
+        if(argc<2)throw std::runtime_error("usage: recompiled_program original.exe [--root data-directory] [--budget N] [--report report.json] [--dll-root directory] [--cpu-profile scalar-v1] [--legacy-renderer native|d3d9] [--allow-write]");
         ProcessOptions options;options.image_name=std::filesystem::path(argv[1]).filename().string();options.command_line='"'+std::filesystem::path(argv[1]).filename().string()+'"';
         for(int n=2;n<argc;++n){const std::string arg=argv[n];if(arg=="--allow-write"){options.allow_file_write=true;continue;}
             if(n+1>=argc)throw std::runtime_error("missing option value");const std::string value=argv[++n];
             if(arg=="--root")options.data_root=value;else if(arg=="--report")report_path=value;else if(arg=="--command-line")options.command_line=value;
+            else if(arg=="--legacy-renderer"){if(value!="native" && value!="d3d9")throw std::runtime_error("unknown legacy renderer");options.legacy_d3d9=value=="d3d9";}
             else if(arg=="--dll-root")options.dll_search_roots.emplace_back(value);
             else if(arg=="--cpu-profile"){if(value!="scalar-v1")throw std::runtime_error("unknown CPU profile");options.processor_profile=ProcessorProfile::scalar_v1;}
             else if(arg=="--budget"){std::size_t used{};options.instruction_budget=std::stoull(value,&used);if(used!=value.size() || value.empty() || value[0]=='-')throw std::runtime_error("invalid budget");}

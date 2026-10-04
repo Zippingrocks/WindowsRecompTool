@@ -1,9 +1,9 @@
 {
   "schema": "winrecomp.source-snapshot.v1",
-  "note": "Exact owned source snapshot for the native modal-dialog candidate; full native D3D7 tests remain independently blocked by x64 Windows interface availability.",
+  "note": "Exact owned source for the opt-in native D3D9 legacy backend candidate; no game material.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "c163950259c3f6105c689b5fc0c866ed9cfc686f2b0711fa96d60a60fbd1d225",
+    "CMakeLists.txt": "1fcb821efb1c03f0973244153cd6ad9e041305d82c52c7f548ddb4106e4ee912",
     "include/winrecomp/compiled.hpp": "4264c817ee2e5fd3c523b6a5fab7e62208f7a47865c33ea894bb89a341972d04",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
@@ -11,7 +11,7 @@
     "include/winrecomp/integer.hpp": "10777e00720fc8b00d40c808dac4bc90ee234d404297d4076ec1721ef73666a7",
     "include/winrecomp/memory.hpp": "e80f6e71306c8176e6a3a5421c79c2c7241a4d14841c610ac78e02f866621fa9",
     "include/winrecomp/nls_reference.hpp": "7adced99976b988e3adaa654089aa89dad0ea3f67f42c2c9cc81e9437ab0800b",
-    "include/winrecomp/process.hpp": "9dac42a834f5740c0f630bac05fcc4de9e703add43d099671e0c9a8ad0d69752",
+    "include/winrecomp/process.hpp": "96c0364a87a107c99eeae4510be734c4df78db824c6ceee0d951489d11b0e205",
     "include/winrecomp/runtime.hpp": "82173cb2fada2045e01698fe1f570a222eb11de9e011ce1506f9fbc0425a64c4",
     "include/winrecomp/sse.hpp": "edf9b6d8e6284160e8576f5d4887bd64e8a96736c7cd47514fbb9fab01bfdfc8",
     "include/winrecomp/win32_state.hpp": "fd3bddcc125cd92d3154f0bbfb22e9b353d11eea5330eeed13ba5a106baea1be",
@@ -20,7 +20,7 @@
     "src/lift.cpp": "5d474b386da33782fbd3094d4522e0e46848b4272d5c1a288f2bf150c0bcd4c0",
     "src/main.cpp": "2d4d97d2b932dbb37bcc1b23083c1d0a2d14a7ad91ebba5148dec66c4d811ac7",
     "src/pe.cpp": "889313ff14249f272a983ae177286e3f51abc04d2b3c1fcbc24a9e698c13c148",
-    "src/runtime/process.cpp": "1e12a7a03929e52be57d016255631dc279e7b32d11ddda588cdb57a823632506",
+    "src/runtime/process.cpp": "f7242f10c428ce7cf8ad64bc3029df5032a8825ec654fcb32eebb894bbd5a158",
     "src/runtime/win32.cpp": "76b912190e15a0c3f4766684d18a762c2ca39c2a32594b22e3d2c4da4df1d8f3",
     "src/x86.cpp": "e0142766b0362ec456aa09717cd364a0b5d219d2bb2727118c5909f92c6693bf",
     "tests/abi_callbacks.py": "41084cade380e5f2d3b078108b1083d06281264f9c5fd7561aad17664e17460d",
@@ -63,7 +63,7 @@
     ".github/workflows/windowing.yml": "3bc079f58fa059bc8a343faf34fc7af03337907d4a5c24494a0242eaaf392ddf",
     "tests/exception_unwind.cpp": "3576dcdb5f9ace11e66ef7efbb230364a7d5802d8aa2af541a8cd39ac274a9ca",
     "include/winrecomp/directdraw.hpp": "c5a07b238734fa0dc2fdbdd1a7c17ecaa0d106ce59c9a240df7032f67098cce5",
-    "src/runtime/directdraw.cpp": "1e1a50444c6af9129e81bfc7e7990a20b40a1e82dbe42008b7ae0b78d3310a9c",
+    "src/runtime/directdraw.cpp": "0a60e3cbb0713a6fbf097d35688f4b6a0b1568d491d247bb4a4fb54852481be1",
     "tests/directdraw_boundary.cpp": "7d8debbc996b6debd6b46478e2275f6a9ec414cad2e508726e536ee83be7f9bf",
     "tests/directdraw_program.py": "223f94ca5e5b23514227316946e642234c22483b7bbd0bc2bf4fbece3181ebfe",
     ".github/workflows/directdraw.yml": "8bb41c0f02e2b7a6ae6a6da637772f25d9f88d795e37c2eb96c796ec7f13262d",
@@ -89,6 +89,11 @@
     "tests/dialog_fixture.hpp": "ce2e879092c59fba2b030f290778f887fe2cbe1f8bb6392b56dcbc83da5aa5b7",
     "tests/dialog_program.py": "c0aee13bd46245b0ff5f95097ced3cc3fb48048708b1136952ffc63a6f539215",
     "tests/dialog_template.cpp": "130ef0fb96076446148b4e819a21df365088a01242718bbb4b7d4710bf023cd1",
-    ".github/workflows/dialog-fixes.yml": "b6c37f8b887d13e69dafddfb1b2acb692cb9f3ff297edbf5ccf8adec99bbab14"
+    ".github/workflows/dialog-fixes.yml": "b6c37f8b887d13e69dafddfb1b2acb692cb9f3ff297edbf5ccf8adec99bbab14",
+    "include/winrecomp/d3d9_host.hpp": "c148a6c74c4974544b436429921f11a92b9889128471579c581a172f056e4191",
+    "src/runtime/d3d9_host.cpp": "e23768f0a94ba3ed97a521ff762dc40bbc1e4c282a6d6f5c04a23e260e14d538",
+    "src/runtime/directdraw_d3d9.hpp": "8906935732a9e58aeb8a2f94ca1abefe56e7bc5dd63fd2cc2614bad456f9051e",
+    "tests/d3d9_boundary.cpp": "d1721e956314cb4fcb47e1c3e25332cf2dc95e582cf7f5af8bececedf28ed3e1",
+    "tests/d3d9_program.py": "17a17c7464bcf28ddd250d8ef72c6ea49aea7118efc52e75110eb6eac2254d2b"
   }
 }
