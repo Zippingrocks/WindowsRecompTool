@@ -64,7 +64,7 @@ void depth_tests(){
     CHECK(com(p,z,36,{z,out})==0 && p.memory.load(out,32)==dd);com(p,dd,2,{dd});
     p.memory.store(query,DDSCAPS_ZBUFFER,32);for(U32 off=4;off<16;off+=4)p.memory.store(query+off,0,32);
     CHECK(com(p,target,12,{target,query,out})==U32(DDERR_NOTFOUND) && p.memory.load(out,32)==0);
-    auto small=make_surface(dd,true,32);CHECK(com(p,target,3,{target,small})==U32(DDERR_CANNOTATTACHSURFACE));com(p,small,2,{small});
+    auto smaller_depth=make_surface(dd,true,32);CHECK(com(p,target,3,{target,smaller_depth})==U32(DDERR_CANNOTATTACHSURFACE));com(p,smaller_depth,2,{smaller_depth});
     auto other_dd=root_dd(),foreign=make_surface(other_dd,true);CHECK(com(p,target,3,{target,foreign})==U32(DDERR_CANNOTATTACHSURFACE));com(p,foreign,2,{foreign});com(p,other_dd,2,{other_dd});
     CHECK(com(p,target,3,{target,z})==0);
     CHECK(com(p,target,3,{target,z})==U32(DDERR_SURFACEALREADYATTACHED));
