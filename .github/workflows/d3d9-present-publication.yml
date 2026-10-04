@@ -3,53 +3,23 @@ on:
   push:
     branches: [work/d3d9-present-publication]
 permissions:
-  contents: write
+  contents: read
 jobs:
-  publish:
+  select:
     runs-on: ubuntu-24.04
     outputs:
-      source_sha: ${{ steps.publish.outputs.source_sha }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - id: publish
-        shell: python
-        run: |
-          import base64,gzip,hashlib,json,os,subprocess
-          from pathlib import Path
-          patch_b64='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'
-          raw=gzip.decompress(base64.b64decode(patch_b64))
-          assert hashlib.sha256(raw).hexdigest()=='4db2e75b07d9efd0170d092b98645436ba24436eca249f328ff150594eff792b'
-          def git(*args,check=True):
-              return subprocess.run(['git',*args],check=check,capture_output=True).stdout
-          base='c033f100fe5730908a42abdf66fc464a2abff443'
-          git('checkout','-B','work/d3d9-present',base)
-          p=subprocess.run(['git','apply','--index','--whitespace=error-all','-'],input=raw,check=True)
-          expected={'include/winrecomp/d3d9_host.hpp','src/runtime/d3d9_host.cpp','src/runtime/directdraw.cpp','tests/d3d9_boundary.cpp'}
-          changed=set(git('diff','--cached','--name-only').decode().splitlines())
-          assert changed==expected,(changed,expected)
-          record=Path('verification/source-hashes.json')
-          data=json.loads(record.read_text())
-          for name in expected:
-              data['sha256'][name]=hashlib.sha256(Path(name).read_bytes()).hexdigest()
-          record.write_text(json.dumps(data,indent=2)+'\n')
-          git('add','verification/source-hashes.json')
-          git('config','user.name','github-actions[bot]')
-          git('config','user.email','41898282+github-actions[bot]@users.noreply.github.com')
-          git('commit','-m','feat: add exact-size windowed D3D9 presentation','-m','Translate a primary-surface Blt from the bounded legacy profile into a real D3D9 swap-chain Present. Reject scaling, foreign roots, active scenes, invalid rectangles and effects. Add visible-window pixel checks without weakening prior offscreen tests.')
-          sha=git('rev-parse','HEAD').decode().strip()
-          git('push','--force-with-lease=refs/heads/work/d3d9-present:77842b3d46e13c1e6527519a2d9fb52489719bd3','origin','HEAD:refs/heads/work/d3d9-present')
-          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('source_sha='+sha+'\n')
-          print('Published repaired '+sha)
+      - id: source
+        run: echo "source_sha=d4c7bee78eb9659eaec584abb41a4808bef9c20c" >> "$GITHUB_OUTPUT"
   windows:
-    needs: publish
+    needs: select
     runs-on: windows-2022
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.publish.outputs.source_sha }}
+          ref: ${{ needs.select.outputs.source_sha }}
           fetch-depth: 0
           submodules: false
       - run: git submodule update --init --recursive third_party/zydis
@@ -77,13 +47,13 @@ jobs:
             build/Testing/Temporary/LastTestsFailed.log
           retention-days: 14
   windows_memory:
-    needs: publish
+    needs: select
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.publish.outputs.source_sha }}
+          ref: ${{ needs.select.outputs.source_sha }}
           submodules: false
       - run: git submodule update --init --recursive third_party/zydis
       - uses: actions/setup-python@v5
