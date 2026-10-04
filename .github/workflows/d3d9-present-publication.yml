@@ -3,15 +3,48 @@ on:
   push:
     branches: [work/d3d9-present-publication]
 permissions:
-  contents: read
+  contents: write
 jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    outputs:
+      source_sha: ${{ steps.publish.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/d3d9-present
+          fetch-depth: 0
+      - id: publish
+        shell: python
+        run: |
+          import hashlib,json,os,subprocess
+          from pathlib import Path
+          expected='f24b6b5a6b703d67844f6d597b31559b6ae6fba0'
+          head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          if head!=expected: raise RuntimeError(f'unexpected presentation head {head}')
+          paths=['include/winrecomp/d3d9_host.hpp','src/runtime/d3d9_host.cpp','tests/d3d9_boundary.cpp']
+          record=Path('verification/source-hashes.json')
+          value=json.loads(record.read_text())
+          for name in paths:
+              value['sha256'][name]=hashlib.sha256(Path(name).read_bytes()).hexdigest()
+          record.write_text(json.dumps(value,indent=2)+'\n')
+          subprocess.run(['git','config','user.name','github-actions[bot]'],check=True)
+          subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'],check=True)
+          subprocess.run(['git','add',str(record)],check=True)
+          if subprocess.run(['git','diff','--cached','--quiet']).returncode:
+              subprocess.run(['git','commit','-m','test: record exact presentation candidate hashes'],check=True)
+              subprocess.run(['git','push','origin','HEAD:refs/heads/work/d3d9-present'],check=True)
+          sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          with open(os.environ['GITHUB_OUTPUT'],'a') as stream:stream.write('source_sha='+sha+'\n')
+          print('Presentation source '+sha)
   windows:
+    needs: publish
     runs-on: windows-2022
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: b6c51dab430854c5deda4878c71d064d711f0788
+          ref: ${{ needs.publish.outputs.source_sha }}
           fetch-depth: 0
           submodules: false
       - run: git submodule update --init --recursive third_party/zydis
@@ -26,7 +59,7 @@ jobs:
       - run: python tools/check_repository.py
       - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=ON
       - run: cmake --build build --parallel 2
-      - name: Real window presentation boundary
+      - name: Real swap-chain presentation boundary
         run: ctest --test-dir build -R "^(d3d9_boundary)$" --output-on-failure
       - name: Retain depth/indexed/texture and runtime acceptance
         run: ctest --test-dir build -R "^(d3d9_depth|d3d9_indexed|d3d9_textures|d3d9_depth_program|d3d9_indexed_program|d3d9_texture_program|d3d9_program|gui_boundary|dialog_boundary|resources|exception_unwind|core|processor|modules|process|runtime|callback_abi|modules_execution)$" --output-on-failure
@@ -39,12 +72,13 @@ jobs:
             build/Testing/Temporary/LastTestsFailed.log
           retention-days: 14
   windows_memory:
+    needs: publish
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: b6c51dab430854c5deda4878c71d064d711f0788
+          ref: ${{ needs.publish.outputs.source_sha }}
           submodules: false
       - run: git submodule update --init --recursive third_party/zydis
       - uses: actions/setup-python@v5
