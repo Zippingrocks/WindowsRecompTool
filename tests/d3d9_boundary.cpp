@@ -31,6 +31,8 @@ bool step(wr::Cpu& c,wr::Memory& m,std::uint64_t&){
     CHECK(m.load(c.r[wr::ESP]+16,32)==Context);auto at=m.load(c.r[wr::ESP]+12,32);expired=at;++callbacks;
     CHECK(current->read_string(m.load(c.r[wr::ESP]+8,32))=="WinRecomp D3D9");
     CHECK(m.load(at+116,32)==DDBD_32 && m.load(at+120,32)==DDBD_16);
+    CHECK((m.load(at+76,32)&D3DPBLENDCAPS_SRCALPHA)!=0);
+    CHECK((m.load(at+80,32)&D3DPBLENDCAPS_INVSRCALPHA)!=0);
     CHECK(m.load(at+124,32)==1 && m.load(at+132,32)>0 && m.load(at+184,32)==0x00010001);
     for(unsigned n=220;n<236;n+=4)CHECK(m.load(at+n,32)==0);
     if(callback_mode==2)m.store(at,0,32);
@@ -70,6 +72,8 @@ void run(){
     CHECK(com(p,device,9,{device,out})==D3D_OK && p.memory.load(out,32)==surface);com(p,surface,2,{surface});
     p.memory.store(desc+236,0xfeed3456,32);CHECK(com(p,device,3,{device,desc})==D3D_OK);CHECK(p.memory.load(desc+236,32)==0xfeed3456);
     CHECK(p.memory.load(desc+120,32)==DDBD_16 && p.memory.load(desc+184,32)==0x00010001);
+    CHECK((p.memory.load(desc+76,32)&D3DPBLENDCAPS_SRCALPHA)!=0);
+    CHECK((p.memory.load(desc+80,32)&D3DPBLENDCAPS_INVSRCALPHA)!=0);
     fault([&]{com(p,device,3,{device,out-228});},wr::FaultKind::memory);
     for(auto [state,value]:{std::pair<U32,U32>{7,0},{14,0},{137,0},{22,1},{9,2},{27,0},{28,0},{29,0}}){
         CHECK(com(p,device,20,{device,state,value})==D3D_OK);
