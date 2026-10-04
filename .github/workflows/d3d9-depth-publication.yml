@@ -18,26 +18,22 @@ jobs:
         with:
           fetch-depth: 0
           submodules: false
-      - name: Validate and publish exact owned source
+      - name: Validate and publish exact owned source repair
         id: publish
         shell: python
         run: |
-          import base64,hashlib,json,lzma,os,subprocess
+          import hashlib,json,os,subprocess
           from pathlib import Path
           def git(*args,cwd=None):
               return subprocess.check_output(['git',*args],cwd=cwd)
-          encoded=b''.join(git('show',f'HEAD:publication/depth-{i}.b64') for i in range(4))
-          assert hashlib.sha256(encoded).hexdigest()=='ee27f475e2999a0031a5b11db51fbfb4e72cd7e72a1aa4dd3b06bf056166b5f7','Source transfer mismatch'
-          decoder=lzma.LZMADecompressor(memlimit=128*1024*1024)
-          patch=decoder.decompress(base64.b64decode(encoded,validate=True),max_length=1024*1024)
-          assert decoder.eof and not decoder.unused_data,'Oversized or invalid source patch'
-          assert hashlib.sha256(patch).hexdigest()=='3e6de33dd67c6ed9953b7cbc5360dd8473fc1172d43daa238fa7cc760fa70c3b','Patch checksum mismatch'
+          patch=git('show','HEAD:publication/depth-msvc.patch')
+          assert hashlib.sha256(patch).hexdigest()=='d6b025ec2ad2d271a1827dce655e3b94e462f6ad4959eec72e891b87f8a4c53e','Patch checksum mismatch'
           folder=Path(os.environ['RUNNER_TEMP'])/'depth-source'
           patchfile=Path(os.environ['RUNNER_TEMP'])/'depth.patch';patchfile.write_bytes(patch)
-          base='5ef58195e80f03dd611a878fb39dc87a6862672f'
+          base='87650784e9c7c9e61d7e0e65c4e4169060225d25'
           git('worktree','add','--detach',str(folder),base)
           git('apply','--index',str(patchfile),cwd=folder)
-          expected={'CMakeLists.txt','include/winrecomp/d3d9_host.hpp','src/runtime/d3d9_host.cpp','src/runtime/directdraw.cpp','src/runtime/directdraw_d3d9.hpp','src/runtime/directdraw_depth.hpp','tests/d3d9_boundary.cpp','tests/d3d9_depth.cpp','tests/d3d9_depth_program.py','verification/source-hashes.json'}
+          expected={'tests/d3d9_depth.cpp','verification/source-hashes.json'}
           assert set(git('diff','--cached','--name-only',cwd=folder).decode().splitlines())==expected,'Unexpected changed path'
           hashes=json.loads(git('show',':verification/source-hashes.json',cwd=folder))['sha256']
           assert len(hashes)==102,'Unexpected source snapshot count'
@@ -45,13 +41,14 @@ jobs:
               assert hashlib.sha256(git('show',':'+name,cwd=folder)).hexdigest()==want,name
           branch='refs/heads/work/d3d9-depth'
           existing=git('ls-remote','origin',branch).decode().split()
-          if existing:
+          assert existing,'Missing depth development branch'
+          if existing[0]!=base:
               sha=existing[0];git('fetch','origin',sha,cwd=folder)
               assert git('rev-parse',sha+'^{tree}',cwd=folder)==git('write-tree',cwd=folder),'Development branch changed; refusing to overwrite'
           else:
               git('config','user.name','github-actions[bot]',cwd=folder)
               git('config','user.email','41898282+github-actions[bot]@users.noreply.github.com',cwd=folder)
-              git('commit','-m','feat: implement bounded D16 depth resources and D3D7-on-D3D9 occlusion','-m','Checked depth formats and host support, explicit surface attachment ownership, preserved depth across scenes and rebinds, depth comparison/write states and color/depth clear separation. Native Windows original-versus-generated tests follow; no game or full renderer claim.',cwd=folder)
+              git('commit','-m','fix: avoid Windows SDK small macro in D16 boundary fixture','-m','Rename one local test variable colliding with the Windows SDK macro. Runtime, assertions, original PE32 fixture and acceptance checks are unchanged. Preserve the failed first native compile.',cwd=folder)
               sha=git('rev-parse','HEAD',cwd=folder).decode().strip()
               git('push','origin','HEAD:'+branch,cwd=folder)
           with open(os.environ['GITHUB_OUTPUT'],'a') as stream:stream.write('source_sha='+sha+'\n')
