@@ -1,0 +1,155 @@
+name: Native Windows D3D7-on-D3D9 verification
+on:
+  push:
+    branches: [work/d3d9-publication]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      source_sha: ${{ steps.publish.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+      - name: Verify bounded owned-source snapshot
+        shell: python
+        run: |
+          import base64,hashlib,lzma,subprocess,os
+          from pathlib import Path
+          checks=['cf07d87a22a22f8ec82df311500182d7bab0998cfea481833ea314f9a2c3aba6','a1011ddb7bcb8cdf48c91c7159eac99632f46d3ac09cae1c5e826f565116dac0','30ad5faf998d397e520815c9ee98b6c09b9a8b72d28d7db537729c5ad32f928c']
+          parts=[]
+          for i,want in enumerate(checks):
+              data=subprocess.check_output(['git','show',f'HEAD:publication/d3d9-{i}.b64'])
+              if hashlib.sha256(data).hexdigest()!=want: raise RuntimeError('Source segment mismatch')
+              parts.append(data)
+          encoded=b''.join(parts)
+          if hashlib.sha256(encoded).hexdigest()!='ff9632aaa309042b56833bd1318af8996c147fe6c8652cf578bf7adb086e8dc3': raise RuntimeError('Combined source mismatch')
+          decoder=lzma.LZMADecompressor(memlimit=128*1024*1024)
+          patch=decoder.decompress(base64.b64decode(encoded,validate=True),max_length=1024*1024)
+          if not decoder.eof or decoder.unused_data: raise RuntimeError('Invalid or oversized patch')
+          if hashlib.sha256(patch).hexdigest()!='f1ae51dec8442411854acf2e749dcc55e7bee27148e2dfcd99736d3a0e4e1eaf': raise RuntimeError('Patch mismatch')
+          Path(os.environ['RUNNER_TEMP'],'d3d9.patch').write_bytes(patch)
+      - name: Publish readable implementation on development branch
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git worktree add --detach "$RUNNER_TEMP/d3d9-source" f647b0093d4514c4fc9f1be70414270d45f129b5
+          cd "$RUNNER_TEMP/d3d9-source"
+          git apply --index "$RUNNER_TEMP/d3d9.patch"
+          python - <<'PY'
+          import subprocess,json,hashlib
+          expected={'CMakeLists.txt','docs/d3d9-backend.md','include/winrecomp/d3d9_host.hpp','include/winrecomp/process.hpp','src/runtime/d3d9_host.cpp','src/runtime/directdraw.cpp','src/runtime/directdraw_d3d9.hpp','src/runtime/process.cpp','tests/d3d9_boundary.cpp','tests/d3d9_program.py','verification/source-hashes.json'}
+          changed=set(subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines())
+          if changed!=expected: raise RuntimeError('Unexpected source paths')
+          hashes=json.loads(subprocess.check_output(['git','show',':verification/source-hashes.json']))['sha256']
+          if len(hashes)!=93: raise RuntimeError('Unexpected source count')
+          for name,want in hashes.items():
+              if hashlib.sha256(subprocess.check_output(['git','show',':'+name])).hexdigest()!=want: raise RuntimeError(name)
+          print('All 93 canonical source hashes verified before publication')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: add bounded native x64 D3D7-on-D3D9 rendering boundary' -m 'Explicit opt-in profile with real D3D9 HAL execution, conservative capabilities, guest COM identity, scene ownership and render-target synchronization. Transformed diffuse triangle path only; textures, depth and presentation not accepted. Local Linux checks and Windows cross-build passed; independent native Windows acceptance follows. No game material included.'
+          git push origin HEAD:refs/heads/work/d3d9-backend
+          echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  verify:
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_sha }}
+          fetch-depth: 0
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - run: python -m pip install unicorn==2.1.2
+      - run: python tools/check_repository.py
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=ON
+      - name: Compile current source
+        id: compile
+        run: cmake --build build --parallel 2
+      - name: Native Windows legacy7-on9 boundary and original x86 comparison
+        if: runner.os == 'Windows'
+        run: ctest --test-dir build -R "^(d3d9_boundary|d3d9_program)$" --output-on-failure
+      - name: Native Windows directly affected runtime and modal regressions
+        if: ${{ !cancelled() && runner.os == 'Windows' && steps.compile.outcome == 'success' }}
+        run: ctest --test-dir build -R "^(dialog_template|dialog_boundary|dialog_program|gui_boundary|window_program|exception_unwind|resources|callback_abi|core|runtime|process|modules)$" --output-on-failure
+      - name: All Linux-compatible regressions
+        if: runner.os == 'Linux'
+        run: ctest --test-dir build --output-on-failure
+      - name: Native i386 oracle
+        if: runner.os == 'Linux'
+        run: python tests/hardware_oracle.py --tool build/winrecomp --out build/hardware --vectors 64
+      - name: Preserve exact source and dependencies
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p build
+          git bundle create build/WinRecomp.bundle --all
+          git -C third_party/zydis bundle create "$GITHUB_WORKSPACE/build/Zydis.bundle" --all
+          git -C third_party/zydis/dependencies/zycore bundle create "$GITHUB_WORKSPACE/build/Zycore.bundle" --all
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: d3d9-${{ matrix.os }}
+          path: |
+            build/Testing/Temporary/LastTest.log
+            build/Testing/Temporary/LastTestsFailed.log
+            build/d3d9_program/acceptance.json
+            build/d3d9_program/generated/process.json
+            build/d3d9_program/original/triangle.bin
+            build/d3d9_program/generated/triangle.bin
+            build/d3d9_program/*.log
+            build/*/report.json
+            build/*/hardware-report.json
+            build/WinRecomp.bundle
+            build/Zydis.bundle
+            build/Zycore.bundle
+          retention-days: 14
+  windows_memory:
+    needs: publish
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Configure all native C++ with AddressSanitizer
+        run: cmake -S . -B asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
+      - run: cmake --build asan --target winrecomp_d3d9_boundary winrecomp_exception_unwind winrecomp_resource_tests --parallel 2
+      - name: Native Windows GPU bridge lifetime and fault checks
+        run: ctest --test-dir asan -R "^(d3d9_boundary|exception_unwind|resources)$" --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: d3d9-windows-asan
+          path: asan/Testing/Temporary/LastTest.log
+          retention-days: 14
