@@ -34,6 +34,7 @@ Capabilities bounded(const D3DCAPS9& c){
     out.max_w=c.MaxVertexW;
     constexpr DWORD blend=D3DPBLENDCAPS_ZERO|D3DPBLENDCAPS_ONE|D3DPBLENDCAPS_SRCALPHA|D3DPBLENDCAPS_INVSRCALPHA;
     out.src_blend=c.SrcBlendCaps&blend;out.dst_blend=c.DestBlendCaps&blend;
+    out.alpha_compare=c.AlphaCmpCaps&0xffu;
     return out;
 }
 Status texture_limits(IDirect3D9* api,const D3DCAPS9& c,TextureLimits& out){
@@ -109,6 +110,7 @@ public:
         for(auto [state,value]:{std::pair{D3DRS_ZENABLE,DWORD(FALSE)},
             {D3DRS_ZWRITEENABLE,DWORD(FALSE)},{D3DRS_ZFUNC,DWORD(D3DCMP_LESSEQUAL)},{D3DRS_LIGHTING,DWORD(FALSE)},
             {D3DRS_FOGENABLE,DWORD(FALSE)},{D3DRS_ALPHABLENDENABLE,DWORD(FALSE)},
+            {D3DRS_ALPHATESTENABLE,DWORD(FALSE)},{D3DRS_ALPHAREF,DWORD(0)},{D3DRS_ALPHAFUNC,DWORD(D3DCMP_ALWAYS)},
             {D3DRS_SRCBLEND,DWORD(D3DBLEND_ONE)},{D3DRS_DESTBLEND,DWORD(D3DBLEND_ZERO)},
             {D3DRS_SPECULARENABLE,DWORD(FALSE)},{D3DRS_CULLMODE,DWORD(D3DCULL_CCW)},
             {D3DRS_SHADEMODE,DWORD(D3DSHADE_GOURAUD)}}){
@@ -183,6 +185,17 @@ public:
             if(value && (!(caps.src_blend&D3DPBLENDCAPS_SRCALPHA) || !(caps.dst_blend&D3DPBLENDCAPS_INVSRCALPHA)))
                 return Status(E_NOTIMPL);
             break;
+        case D3DRS_ALPHATESTENABLE:
+            if(value>1)return Invalid;
+            if(value && !caps.alpha_compare)return Status(E_NOTIMPL);
+            break;
+        case D3DRS_ALPHAREF:
+            if(value>255)return Invalid;
+            break;
+        case D3DRS_ALPHAFUNC:
+            if(value<1 || value>8)return Invalid;
+            if(!(caps.alpha_compare&(1u<<(value-1))))return Status(E_NOTIMPL);
+            break;
         case D3DRS_SRCBLEND:case D3DRS_DESTBLEND:{
             if(value<D3DBLEND_ZERO || value>D3DBLEND_INVSRCALPHA)return Status(E_NOTIMPL);
             const DWORD bit=value==D3DBLEND_ZERO?D3DPBLENDCAPS_ZERO:
@@ -208,7 +221,8 @@ public:
     Status get_state(std::uint32_t state,std::uint32_t& value) override{
         if(!valid())return Invalid;
         switch(state){case D3DRS_ZENABLE:case D3DRS_ZWRITEENABLE:case D3DRS_LIGHTING:
-        case D3DRS_ALPHABLENDENABLE:case D3DRS_SRCBLEND:case D3DRS_DESTBLEND:
+        case D3DRS_ALPHABLENDENABLE:case D3DRS_ALPHATESTENABLE:case D3DRS_ALPHAREF:case D3DRS_ALPHAFUNC:
+        case D3DRS_SRCBLEND:case D3DRS_DESTBLEND:
         case D3DRS_FOGENABLE:case D3DRS_SPECULARENABLE:
         case D3DRS_CULLMODE:case D3DRS_SHADEMODE:case D3DRS_ZFUNC:break;default:return Status(E_NOTIMPL);}
         DWORD result{};auto hr=device.p->GetRenderState(D3DRENDERSTATETYPE(state),&result);
