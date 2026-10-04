@@ -112,7 +112,8 @@ class DriverTests(unittest.TestCase):
         self.assertIn('Visual Studio 17 2022', command)
 
     def test_linux_is_not_reported_as_windows(self):
-        with patch.object(w.os, 'name', 'posix'):
+        with patch.object(w, 'os') as fake_os:
+            fake_os.name = 'posix'
             with self.assertRaisesRegex(RuntimeError, 'native Windows'):
                 w.build(self.path, self.root/'out', None)
         self.assertFalse((self.root/'out').exists())

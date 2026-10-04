@@ -27,20 +27,29 @@ jobs:
       - name: Validate exact new build-driver sources
         shell: python
         run: |
-          import hashlib,json
+          import hashlib,json,subprocess
           from pathlib import Path
           for name,want in json.loads(Path('verification/windows-build-source-hashes.json').read_text()).items():
-              assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==want, name
+              tracked=subprocess.check_output(['git','show','HEAD:'+name])
+              assert hashlib.sha256(tracked).hexdigest()==want, name
+              actual=Path(name).read_bytes()
+              assert actual==tracked or actual.replace(b'\r\n',b'\n')==tracked, name+' working-tree mismatch'
       - name: Build-path and architecture rejection tests
         run: python tests/windows_x64_build.py -v
       - name: Same user-facing Windows x64 build route plus original comparison
         run: python tests/windows_x64_build.py --integration local/windows-ci
+      - name: Preserve committed source for reproducible workspaces
+        if: always()
+        run: |
+          python -c "from pathlib import Path; Path('local').mkdir(exist_ok=True)"
+          git bundle create local/WindowsBuildSource.bundle --all
       - name: Retain tool and clearly labeled synthetic Windows x64 EXE
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: windows-x64-tool-and-synthetic-proof
           path: |
+            local/WindowsBuildSource.bundle
             local/windows-ci/acceptance.json
             local/windows-ci/product with spaces/build-report.json
             local/windows-ci/product with spaces/logs/
