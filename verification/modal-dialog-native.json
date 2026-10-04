@@ -1,0 +1,253 @@
+{
+  "schema": "winrecomp.modal-dialog-native-evidence.v1",
+  "source_commit": "b9115719a2f9be2695880532e8e64865217340ec",
+  "source_tree": "4d2b7bd6a0cfcf09c3977a53bba083dfabfea8b1",
+  "source_branch": "work/dialog-fixes",
+  "source_hash_count": 88,
+  "workflow_run_id": 37185303944,
+  "jobs": [
+    {
+      "name": "verify (windows-2022)",
+      "id": 111385867614,
+      "conclusion": "success"
+    },
+    {
+      "name": "verify (ubuntu-24.04)",
+      "id": 111385867724,
+      "conclusion": "success"
+    },
+    {
+      "name": "windows_dialog_memory",
+      "id": 111385867748,
+      "conclusion": "success"
+    }
+  ],
+  "windows": {
+    "compiler": "MSVC x64",
+    "focused_suites_passed": 8,
+    "suites": [
+      "dialog_template",
+      "dialog_boundary",
+      "dialog_program",
+      "gui_boundary",
+      "window_program",
+      "exception_unwind",
+      "resources",
+      "callback_abi"
+    ],
+    "full_33_suite_run_claimed": false,
+    "original_vs_generated": {
+      "schema": "winrecomp.modal-dialog-program.v1",
+      "source_input_sha256": "113a8403bdd0a9da026e9f114d8a52242c710c4803ae7450f69d42c5ec22bd55",
+      "original": "Windows PE32 loader",
+      "generated": "native Windows x64 compiled dispatch",
+      "identical_semantic_record": true,
+      "record": [
+        2,
+        2,
+        2882400018,
+        1,
+        15,
+        591751049,
+        1,
+        3
+      ],
+      "record_sha256": "a6fff3c3e8e58163ae43fea498068a92eb586738db3e8ddf5a1d1dbe85fe5e14",
+      "scope": "Authored modal-dialog test, not E3 dialog execution or gameplay."
+    },
+    "generated_execution": {
+      "exited": true,
+      "exit_code": 0,
+      "translated_guest_instructions": 1094,
+      "api_dispatches": 38,
+      "gui": {
+        "backend": "native-win32",
+        "windows_created": 0,
+        "windows_destroyed": 0,
+        "window_callbacks": 0,
+        "messages_dispatched": 0,
+        "gl_contexts_created": 0,
+        "swaps": 0,
+        "host_only_notifications": 4,
+        "host_only_message_ids": [
+          144,
+          799
+        ],
+        "dialogs_created": 2,
+        "dialog_callbacks": 42,
+        "dialogs_completed": 2
+      }
+    }
+  },
+  "windows_asan": {
+    "suites_passed": 5,
+    "assertions": {
+      "dialog_template": 336,
+      "dialog_boundary": 1847,
+      "gui_boundary": 547,
+      "resources": 28,
+      "exception_unwind": 70
+    },
+    "scope": "Native C++ template, lifetime, callback and fault tests; not a full-game sanitizer result. The generated modal executable is checked in the separate Release job."
+  },
+  "linux": {
+    "suites_passed": 20,
+    "conformance": {
+      "conformance": {
+        "total_vectors": 60672,
+        "oracle": "Unicorn 2.1.2"
+      },
+      "floating": {
+        "total_vectors": 18240,
+        "oracle": "native x86-64 hardware, uninterrupted original x87 byte fixtures in long mode"
+      },
+      "simd": {
+        "total_vectors": 29952,
+        "oracle": "native x86-64 hardware, uninterrupted original SSE/SSE2 byte fixtures in long mode"
+      },
+      "controlflow": {
+        "total_vectors": 1024
+      },
+      "abi_callbacks": {
+        "vectors": 256,
+        "all_passed": true
+      },
+      "modules_execution": {
+        "schema": "winrecomp.modules-execution.v1",
+        "passed": true,
+        "positive_cases": 64,
+        "negative_cases": 3,
+        "host": "linux",
+        "compiled_guest": true,
+        "cpu_profile": "scalar-v1",
+        "namespace": "explicit roots",
+        "original_os_comparison": false
+      }
+    },
+    "native_i386": {
+      "oracle": "native i386 ELF32 execution, not emulation",
+      "native_output_bits": 64,
+      "total_vectors": 15168,
+      "elapsed_seconds": 11.471,
+      "case_count": 237,
+      "all_cases_passed": true
+    }
+  },
+  "artifacts": {
+    "windows": {
+      "id": 11297151455,
+      "sha256": "d94c69850036f4f66e9067732274b14dd92bd57a610b296d1ebc1292414cb206"
+    },
+    "linux": {
+      "id": 11296772473,
+      "sha256": "754aa6ba6a5d675f6fcde3bbb9e1e6f6b9087fda7fc0534207db690a82774fc5"
+    },
+    "windows_asan": {
+      "id": 11296882192,
+      "sha256": "16141209d1c24e5dfc94062ad97b8576c4ef1eaa371409aec9065851f455faba"
+    }
+  },
+  "fixes": [
+    "WM_CHANGEUISTATE/WM_UPDATEUISTATE/WM_QUERYUISTATE scalar marshalling reaches guest callbacks and native default dialog/control processing.",
+    "The existing ordinary-window host-only non-client/accessibility transport policy now also applies to DLGPROC, returning FALSE and counting delegated notifications instead of passing native pointers or calling DefWindowProc.",
+    "Both C++ and compiled x86 fixtures explicitly test keyboard cue state; nested dialogs, signed/zero results, stale handles and deliberate failures remain checked."
+  ],
+  "failed_history": [
+    {
+      "run_id": 37183412399,
+      "reason": "Native Windows modal callbacks stopped on unmodelled message 0x127."
+    },
+    {
+      "run_id": 37184930009,
+      "reason": "After UI-state handling, the next native Windows modal failure was host-only message 0x90."
+    }
+  ],
+  "timeouts_relaxed": false,
+  "fault_tests_removed": false,
+  "local": {
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "release_suites_passed_in_completed_batches": 20,
+    "commands": [
+      "ctest --test-dir build -R \"^(dialog_template|processor|modules|resources|core|fp_faults|target_fp_selector|nls_data|exception_unwind|nls|process|runtime|frontend|modules_execution)$\" --output-on-failure",
+      "ctest --test-dir build -R \"^callback_abi$\" --output-on-failure",
+      "ctest --test-dir build -R \"^program$\" --output-on-failure",
+      "ctest --test-dir build -R \"^(controlflow|simd|floating|conformance)$\" --output-on-failure"
+    ],
+    "log_sha256": {
+      "dialog-linux-base-final.log": "44740926dc74d9b2bf1d667fa603d9f80e7eeca31dc00615635df22f3aac279d",
+      "dialog-linux-callback.log": "c4ce63f843b32d8acea8d1a691d2076e1dad7426d99804f021a0d65bb01c040d",
+      "dialog-linux-program.log": "4956a6172ebf91506ae73c91724f9c64b998af7db225c123b5d10abc7230f33b",
+      "dialog-linux-numeric.log": "a3252f579004636e30ff82d8b3c05c968c6e530d398fea89a98d435006a51010"
+    },
+    "interrupted_combined_attempt_counted_as_pass": false,
+    "wine_auxiliary_attempt": "Failed the new fixed keyboard-cue state assertion; not counted as a pass. Native Windows original/generated tests, not Wine, are the acceptance evidence.",
+    "fresh_full_e3_execution": false
+  },
+  "separate_native_graphics_blocker": {
+    "issue": 1,
+    "probe_source": "566acf4bfcb6743a1af3048e809f43a25e3b73c2",
+    "probe_run_id": 37182410794,
+    "probe_status": "Previously completed original native API observations, downloaded and checked again in this pass; not a new graphics run.",
+    "probes": {
+      "x86": {
+        "artifact_id": 11296040314,
+        "artifact_sha256": "f63365b4cbb1c398e9232501e47b32d1411b699b41f60540c102e2dd615c3173",
+        "observation": {
+          "schema": "winrecomp.native-graphics-observation.v1",
+          "pointer_bits": 32,
+          "window_error": 0,
+          "ddraw7_create": "0x00000000",
+          "ddraw7_cooperative": "0x00000000",
+          "d3d7_query": "0x00000000",
+          "d3d7_object": true,
+          "d3d9_object": true,
+          "d3d9_adapters": 1,
+          "d3d9_caps": "0x00000000",
+          "d3d9_hal_device": "0x00000000",
+          "d3d9_clear": "0x00000000",
+          "d3d11_warp_device": "0x00000000",
+          "d3d11_feature_level": 45056,
+          "scope": "Host API observations only; not a renderer implementation or game test."
+        }
+      },
+      "x64": {
+        "artifact_id": 11295407467,
+        "artifact_sha256": "6ad787125029e7cefbaaec8325121d91b2e7b04f5b7ff2e2a4095563a7259b8a",
+        "observation": {
+          "schema": "winrecomp.native-graphics-observation.v1",
+          "pointer_bits": 64,
+          "window_error": 0,
+          "ddraw7_create": "0x00000000",
+          "ddraw7_cooperative": "0x00000000",
+          "d3d7_query": "0x80004002",
+          "d3d7_object": false,
+          "d3d9_object": true,
+          "d3d9_adapters": 1,
+          "d3d9_caps": "0x00000000",
+          "d3d9_hal_device": "0x00000000",
+          "d3d9_clear": "0x00000000",
+          "d3d11_warp_device": "0x00000000",
+          "d3d11_feature_level": 45056,
+          "scope": "Host API observations only; not a renderer implementation or game test."
+        }
+      }
+    },
+    "scope": "Observed x64 IDirect3D7 absence on Windows-2022 runners, unlike x86 and earlier Wine. Do not generalize to every Windows installation. D3D9 device/clear succeeded in both native probes.",
+    "resolved": false
+  },
+  "publication": {
+    "source_pushed": true,
+    "main_updated": false,
+    "main_at_verification": "28903ea344b77ea97b6794151b18c3b63f8e3363",
+    "reason": "Focused modal/GUI acceptance does not validate all accumulated native D3D7 code; the development branch is preserved separately."
+  },
+  "game_playable": false,
+  "new_planning_points_awarded": 0,
+  "privacy": "No original E3 bytes, assets, disassembly, generated game code or game executable uploaded or committed.",
+  "limitations": [
+    "The original-vs-generated comparison is an author-written two-dialog PE32 fixture, not the E3 renderer-selection dialog.",
+    "No new actual E3 scene, player controls or native Windows game-run result.",
+    "Unknown message payloads and unimplemented graphics operations still stop explicitly.",
+    "Full legacy renderer, audio/input, TLS/SEH and guest-threading acceptance remains incomplete."
+  ]
+}
