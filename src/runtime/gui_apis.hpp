@@ -3,6 +3,13 @@ void Gui::install(){
     auto gdi=[&](const char* name,unsigned count,std::function<U32(Args)> f){api("gdi32.dll",name,count,std::move(f));};
     auto gl=[&](const char* name,unsigned count,std::function<U32(Args)> f){api("opengl32.dll",name,count,[this,f=std::move(f)](Args a){ensure_gl();return f(a);});};
     auto wgl=[&](const char* name,unsigned count,std::function<U32(Args)> f){api("opengl32.dll",name,count,std::move(f));};
+    user("DialogBoxParamA",5,[this](Args a){return dialog_box(a);},0xffffffffu);
+    user("EndDialog",2,[this](Args a){auto it=dialogs.find(a[0]);if(it==dialogs.end())throw InvalidHandle{1400};auto ok=EndDialog(hwnd(a[0]),signed_param(a[1]));if(ok)it->second->ending=true;return native_bool(ok);});
+    user("GetDlgItem",2,[this](Args a){return dialog_item(a[0],a[1]);});
+    user("CheckDlgButton",3,[this](Args a){if(!dialogs.contains(a[0]))throw InvalidHandle{1400};return native_bool(CheckDlgButton(hwnd(a[0]),signed32(a[1]),a[2]));});
+    user("CheckRadioButton",4,[this](Args a){if(!dialogs.contains(a[0]))throw InvalidHandle{1400};return native_bool(CheckRadioButton(hwnd(a[0]),signed32(a[1]),signed32(a[2]),signed32(a[3])));});
+    user("IsDlgButtonChecked",2,[this](Args a){if(!dialogs.contains(a[0]))throw InvalidHandle{1400};return U32(IsDlgButtonChecked(hwnd(a[0]),signed32(a[1])));});
+    user("SendDlgItemMessageA",5,[this](Args a){auto id=dialog_item(a[0],a[1]);if(!id)return 0u;const std::array<U32,4> args{id,a[2],a[3],a[4]};return control_message(args);});
     user("LoadIconA",2,[this](Args a){return load_icon(a);});
     user("LoadCursorA",2,[this](Args a){if(a[0])unsupported("custom cursor resources are not implemented");if(a[1]>=65536){p.set_error(87);return 0u;}auto value=LoadCursorA(nullptr,MAKEINTRESOURCEA(a[1]));if(!value)p.set_error(GetLastError());return token(Kind::cursor,reinterpret_cast<std::uintptr_t>(value));});
     user("SetCursor",1,[this](Args a){return token(Kind::cursor,reinterpret_cast<std::uintptr_t>(SetCursor(get<HCURSOR>(a[0],Kind::cursor,true))));});
@@ -14,8 +21,8 @@ void Gui::install(){
     user("RegisterClassExA",1,[this](Args a){return register_class(a);});
     user("UnregisterClassA",2,[this](Args a){if(a[1] && a[1]!=p.image_base)unsupported("foreign class instance");auto c=klass(a[0]);auto value=UnregisterClassA(c->native.c_str(),GetModuleHandleW(nullptr));if(value)classes.erase(c->logical);return native_bool(value);});
     user("CreateWindowExA",12,[this](Args a){return create_window(a);});
-    user("DestroyWindow",1,[this](Args a){auto h=hwnd(a[0]);for(const auto& [id,handle]:handles)if(handle.kind==Kind::gl){auto d=handles.find(handle.owner);if(d!=handles.end() && d->second.owner==a[0])unsupported("destroy window after releasing its OpenGL contexts");}for(const auto& [key,value]:paints)if(key.first==a[0])unsupported("destroy window with active BeginPaint");auto value=DestroyWindow(h);if(value){handles.erase(a[0]);windows.erase(a[0]);}return native_bool(value);});
-    user("IsWindow",1,[this](Args a){auto it=handles.find(a[0]);return U32(it!=handles.end() && it->second.kind==Kind::window && IsWindow(reinterpret_cast<HWND>(it->second.native)));});
+    user("DestroyWindow",1,[this](Args a){auto h=hwnd(a[0]);if(handles.at(a[0]).kind!=Kind::window)unsupported("use EndDialog to end an owned modal dialog");for(const auto& [id,handle]:handles)if(handle.kind==Kind::gl){auto d=handles.find(handle.owner);if(d!=handles.end() && d->second.owner==a[0])unsupported("destroy window after releasing its OpenGL contexts");}for(const auto& [key,value]:paints)if(key.first==a[0])unsupported("destroy window with active BeginPaint");auto value=DestroyWindow(h);if(value){handles.erase(a[0]);windows.erase(a[0]);}return native_bool(value);});
+    user("IsWindow",1,[this](Args a){auto it=handles.find(a[0]);return U32(it!=handles.end() && (it->second.kind==Kind::window || it->second.kind==Kind::dialog || it->second.kind==Kind::control) && IsWindow(reinterpret_cast<HWND>(it->second.native)));});
     user("ShowWindow",2,[this](Args a){return U32(ShowWindow(hwnd(a[0]),signed32(a[1])));});
     user("UpdateWindow",1,[this](Args a){return native_bool(UpdateWindow(hwnd(a[0])));});
     user("EnableWindow",2,[this](Args a){return U32(EnableWindow(hwnd(a[0]),a[1]!=0));});
@@ -36,8 +43,8 @@ void Gui::install(){
     user("GetActiveWindow",0,[this](Args){return window_token(GetActiveWindow());});
     user("GetFocus",0,[this](Args){return window_token(GetFocus());});
     user("SetFocus",1,[this](Args a){return window_token(SetFocus(hwnd(a[0],true)));});
-    user("GetWindowLongA",2,[this](Args a){auto h=hwnd(a[0]);auto w=windows.at(a[0]);const int n=signed32(a[1]);if(n==GWLP_WNDPROC)return w->procedure;if(n==GWLP_USERDATA)return w->user_data;if(n==GWLP_HINSTANCE)return w->create[10];if(n==GWL_STYLE || n==GWL_EXSTYLE || n==-12 || (n>=0 && U32(n)+4<=w->klass->extra))return U32(GetWindowLongA(h,n));unsupported("GetWindowLong index not modelled");});
-    user("SetWindowLongA",3,[this](Args a){auto h=hwnd(a[0]);auto w=windows.at(a[0]);const int n=signed32(a[1]);if(n==GWLP_WNDPROC){p.memory.check(a[2],1,Memory::Execute);const auto prior=w->procedure;w->procedure=a[2];return prior;}if(n==GWLP_USERDATA){const auto prior=w->user_data;w->user_data=a[2];return prior;}if(n==GWL_STYLE || n==GWL_EXSTYLE || n==-12 || (n>=0 && U32(n)+4<=w->klass->extra))return U32(SetWindowLongA(h,n,LONG(signed32(a[2]))));unsupported("SetWindowLong index not modelled");});
+    user("GetWindowLongA",2,[this](Args a){auto h=hwnd(a[0]);if(dialogs.contains(a[0]) || handles.at(a[0]).kind==Kind::control)return dialog_long(a,false);auto w=windows.at(a[0]);const int n=signed32(a[1]);if(n==GWLP_WNDPROC)return w->procedure;if(n==GWLP_USERDATA)return w->user_data;if(n==GWLP_HINSTANCE)return w->create[10];if(n==GWL_STYLE || n==GWL_EXSTYLE || n==-12 || (n>=0 && U32(n)+4<=w->klass->extra))return U32(GetWindowLongA(h,n));unsupported("GetWindowLong index not modelled");});
+    user("SetWindowLongA",3,[this](Args a){auto h=hwnd(a[0]);if(dialogs.contains(a[0]) || handles.at(a[0]).kind==Kind::control)return dialog_long(a,true);auto w=windows.at(a[0]);const int n=signed32(a[1]);if(n==GWLP_WNDPROC){p.memory.check(a[2],1,Memory::Execute);const auto prior=w->procedure;w->procedure=a[2];return prior;}if(n==GWLP_USERDATA){const auto prior=w->user_data;w->user_data=a[2];return prior;}if(n==GWL_STYLE || n==GWL_EXSTYLE || n==-12 || (n>=0 && U32(n)+4<=w->klass->extra))return U32(SetWindowLongA(h,n,LONG(signed32(a[2]))));unsupported("SetWindowLong index not modelled");});
     user("BeginPaint",2,[this](Args a){return paint_begin(a);});
     user("EndPaint",2,[this](Args a){return paint_end(a);});
     user("InvalidateRect",3,[this](Args a){auto h=hwnd(a[0]);RECT r{};RECT* ptr=nullptr;if(a[1]){auto b=read_bytes(p,a[1],16);std::copy(b.begin(),b.end(),reinterpret_cast<std::uint8_t*>(&r));ptr=&r;}return native_bool(InvalidateRect(h,ptr,a[2]!=0));});

@@ -54,7 +54,14 @@ U32 Gui::default_window(Args a){
     return result32(DefWindowProcA(h,a[1],a[2],signed_param(a[3])));
 }
 U32 Gui::send_message(Args a,bool post){
-    const auto h=hwnd(a[0]);if(!scalar_message(a[1]) || (a[1]==WM_TIMER && a[3]))unsupported("Send/PostMessage requires a supported scalar payload");
+    const auto h=hwnd(a[0]);
+    if(handles.at(a[0]).kind==Kind::control){if(post)unsupported("asynchronous dialog-control messages not implemented");return control_message(a);}
+    if(dialogs.contains(a[0]) && a[1]==WM_COMMAND){
+        auto child=hwnd(a[3],true);if(child && !IsChild(h,child))unsupported("dialog command from a foreign control");
+        if(post)return native_bool(PostMessageA(h,a[1],a[2],reinterpret_cast<LPARAM>(child)));
+        return result32(SendMessageA(h,a[1],a[2],reinterpret_cast<LPARAM>(child)));
+    }
+    if(!scalar_message(a[1]) || (a[1]==WM_TIMER && a[3]))unsupported("Send/PostMessage requires a supported scalar payload");
     if(post)return native_bool(PostMessageA(h,a[1],a[2],signed_param(a[3])));
     return result32(SendMessageA(h,a[1],a[2],signed_param(a[3])));
 }

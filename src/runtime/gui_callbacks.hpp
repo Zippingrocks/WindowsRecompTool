@@ -44,6 +44,17 @@ struct Frame {
         case WM_SETICON:wp=scalar(native_w);lp=g.token(Kind::icon,std::uintptr_t(native_l));break;
         case WM_GETICON:wp=scalar(native_w);lp=scalar(std::uintptr_t(native_l));break;
         case WM_COMMAND:wp=scalar(native_w);lp=g.window_token(reinterpret_cast<HWND>(native_l));break;
+        case WM_ENTERIDLE:
+            if(native_w!=MSGF_DIALOGBOX)g.unsupported("idle notification for an unmodelled native menu");
+            wp=U32(native_w);lp=g.window_token(reinterpret_cast<HWND>(native_l));break;
+        case WM_DELETEITEM:{
+            const auto* item=reinterpret_cast<const DELETEITEMSTRUCT*>(native_l);
+            if(!item || (item->CtlType!=ODT_LISTBOX && item->CtlType!=ODT_COMBOBOX))g.unsupported("unmodelled item deletion payload");
+            wp=scalar(native_w);lp=scratch.alloc(20);
+            const std::array<U32,5> fields{item->CtlType,item->CtlID,item->itemID,g.window_token(item->hwndItem),scalar(item->itemData)};
+            for(unsigned n=0;n<fields.size();++n)p.memory.store(lp+4*n,fields[n],32);
+            break;}
+
         default:
             if(!scalar_message(message) || (message==WM_TIMER && native_l))g.unsupported("unmarshalled native window message "+hex(message));
             wp=scalar(native_w);lp=scalar(std::uintptr_t(native_l));break;

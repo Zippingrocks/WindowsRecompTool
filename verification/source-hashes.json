@@ -1,9 +1,9 @@
 {
   "schema": "winrecomp.source-snapshot.v1",
-  "note": "Exact local Direct3D7 startup candidate source; Wine results are not native Windows CI acceptance.",
+  "note": "Exact owned source snapshot for the native modal-dialog candidate; full native D3D7 tests remain independently blocked by x64 Windows interface availability.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "ec4498af27e5783a9e0768e5e15ff25d9e2c1f7ada5990445c8bb886f4096941",
+    "CMakeLists.txt": "c163950259c3f6105c689b5fc0c866ed9cfc686f2b0711fa96d60a60fbd1d225",
     "include/winrecomp/compiled.hpp": "4264c817ee2e5fd3c523b6a5fab7e62208f7a47865c33ea894bb89a341972d04",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
@@ -51,13 +51,13 @@
     "tests/target_fp_selector.py": "ad674e96f2a07ee56bc02b33726512cc6d9724bbc951f0285a3f8e2f2e984784",
     "include/winrecomp/gui.hpp": "279590333d48657cb2c6bcdebe632845ac34ba87a5a83e5211fe5c17679dabd8",
     "include/winrecomp/resources.hpp": "158e0b69ab94bc51363292e8c744b53ce90c2845337bcd0e5ded1ae2b59e9c3d",
-    "src/runtime/gui.cpp": "d59236103e73254c759933ba362b62920537407f2cd9c6fe46680071f4b44478",
+    "src/runtime/gui.cpp": "27ef7f35d349fb63aab93c86071d9a0d3585e39a566b95420815bcd2810fb80d",
     "src/resources.cpp": "c01416e9cf670fc76f29a806f68d98b2da281aa616303d7fc434cd427a5be169",
     "tests/resources.cpp": "fb34e2f3da361ce88008f06e6208f6586bf130e89965a77c3d7ac96f16412224",
     "tests/window_program.py": "eaf42dfe22e3d94fd4ea148fd2adb94db357cb26f4b3237de7e189aa1e66b903",
-    "src/runtime/gui_callbacks.hpp": "fd2a982165c1676b76a60f209d4075b422eff1016e7411eda680ed561a159953",
-    "src/runtime/gui_lifecycle.hpp": "fc3cc179ca085625288822df5a98946065a8d74695c0442efbae62f3359b7b33",
-    "src/runtime/gui_apis.hpp": "d0830b96e5321ccc6b65654201f749b36cbb0749de66f8ef71fb58da24ae4611",
+    "src/runtime/gui_callbacks.hpp": "ae289d7b4aeaf9391b9ee94b21c20094fd3796f4d361f12c2a3ec05b84065a14",
+    "src/runtime/gui_lifecycle.hpp": "a34eb87148067ce7b18e5e8e4a02c27d1f333c79065695ee4f198e4048b7b54b",
+    "src/runtime/gui_apis.hpp": "aec6b6825a461fe06a1b4ade606c2d2fc0dde314a616ec62054795f3c08d153e",
     "src/runtime/gui_messages.hpp": "9cb1f71e79582b9636c9f797ee4eff10bbe074cbddcf03b4bedeb300ae8db705",
     "tests/gui_boundary.cpp": "644b7ef3e74f2eac4d650147f27ae8d2237fadb60f57b751c41cb1a69877fbbf",
     ".github/workflows/windowing.yml": "3bc079f58fa059bc8a343faf34fc7af03337907d4a5c24494a0242eaaf392ddf",
@@ -82,6 +82,12 @@
     "tests/device_identifier.cpp": "a07f988c6a5cab841a949e614cc9f0a461961f7b26a7a573d101171c324668c6",
     "tests/modes7.cpp": "33b883522c080bccea867af627968e059d9037bb389f6ab2651ae20d6ab5a5ce",
     "tests/primary_clipper.cpp": "af5883ff95dd7cdd9cc972ad8e3192f4600f3778185827f49a1e0be83b3c9e26",
-    "tests/device7_boundary.cpp": "9e6711f2971edfb9c817e8648a5f1f31cc775dc700a3b5054db5b097f724f921"
+    "tests/device7_boundary.cpp": "9e6711f2971edfb9c817e8648a5f1f31cc775dc700a3b5054db5b097f724f921",
+    "include/winrecomp/dialog_template.hpp": "67bfa12c1e46d8f256fbf63505f43f947c3069f8af9cfd70d93e0ec5165909ef",
+    "src/runtime/gui_dialogs.hpp": "b7f465af5b2d3a5345dfc3efe422909ffc8a0e03014a5a924b8cf7958adb29f8",
+    "tests/dialog_boundary.cpp": "0fc4f5db0e6db39a0e0c7e13a6922978b13e758542018c03b15ea5c82b1650c4",
+    "tests/dialog_fixture.hpp": "ce2e879092c59fba2b030f290778f887fe2cbe1f8bb6392b56dcbc83da5aa5b7",
+    "tests/dialog_program.py": "a6c2afb70f0b607483ea4fb93751a0b444fd74afff55485d580b54327b9e3fe3",
+    "tests/dialog_template.cpp": "130ef0fb96076446148b4e819a21df365088a01242718bbb4b7d4710bf023cd1"
   }
 }

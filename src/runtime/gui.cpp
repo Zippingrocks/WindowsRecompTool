@@ -1,6 +1,7 @@
 #include "winrecomp/gui.hpp"
 #include "winrecomp/process.hpp"
 #include "winrecomp/resources.hpp"
+#include "winrecomp/dialog_template.hpp"
 #include <array>
 #include <bit>
 #include <exception>
@@ -36,16 +37,22 @@ U32 scalar(std::uintptr_t n){
     if(n>0xffffffffull && n<0xffffffff80000000ull)throw std::runtime_error("native window parameter is not a 32-bit scalar");
     return U32(n);
 }
-enum class Kind {window,foreign_window,icon,cursor,brush,gdi,dc,paint_dc,borrowed_dc,region,keyboard_layout,gl};
+enum class Kind { dialog,control,font,window,foreign_window,icon,cursor,brush,gdi,dc,paint_dc,borrowed_dc,region,keyboard_layout,gl};
 struct Handle {Kind kind;std::uintptr_t native;U32 owner{};bool owned{};unsigned references{1};};
 struct InvalidHandle:std::runtime_error {U32 error;explicit InvalidHandle(U32 e):std::runtime_error("invalid GUI handle"),error(e){}};
 class Gui;
 struct WindowClass {std::string logical,native;ATOM atom{};U32 procedure{},instance{},style{},extra{};};
 struct Window {Gui* gui{};std::shared_ptr<WindowClass> klass;HWND native{};U32 id{},procedure{},user_data{};bool alive{},counted{};std::array<U32,12> create{};std::string title;};
+struct Dialog {
+    Gui* gui{};HWND native{};U32 id{},procedure{},init{},user_data{};
+    bool ending{};DialogTemplate shape;std::shared_ptr<Window> callback_window;
+};
 struct Frame;
 thread_local std::map<HWND,std::weak_ptr<Window>> window_owners;
 thread_local std::vector<std::shared_ptr<Window>> creating;
 thread_local Gui* active_gui=nullptr;
+thread_local std::vector<std::shared_ptr<Dialog>> creating_dialogs;
+thread_local std::map<HWND,std::weak_ptr<Dialog>> dialog_owners;
 // Temporary guest addresses have a bounded lifetime; Windows pointers are never
 // put into these buffers. Nested callbacks get separate scratch reservations.
 struct Scratch {
@@ -69,6 +76,8 @@ public:
     std::map<std::pair<U32,U32>,U32> strings;
     std::map<std::pair<U32,ResourceName>,U32> icons;
     std::vector<Frame*> frames;
+    std::map<U32,std::shared_ptr<Dialog>> dialogs;
+    std::uint64_t dialogs_created{},dialog_callbacks{},dialogs_completed{};
     U32 next{0xb0000000},current_gl{},current_dc{};
     std::uint64_t created{},destroyed{},callbacks{},dispatched{},contexts{},swaps{},host_only{};
     std::set<UINT> host_only_ids;
@@ -97,16 +106,27 @@ public:
     }
     HWND hwnd(U32 id,bool null_ok=false){
         if(!id && null_ok)return nullptr;
+        auto token_it=handles.find(id);
+        if(token_it!=handles.end() && token_it->second.kind==Kind::dialog){
+            auto d=dialogs.find(id);if(d==dialogs.end() || !d->second->native || !IsWindow(d->second->native))throw InvalidHandle{1400};
+            return d->second->native;
+        }
+        if(token_it!=handles.end() && token_it->second.kind==Kind::control){
+            auto owner=dialogs.find(token_it->second.owner);auto child=reinterpret_cast<HWND>(token_it->second.native);
+            if(owner==dialogs.end() || !IsWindow(child) || !IsChild(owner->second->native,child))throw InvalidHandle{1400};
+            return child;
+        }
         auto w=windows.find(id);
         if(w==windows.end() || !w->second->alive)throw InvalidHandle{1400};
         return get<HWND>(id,Kind::window);
     }
     U32 window_token(HWND w){
         if(!w)return 0;
+        for(auto& [id,d]:dialogs){if(d->native==w)return id;if(d->native && IsChild(d->native,w))return token(Kind::control,reinterpret_cast<std::uintptr_t>(w),id);}
         if(auto it=window_owners.find(w);it!=window_owners.end())if(auto owned=it->second.lock())if(owned->gui==this)return owned->id;
         return token(Kind::foreign_window,reinterpret_cast<std::uintptr_t>(w));
     }
-    HWND message_window(U32 id){if(!id)return nullptr;auto it=handles.find(id);if(it==handles.end() || (it->second.kind!=Kind::window && it->second.kind!=Kind::foreign_window))throw InvalidHandle{1400};return reinterpret_cast<HWND>(it->second.native);}
+    HWND message_window(U32 id){if(!id)return nullptr;if(handles.contains(id) && (handles.at(id).kind==Kind::dialog || handles.at(id).kind==Kind::control))return hwnd(id);auto it=handles.find(id);if(it==handles.end() || (it->second.kind!=Kind::window && it->second.kind!=Kind::foreign_window))throw InvalidHandle{1400};return reinterpret_cast<HWND>(it->second.native);}
     HWND zorder(U32 id){if(id<=1 || id>=0xfffffffeu)return reinterpret_cast<HWND>(signed_param(id));return message_window(id);}
     U32 ztoken(HWND h){const auto value=reinterpret_cast<std::uintptr_t>(h);if(value<=1 || value>=0xfffffffffffffffeull)return U32(value);return window_token(h);}
     HBRUSH brush(U32 id){if(id<=COLOR_MENUBAR+1)return reinterpret_cast<HBRUSH>(std::uintptr_t(id));return get<HBRUSH>(id,Kind::brush);}
@@ -120,6 +140,11 @@ public:
     }
     std::uintptr_t native_window(U32 id) override {enter();return reinterpret_cast<std::uintptr_t>(hwnd(id,true));}
     void install();
+    U32 dialog_box(Args);
+    U32 dialog_item(U32,U32);
+    U32 control_message(Args);
+    U32 dialog_long(Args,bool);
+    static INT_PTR CALLBACK dialog_procedure(HWND,UINT,WPARAM,LPARAM) noexcept;
     U32 register_class(Args);
     U32 create_window(Args);
     U32 load_icon(Args);
@@ -134,12 +159,13 @@ public:
     void shutdown() noexcept override;
     std::string report() const override {
         std::ostringstream s;s<<"{\"backend\":\"native-win32\",\"windows_created\":"<<created<<",\"windows_destroyed\":"<<destroyed<<",\"window_callbacks\":"<<callbacks<<",\"messages_dispatched\":"<<dispatched<<",\"gl_contexts_created\":"<<contexts<<",\"swaps\":"<<swaps<<",\"host_only_notifications\":"<<host_only<<",\"host_only_message_ids\":[";
-        bool first=true;for(auto id:host_only_ids){if(!first)s<<',';first=false;s<<id;}s<<"]}";return s.str();
+        bool first=true;for(auto id:host_only_ids){if(!first)s<<',';first=false;s<<id;}s<<"],\"dialogs_created\":"<<dialogs_created<<",\"dialog_callbacks\":"<<dialog_callbacks<<",\"dialogs_completed\":"<<dialogs_completed<<"}";return s.str();
     }
 };
 #include "gui_messages.hpp"
 #include "gui_callbacks.hpp"
 #include "gui_lifecycle.hpp"
+#include "gui_dialogs.hpp"
 #include "gui_apis.hpp"
 }
 std::unique_ptr<GuiBackend> install_gui(Process& process){return std::make_unique<Gui>(process);}
