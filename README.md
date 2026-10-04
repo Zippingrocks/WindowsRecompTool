@@ -1,10 +1,11 @@
 # WinRecomp
 
-> Local development candidate: the Windows x64 E3 program reaches a request for its
-> **Choose Rasterizer** dialog under Wine after real Direct3D7 device/format
-> enumeration. The dialog has not been displayed; no game frame or player control
-> is verified. This candidate has not been pushed or tested on native Windows.
-> Current evidence and limitations are in `docs/status.md`.
+> Windows x64 first: the development renderer now has native Windows
+> original-x86 versus recompiled-x64 acceptance for indexed untextured/textured
+> test scenes. **E3 itself is not demonstrated playable.** New source and
+> evidence are on development branches, not yet promoted to main.
+> Read `docs/status.md` for exact current scope and `docs/windows-quality-gates.md`
+> for the reliability and visual-fidelity gates.
 
 A developing static-recompilation tool for **PE32/i386 Windows programs**, with
 **native Windows x64** as the first intended game host. Guest registers, pointers,
@@ -30,12 +31,17 @@ real windows and produce identical triangle framebuffers. Windows, Linux and
 native Windows GUI AddressSanitizer checks passed. See `docs/windowing.md` and
 `verification/windowing-ci.json` for the exact source and acceptance evidence.
 
-**E3 is not playable yet.** The last verified full E3 startup was on the Linux
-diagnostic host, which still stops at `USER32!LoadIconA` because no non-Windows
-GUI backend is provided. The new Windows synthetic frame is not an E3 frame;
-actual E3 Windows initialization, rendering and player control remain unverified
-by this checkpoint. Read `docs/runtime-scope.md` and `docs/status.md` for the
-historical runtime evidence and explicit unsupported boundaries.
+The opt-in `--legacy-renderer d3d9` backend implements a bounded D3D7-on-D3D9
+path with single-stage textures and WORD-indexed triangle lists. Native Windows
+CI compares authored original PE32 and generated x64 output pixel-for-pixel;
+depth, presentation and broad state/geometry compatibility remain unfinished.
+
+**E3 is not playable yet.** The last recorded actual E3 startup reached its
+Choose Rasterizer dialog request under Wine. That is distinct from both the
+older Linux-only LoadIconA stop and the newer native Windows synthetic tests.
+The game itself still needs native Windows integration and its own rendered
+scene and player-control evidence. The default display-mode mismatch in issue
+#2 is also unresolved. No passing component test accepts the whole game.
 
 ## Build
 
@@ -100,7 +106,7 @@ cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-The integer suite compiles 230 author-created x86 fixtures into a native x64 library and
+The integer suite compiles 237 author-created x86 fixtures into a native x64 library and
 checks 256 states per fixture against Unicorn, including registers, EIP, defined
 status flags, and the complete 64 KiB test stack. Windows CI builds the generated
 code with MSVC; Linux CI additionally runs an actual i386 hardware oracle.
@@ -125,8 +131,9 @@ python tests/floating.py --tool build/winrecomp --native-lib build/libwinrecomp_
 
 This selects bounded original x87 sequences, not entire game functions. Generated
 game-derived source, manifests and test images remain under ignored `build/` or
-`local/`. No game files are needed by CI. The E3 startup and real-input FP results
-are local Linux observations; Windows CI compares synthetic programs and fixtures.
+`local/`. No game files are needed by CI. Historical actual-game startup under Wine and real-input FP checks on Linux
+remain separately labeled. Windows CI compares authored programs and fixtures;
+those checks do not substitute for native Windows E3 execution.
 
 ## Reference repositories
 

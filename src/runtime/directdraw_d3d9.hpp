@@ -194,3 +194,34 @@
         }
         if(!host9::failed(hr))++renderer9_draws;return hr;
     }
+
+    U32 indexed_triangles9(Args a){
+        auto d=object(a[0],Interface::compatdevice7).compat;
+        const bool textured=a[2]==(D3DFVF_XYZRHW|D3DFVF_DIFFUSE|D3DFVF_TEX1);
+        if(a[1]!=D3DPT_TRIANGLELIST || (!textured && a[2]!=(D3DFVF_XYZRHW|D3DFVF_DIFFUSE)) || a[7])
+            stop("unsupported indexed D3D9 primitive, FVF or flags");
+        // Counts are bounded before multiplication/allocation or guest reads.
+        if(!d->gpu->in_scene() || !a[4] || a[4]>geometry::MaxVertices ||
+           !a[6] || a[6]>geometry::MaxIndices || a[6]%3)return host9::Invalid;
+        const auto bytes=std::size_t(a[4])*(textured?sizeof(host9::TexturedVertex):sizeof(host9::Vertex));
+        p.memory.check(a[3],bytes,Memory::Read);p.memory.check(a[5],std::size_t(a[6])*2,Memory::Read);
+        std::vector<std::uint16_t> indices(a[6]);
+        p.memory.copy_out(a[5],std::span(reinterpret_cast<std::uint8_t*>(indices.data()),indices.size()*2));
+        if(!geometry::index_range(a[4],indices))return host9::Invalid;
+        U32 hr{};
+        if(textured){
+            if(!d->texture)return host9::Invalid;
+            std::vector<host9::TexturedVertex> vertices(a[4]);
+            p.memory.copy_out(a[3],std::span(reinterpret_cast<std::uint8_t*>(vertices.data()),bytes));
+            if(!geometry::referenced_vertices_valid(std::span<const host9::TexturedVertex>(vertices),indices))return host9::Invalid;
+            hr=texture_upload9(*d,d->texture.get(),*d->texture_model);if(host9::failed(hr))return hr;
+            hr=d->gpu->indexed_textured_triangles(vertices,indices);
+        }else{
+            if(d->texture)stop("a bound texture requires explicit TEX1 indexed vertices in this profile");
+            std::vector<host9::Vertex> vertices(a[4]);
+            p.memory.copy_out(a[3],std::span(reinterpret_cast<std::uint8_t*>(vertices.data()),bytes));
+            if(!geometry::referenced_vertices_valid(std::span<const host9::Vertex>(vertices),indices))return host9::Invalid;
+            hr=d->gpu->indexed_triangles(vertices,indices);
+        }
+        if(!host9::failed(hr)){++renderer9_draws;++renderer9_indexed_draws;}return hr;
+    }

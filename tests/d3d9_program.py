@@ -17,8 +17,9 @@ DESC,LOCK,VIEW,VERTS,WRITTEN,OUTPUT=DATA+0xb00,DATA+0xb80,DATA+0xc00,DATA+0xc40,
 TEX,TEXDESC,TEXLOCK=DATA+0xcf0,DATA+0xd00,DATA+0xd80
 WIDTH=64;HEIGHT=64
 
-def fixture(textured=False):
-    vertex_at=DATA+0xe20 if textured else VERTS
+def fixture(textured=False, indexed=False):
+    vertex_at=DATA+0xe20 if (textured or indexed) else VERTS
+    index_at=DATA+0xf10
     b=Assembler();u='USER32.dll';dd='DDRAW.dll';k='KERNEL32.dll'
     def com(obj,slot,*args):
         for value in reversed(((obj,),)+args):
@@ -62,7 +63,8 @@ def fixture(textured=False):
     com(DEVICE,13,VIEW);hr('SetViewport')
     com(DEVICE,10,0,0,1,0xff183050,0x3f800000,0);hr('Clear')
     com(DEVICE,5);hr('BeginScene')
-    com(DEVICE,25,4,0x144 if textured else 0x44,vertex_at,3,0);hr('DrawPrimitive TL triangle')
+    if indexed:com(DEVICE,26,4,0x144 if textured else 0x44,vertex_at,8,index_at,6,0);hr('DrawIndexedPrimitive TL triangle')
+    else:com(DEVICE,25,4,0x144 if textured else 0x44,vertex_at,3,0);hr('DrawPrimitive TL triangle')
     com(DEVICE,6);hr('EndScene')
     if textured:
         # Edit after binding, without SetTexture again; then draw a second,
@@ -74,7 +76,8 @@ def fixture(textured=False):
         com(DEVICE,34,0,ALIAS);hr('retained texture');com(ALIAS,2)
         # Reuse the six vertex slots: the second triangle is at VERTS+84.
         com(DEVICE,5);hr('second BeginScene')
-        com(DEVICE,25,4,0x144,vertex_at+84,3,0);hr('changed texture draw')
+        if indexed:com(DEVICE,26,4,0x144,vertex_at,8,index_at+12,3,0);hr('changed texture indexed draw')
+        else:com(DEVICE,25,4,0x144,vertex_at+84,3,0);hr('changed texture draw')
         com(DEVICE,6);hr('second EndScene')
         com(DEVICE,35,0,0);hr('unbind texture')
     com(SURFACE,25,0,LOCK,0x11,0);hr('Lock completed render target')
@@ -126,6 +129,18 @@ def fixture(textured=False):
             struct.pack_into('<ffffIff',data,vertex_at-DATA+n*28,x,y,.5,1,0xffffffff,u,v)
     else:
         for n,(x,y) in enumerate([(8,8),(56,8),(8,56)]):struct.pack_into('<ffffI',data,VERTS-DATA+n*20,x,y,0.5,1,0xffd04020)
+    if indexed:
+        stride=28 if textured else 20
+        src=bytes(data[(DATA+0xe20 if textured else VERTS)-DATA:][:stride*(6 if textured else 3)])
+        # Nonzero minimum, sparse/out-of-order indices and repeated/degenerate
+        # vertices expose pointer rebasing, WORD-vs-DWORD and count mistakes.
+        # Unused vertices are finite but far offscreen for driver-neutral parity.
+        for n in range(8):
+            values=(-100.,-100.,.5,1.,0xff123456)+( (0.,0.) if textured else () )
+            struct.pack_into('<ffffIff' if textured else '<ffffI',data,vertex_at-DATA+n*stride,*values)
+        for n,slot in enumerate([4,1,6,7,3,5][:6 if textured else 3]):
+            data[vertex_at-DATA+slot*stride:vertex_at-DATA+(slot+1)*stride]=src[n*stride:(n+1)*stride]
+        struct.pack_into('<9H',data,index_at-DATA,4,1,6,4,6,6,7,3,5)
     raw=make_pe(b.code,data);put32(raw,0x98+104,0x2000);put32(raw,0x98+108,20*(len(by_dll)+1))
     for off,value in [(4,(len(b.code)+511)&~511),(8,len(data)),(20,0x1000),(24,0x2000),(40,5),(48,5),(72,0x100000),(76,0x1000),(80,0x100000),(84,0x1000)]:put32(raw,0x98+off,value)
     return raw,callback,{100+n:text for n,(_,text) in enumerate(b.failures)}
