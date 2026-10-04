@@ -1,0 +1,145 @@
+name: Recover and verify accumulated startup source
+on:
+  push:
+    branches: [work/startup-recovery]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      source_sha: ${{ steps.publish.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+      - name: Verify exact source payload before applying
+        shell: python
+        run: |
+          import base64,hashlib,lzma,subprocess,os
+          from pathlib import Path
+          expected = [
+            '1b4eeabc0c2883d1b1348a7f88988200ad1133474c617cdcf044fe18bc474cd4',
+            '05511a687b88db1a80c7e47addec7de667d7a5463aea491bc5040e957bb76068',
+            '51b0e3a73896ff0c275e3999a8e17fb90a7e3092d3f216d42453e957455b936c',
+            'b08b852a1db18dfb61b9573f8da891ec97ed52079408a03588119249de415888',
+            'd4ab2da571822d0be3b63ae977a9182198c40ea73c9f96da0aabb6f3e1232850',
+            '16db8774dfa4f37a2b1610d95a160b02c0d49049ac453b644aa1f62282d09f75',
+            'f005c3f3a93e2ed3cb80211656a84bd5f667727e5d67bc6bad00dd5590e788bc']
+          parts=[]
+          for i,want in enumerate(expected):
+              b=subprocess.check_output(['git','show',f'HEAD:publication/startup-{i}.b64'])
+              if hashlib.sha256(b).hexdigest()!=want:
+                  raise RuntimeError(f'Source recovery segment {i} checksum mismatch')
+              parts.append(b)
+          compressed=base64.b64decode(b''.join(parts),validate=True)
+          decoder=lzma.LZMADecompressor(memlimit=128*1024*1024)
+          patch=decoder.decompress(compressed,max_length=2*1024*1024)
+          if not decoder.eof or decoder.unused_data:
+              raise RuntimeError('Invalid or oversized compressed source')
+          if hashlib.sha256(patch).hexdigest()!='802879ca66f1f3a3ebaa5343e3b013edf14bd1c82bc6838353da875afa2f84c4':
+              raise RuntimeError('Cumulative source patch checksum mismatch')
+          Path(os.environ['RUNNER_TEMP'],'startup.patch').write_bytes(patch)
+          print('Verified seven source segments and exact cumulative patch; no game material.')
+      - name: Publish readable source from the exact validated tree
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git worktree add --detach "$RUNNER_TEMP/recovered-source" 28903ea344b77ea97b6794151b18c3b63f8e3363
+          cd "$RUNNER_TEMP/recovered-source"
+          git apply --index "$RUNNER_TEMP/startup.patch"
+          test "$(git write-tree)" = '8be662583102462fffb7c31184e3b2e39066e37f'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: publish recovered DLL, CPU and Direct3D7 startup implementation' -m 'Exact tree of local checkpoint 8009493. Preserves bounded APIs, tests, and historical local/Wine evidence. Native Windows acceptance is pending this workflow; no E3 binary or generated game code included.'
+          git push origin HEAD:refs/heads/work/startup-published
+          echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  verify:
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_sha }}
+          fetch-depth: 0
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - run: python -m pip install unicorn==2.1.2
+      - run: python tools/check_repository.py
+      - name: Configure native source
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWINRECOMP_CONFORMANCE=ON
+      - name: Compile
+        run: cmake --build build --parallel 2
+      - name: All native runtime and compiled-code tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Native i386 oracle
+        if: runner.os == 'Linux'
+        run: python tests/hardware_oracle.py --tool build/winrecomp --out build/hardware --vectors 64
+      - name: Preserve complete committed source history
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p build
+          git bundle create build/WinRecomp.bundle --all
+          git -C third_party/zydis bundle create "$GITHUB_WORKSPACE/build/Zydis.bundle" --all
+          git -C third_party/zydis/dependencies/zycore bundle create "$GITHUB_WORKSPACE/build/Zycore.bundle" --all
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: recovered-startup-${{ matrix.os }}
+          path: |
+            build/Testing/Temporary/LastTest.log
+            build/Testing/Temporary/LastTestsFailed.log
+            build/*/report.json
+            build/*/acceptance.json
+            build/*/hardware-report.json
+            build/WinRecomp.bundle
+            build/Zydis.bundle
+            build/Zycore.bundle
+          retention-days: 14
+  windows_memory:
+    needs: publish
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Configure native Windows memory checking
+        run: cmake -S . -B asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
+      - name: Build descriptor, device, callback and lifetime tests
+        run: cmake --build asan --target winrecomp_device7_boundary winrecomp_primary_clipper winrecomp_d3d7_boundary winrecomp_device_identifier winrecomp_modes7 winrecomp_processor_tests winrecomp_module_tests winrecomp_exception_unwind winrecomp_gui_boundary winrecomp_directdraw_boundary winrecomp_legacy_modes winrecomp_resource_tests --parallel 2
+      - name: Execute all selected native boundary tests
+        run: ctest --test-dir asan -R "^(device7_boundary|primary_clipper|d3d7_boundary|device_identifier|modes7|processor|modules|exception_unwind|gui_boundary|directdraw_boundary|legacy_modes|resources)$" --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: recovered-startup-windows-asan
+          path: asan/Testing/Temporary/LastTest.log
+          retention-days: 14
