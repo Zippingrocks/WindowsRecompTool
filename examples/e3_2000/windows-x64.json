@@ -1,0 +1,29 @@
+{
+  "schema": "winrecomp.runtime-profile.v1",
+  "sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+  "guest": "PE32/i386 guest state",
+  "host": "Windows x64; native MSVC/Windows SDK build is the primary route",
+  "seeds": [
+    4402942,
+    4402970,
+    4403405,
+    4721232,
+    4821462,
+    4821521,
+    4821576,
+    4821606,
+    4902070,
+    4903691,
+    4906052,
+    4911032,
+    4921188
+  ],
+  "seed_provenance": "The 12 existing runtime.json seeds are prior Linux diagnostic observations. The additional window procedure seed is a SHA-bound static candidate: value 0x00480A50 is stored at 0x0048089F into the WNDCLASSEXA lpfnWndProc field, passed to RegisterClassExA at 0x004808F0. Rechecked against the supplied input; not runtime-observed Windows execution.",
+  "windows_execution_verified": false,
+  "playable": false,
+  "limitations": [
+    "This metadata does not recover every indirect target or missing API.",
+    "No dependency on the unavailable local-only discovery implementation.",
+    "Actual E3 Windows build/startup/frame/control results must be recorded separately; a synthetic fixture is not E3 evidence."
+  ]
+}

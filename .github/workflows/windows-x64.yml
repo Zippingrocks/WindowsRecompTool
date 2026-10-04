@@ -1,0 +1,51 @@
+name: Windows x64 build product
+on:
+  push:
+    branches: [work/windows-x64-first]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native_windows:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: x64
+      - name: Independent fixture dependency only
+        run: python -m pip install unicorn==2.1.2
+      - name: Validate source and upstream pins
+        run: python tools/check_repository.py
+      - name: Validate exact new build-driver sources
+        shell: python
+        run: |
+          import hashlib,json
+          from pathlib import Path
+          for name,want in json.loads(Path('verification/windows-build-source-hashes.json').read_text()).items():
+              assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==want, name
+      - name: Build-path and architecture rejection tests
+        run: python tests/windows_x64_build.py -v
+      - name: Same user-facing Windows x64 build route plus original comparison
+        run: python tests/windows_x64_build.py --integration local/windows-ci
+      - name: Retain tool and clearly labeled synthetic Windows x64 EXE
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64-tool-and-synthetic-proof
+          path: |
+            local/windows-ci/acceptance.json
+            local/windows-ci/product with spaces/build-report.json
+            local/windows-ci/product with spaces/logs/
+            local/windows-ci/product with spaces/tool-build/Release/winrecomp.exe
+            local/windows-ci/product with spaces/blam_x64.exe
+            local/windows-ci/generated/process.json
+          if-no-files-found: warn
+          retention-days: 14
