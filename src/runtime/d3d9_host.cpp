@@ -298,6 +298,23 @@ public:
         for(unsigned row=0;row<height;++row)std::memcpy(out.data()+std::size_t(row)*width*4,static_cast<const std::uint8_t*>(lock.pBits)+std::size_t(row)*lock.Pitch,width*4);
         hr=staging.p->UnlockRect();if(SUCCEEDED(hr))bytes=std::move(out);return Status(hr);
     }
+    Status present() override{
+        if(!valid() || scene)return Invalid;
+        Com<IDirect3DSurface9> backbuffer;
+        auto hr=device.p->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&backbuffer.p);
+        if(FAILED(hr) || !backbuffer.p)return FAILED(hr)?Status(hr):Invalid;
+        D3DSURFACE_DESC target_desc{},back_desc{};
+        hr=target.p->GetDesc(&target_desc);if(FAILED(hr))return Status(hr);
+        hr=backbuffer.p->GetDesc(&back_desc);if(FAILED(hr))return Status(hr);
+        if(target_desc.Width!=width || target_desc.Height!=height ||
+           back_desc.Width!=width || back_desc.Height!=height ||
+           target_desc.Format!=D3DFMT_X8R8G8B8)return Invalid;
+        // Exact-size copy only. Scaling belongs to a later, explicitly tested profile.
+        hr=device.p->StretchRect(target.p,nullptr,backbuffer.p,nullptr,D3DTEXF_NONE);
+        if(FAILED(hr))return Status(hr);
+        return Status(device.p->Present(nullptr,nullptr,nullptr,nullptr));
+    }
+
 };
 class NativeFactory final:public Factory {
     Com<IDirect3D9> factory;DWORD thread=GetCurrentThreadId();

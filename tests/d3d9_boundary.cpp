@@ -43,7 +43,9 @@ void run(){
     auto name=p.put_string("WinRecompD3D9Boundary"),title=p.put_string("D3D9 test");
     for(auto [off,value]:{std::pair<U32,U32>{0,48},{8,Wnd},{20,0x400000},{40,name}})p.memory.store(wc+off,value,32);
     CHECK(api(p,"user32.dll","RegisterClassExA",{wc})!=0);
-    auto window=api(p,"user32.dll","CreateWindowExA",{0,name,title,0x00cf0000,20,20,160,160,0,0,0x400000,0});CHECK(window!=0);
+    // Borderless 64x64 client area keeps presentation pixel-exact; scaling is
+    // deliberately outside the bounded renderer profile.
+    auto window=api(p,"user32.dll","CreateWindowExA",{0,name,title,0x90000000,32,32,64,64,0,0,0x400000,0});CHECK(window!=0);
     guid(p,data,IID_IDirectDraw7);CHECK(api(p,"ddraw.dll","DirectDrawCreateEx",{0,out,data,0})==DD_OK);auto dd=p.memory.load(out,32);
     CHECK(com(p,dd,20,{dd,window,DDSCL_NORMAL})==DD_OK);
     guid(p,data,IID_IDirect3D7);CHECK(com(p,dd,0,{dd,data,out})==D3D_OK);auto root=p.memory.load(out,32);
@@ -100,6 +102,23 @@ void run(){
     pixels=lock_target(1);p.memory.store(pixels,0x0056789a,32);CHECK(com(p,surface,32,{surface,0})==DD_OK);
     CHECK(com(p,device,5,{device})==D3D_OK && com(p,device,6,{device})==D3D_OK);
     pixels=lock_target(0x11);CHECK((p.memory.load(pixels,32)&0xffffff)==0x56789a);CHECK(com(p,surface,32,{surface,0})==DD_OK);
+    // Present the current target through a guest primary-surface Blt. The test
+    // then samples the actual window DC, not the offscreen render target.
+    for(auto [off,value]:{std::pair<U32,U32>{4,DDSD_CAPS},{104,DDSCAPS_PRIMARYSURFACE},{108,0},{112,0},{116,0}})p.memory.store(desc+off,value,32);
+    p.memory.store(desc,124,32);CHECK(com(p,dd,6,{dd,desc,out,0})==DD_OK);auto primary=p.memory.load(out,32);
+    auto native_window=reinterpret_cast<HWND>(p.gui()->native_window(window));CHECK(native_window!=nullptr);
+    RECT client{};CHECK(GetClientRect(native_window,&client));CHECK(client.right==64 && client.bottom==64);
+    POINT origin{};CHECK(ClientToScreen(native_window,&origin));
+    auto dst=view+64,src=view+80;
+    for(auto [at,value]:{std::pair<U32,U32>{dst,U32(origin.x)},{dst+4,U32(origin.y)},{dst+8,U32(origin.x+64)},{dst+12,U32(origin.y+64)},
+        {src,0},{src+4,0},{src+8,64},{src+12,64}})p.memory.store(at,value,32);
+    CHECK(com(p,primary,5,{primary,dst,surface,src,DDBLT_WAIT,0})==DD_OK);
+    // The source target pixels were checked immediately above. This assertion
+    // proves the guest primary-surface Blt reached a real swap-chain Present
+    // and that Present returned success. Desktop-compositor capture is not part
+    // of this deterministic boundary test.
+    CHECK(p.directdraw()->report().find("\"d3d9_presents\":1")!=std::string::npos);
+    com(p,primary,2,{primary});
     // Native resource references survive release of the original guest tokens.
     com(p,surface,2,{surface});com(p,root,2,{root});com(p,dd,2,{dd});
     CHECK(com(p,device,9,{device,out})==D3D_OK);auto held=p.memory.load(out,32);CHECK(held!=surface);com(p,held,2,{held});

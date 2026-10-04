@@ -1,0 +1,26 @@
+{
+  "schema": "winrecomp.presentation-native.v1",
+  "tested_source": "4d5c69f54f1906631ac4306fd9c451d3ee882e59",
+  "native_windows_run": 37230044412,
+  "result": "success",
+  "product_target": "native Windows x64",
+  "renderer": "D3D7 guest API translated to D3D9",
+  "acceptance": {
+    "real_swap_chain_present_boundary": "passed",
+    "retained_selected_renderer_runtime_regressions": "passed",
+    "windows_address_sanitizer_boundary_suites": "passed"
+  },
+  "behavior": [
+    "Exact-size windowed client only",
+    "Guest primary-surface Blt is translated to the owning D3D9 device Present",
+    "Presentation is rejected during an active scene or for foreign/unowned render targets",
+    "Scaling and unsupported Blt effects remain explicit failures"
+  ],
+  "limitations": [
+    "Synthetic component proof, not an E3 frame",
+    "No fullscreen acceptance",
+    "No actual E3 native-Windows execution in this checkpoint",
+    "Display-mode parity issue #2 remains unresolved"
+  ],
+  "playable": false
+}
