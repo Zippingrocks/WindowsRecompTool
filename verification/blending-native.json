@@ -1,0 +1,46 @@
+{
+  "schema": "winrecomp.blending-native.v1",
+  "tested_source": "ba0a52ee1c980bb5f91dff9c459a726fa95a68f9",
+  "workflow_run": 37245599197,
+  "host": "native Windows x64 / MSVC",
+  "result": "success",
+  "supported": {
+    "alpha_blend_enable": true,
+    "source_factors": [
+      "ZERO",
+      "ONE",
+      "SRCALPHA",
+      "INVSRCALPHA"
+    ],
+    "destination_factors": [
+      "ZERO",
+      "ONE",
+      "SRCALPHA",
+      "INVSRCALPHA"
+    ],
+    "primary_profile": "SRCALPHA / INVSRCALPHA"
+  },
+  "semantics": [
+    "alpha-bearing textures blend through the fixed-function stage",
+    "blending coexists with D16 depth testing and writes",
+    "nonindexed and WORD-indexed textured triangles are covered",
+    "a farther draw after a nearer translucent draw remains depth-rejected",
+    "guest Direct3D7 device caps report the accepted blend factors",
+    "guest Direct3D7 SetRenderState/GetRenderState round-trip the accepted blend state"
+  ],
+  "retained_components": [
+    "combined renderer",
+    "presentation",
+    "D16 depth",
+    "indexed geometry",
+    "textures"
+  ],
+  "windows_address_sanitizer": "passed",
+  "limitations": [
+    "synthetic component evidence, not E3",
+    "no additive/subtractive/custom blend operations beyond the explicit factor subset",
+    "no alpha-test claim in this checkpoint",
+    "no fullscreen or display-mode parity claim"
+  ],
+  "playable": false
+}
