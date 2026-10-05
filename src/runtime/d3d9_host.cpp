@@ -356,6 +356,10 @@ class NativeFactory final:public Factory {
     Com<IDirect3D9> factory;DWORD thread=GetCurrentThreadId();
 public:
     NativeFactory(){factory.p=Direct3DCreate9(D3D_SDK_VERSION);}
+    std::uintptr_t adapter_monitor() const override {
+        if(GetCurrentThreadId()!=thread || !factory.p)return 0;
+        return reinterpret_cast<std::uintptr_t>(factory.p->GetAdapterMonitor(0));
+    }
     Status capabilities(Capabilities& caps) override{
         if(GetCurrentThreadId()!=thread)return Invalid;if(!factory.p)return Unavailable;
         D3DCAPS9 value{};auto hr=factory.p->GetDeviceCaps(0,D3DDEVTYPE_HAL,&value);if(FAILED(hr))return Status(hr);

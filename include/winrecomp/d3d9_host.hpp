@@ -55,6 +55,8 @@ public:
 class Factory {
 public:
     virtual ~Factory()=default;
+    // Native HMONITOR identity for D3D9 adapter 0, represented opaquely.
+    virtual std::uintptr_t adapter_monitor() const=0;
     virtual Status capabilities(Capabilities&)=0;
     virtual Status create(std::uintptr_t window,std::uint32_t width,std::uint32_t height,
                           std::unique_ptr<Device>&)=0;
