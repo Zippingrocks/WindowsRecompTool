@@ -2,9 +2,11 @@
 // in directdraw_program.py. No game bytes and no replacement driver.
 #include "winrecomp/process.hpp"
 #include "winrecomp/d3d9_host.hpp"
+#include <algorithm>
 #include <array>
 #include <iostream>
 #include <thread>
+#include <vector>
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #define DIRECTDRAW_VERSION 0x0700
