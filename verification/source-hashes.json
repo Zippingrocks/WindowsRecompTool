@@ -3,7 +3,7 @@
   "note": "Exact owned source for opt-in bounded single-stage D3D9 textures; no game material.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "e1032e434df32064d97a620a400386568e31f188dc760855945ad9869f3e0a45",
+    "CMakeLists.txt": "f30d4c70181046ebaf7a1c2e448514c62f4ebbc6adb9008dfc976f58febebb8c",
     "include/winrecomp/compiled.hpp": "4264c817ee2e5fd3c523b6a5fab7e62208f7a47865c33ea894bb89a341972d04",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
@@ -63,7 +63,7 @@
     ".github/workflows/windowing.yml": "3bc079f58fa059bc8a343faf34fc7af03337907d4a5c24494a0242eaaf392ddf",
     "tests/exception_unwind.cpp": "3576dcdb5f9ace11e66ef7efbb230364a7d5802d8aa2af541a8cd39ac274a9ca",
     "include/winrecomp/directdraw.hpp": "c5a07b238734fa0dc2fdbdd1a7c17ecaa0d106ce59c9a240df7032f67098cce5",
-    "src/runtime/directdraw.cpp": "ce4a79b57bea3fa9f98102cb37de3493b3e32ba415007d13a5f8b5db74c7e442",
+    "src/runtime/directdraw.cpp": "54423158c1eec561d2498d5a16fba57bf6f65720538fad75fe5422f770c9f0aa",
     "tests/directdraw_boundary.cpp": "b463a1556234074f465a25a2d54afb84d9603c2f40756d5983afa75136c59a26",
     "tests/directdraw_program.py": "223f94ca5e5b23514227316946e642234c22483b7bbd0bc2bf4fbece3181ebfe",
     ".github/workflows/directdraw.yml": "8bb41c0f02e2b7a6ae6a6da637772f25d9f88d795e37c2eb96c796ec7f13262d",
@@ -106,6 +106,7 @@
     "tests/d3d9_depth_program.py": "734e05ca3595cffb99b913b2ce146435bcd8d2e9c0e130a38080be6c5b429959",
     "tests/d3d9_combined.cpp": "53c3b05a108ae27efb20ad0155ea54a5a84de83c0e17dc160578baa968adde4b",
     "tests/d3d9_blending.cpp": "e3c671955353127f5df70ec48b58f964b3172de09e25b9e99078090f21909c36",
-    "tests/d3d9_alpha_test.cpp": "4bc296a0c3d737ad3d6eb1d99c522e98493cf8fea651ac9b4d28dfeb6632700c"
+    "tests/d3d9_alpha_test.cpp": "4bc296a0c3d737ad3d6eb1d99c522e98493cf8fea651ac9b4d28dfeb6632700c",
+    "tests/directdraw_fullscreen.cpp": "dff8f7ef300983fa068c9281747fac29ba489242c97b167d5517d8d7d62922e6"
   }
 }
