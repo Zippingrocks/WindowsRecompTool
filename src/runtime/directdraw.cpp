@@ -99,6 +99,8 @@ class Draw final:public DirectDrawBackend {
     std::uint64_t renderer9_devices{},renderer9_draws{},renderer9_indexed_draws{},renderer9_clears{},renderer9_readbacks{},renderer9_presents{};
     std::uint64_t renderer9_depth_surfaces{},renderer9_depth_binds{};
     std::map<std::uintptr_t,U32> monitors;
+    struct AdapterRecord {GUID id{};HMONITOR monitor{};};
+    std::vector<AdapterRecord> enumerated_adapters;
     // D3D enumeration names remain usable after EnumDevices returns. These
     // process-owned read-only strings are not temporary callback payloads.
     std::map<std::string,U32> device_strings;
@@ -187,6 +189,14 @@ class Draw final:public DirectDrawBackend {
             auto bytes=[&](const void* data,std::size_t n){if(n>16384-used)self.stop("adapter callback payload too large");auto at=scratch.address+used;used+=(U32(n)+3)&~3u;self.p.memory.copy_in(at,std::span(static_cast<const std::uint8_t*>(data),n));return at;};
             auto string=[&](const char* text)->U32{if(!text)return 0;std::size_t n=0;while(n<4096 && text[n])++n;if(n==4096)self.stop("unterminated native adapter name");return bytes(text,n+1);};
             U32 mon=0;if(monitor){const auto key=reinterpret_cast<std::uintptr_t>(monitor);auto it=self.monitors.find(key);if(it==self.monitors.end()){if(self.monitors.size()>=256)self.stop("monitor token budget");mon=0xba000000u+U32(self.monitors.size())*16;self.monitors.emplace(key,mon);}else mon=it->second;}
+            if(id){
+                auto existing=std::find_if(self.enumerated_adapters.begin(),self.enumerated_adapters.end(),
+                    [&](const AdapterRecord& value){return IsEqualGUID(value.id,*id);});
+                if(existing==self.enumerated_adapters.end()){
+                    if(self.enumerated_adapters.size()>=256)self.stop("adapter GUID budget");
+                    self.enumerated_adapters.push_back(AdapterRecord{*id,monitor});
+                }else if(existing->monitor!=monitor)self.stop("enumerated adapter GUID changed monitor identity");
+            }
             const std::array<U32,5> args{id?bytes(id,16):0,string(description),string(name),call.context,mon};
             ++self.enumerated;const auto result=self.p.callback(call.callback,args);return self.p.exited()?FALSE:result!=0;
         }catch(...){call.failure=std::current_exception();return FALSE;}
@@ -701,16 +711,27 @@ class Draw final:public DirectDrawBackend {
         }
         auto result=static_cast<IDirectDrawSurface7*>(value.native)->Unlock(nullptr);if(SUCCEEDED(result)){p.memory.release(state.guest);value.locked.reset();++unlocks;}return U32(result);
     }
+    bool selected_default_adapter9(const GUID& id){
+        const auto it=std::find_if(enumerated_adapters.begin(),enumerated_adapters.end(),
+            [&](const AdapterRecord& value){return IsEqualGUID(value.id,id);});
+        if(it==enumerated_adapters.end())stop("adapter GUID was not previously enumerated");
+        const auto expected=reinterpret_cast<HMONITOR>(factory9().adapter_monitor());
+        if(!expected || !it->monitor || it->monitor!=expected)
+            stop("selected adapter does not match D3D9 adapter 0 monitor");
+        return true;
+    }
     #include "directdraw_depth.hpp"
     #include "directdraw_d3d9.hpp"
     void install(){
         api("DirectDrawEnumerateExA",3,[this](Args a){p.memory.check(a[0],1,Memory::Execute);Enumeration call{this,a[0],a[1],{},0};const auto hr=DirectDrawEnumerateExA(enumerate,&call,a[2]);if(call.failure)std::rethrow_exception(call.failure);return U32(hr);});
         api("DirectDrawCreateEx",4,[this](Args a){
-            if(p.options.legacy_d3d9 && a[0])stop("D3D9 profile supports only the default adapter");p.memory.check(a[1],4,Memory::Write);const auto iid=guid(a[2]);if(!IsEqualIID(iid,IID_IDirectDraw7))return U32(DDERR_INVALIDPARAMS);if(a[3])stop("COM aggregation is not supported");
-            GUID id{};GUID* ptr=nullptr;if(a[0] && a[0]<=2)ptr=reinterpret_cast<GUID*>(std::uintptr_t(a[0]));else if(a[0]){id=guid(a[0]);ptr=&id;}
+            p.memory.check(a[1],4,Memory::Write);const auto iid=guid(a[2]);if(!IsEqualIID(iid,IID_IDirectDraw7))return U32(DDERR_INVALIDPARAMS);if(a[3])stop("COM aggregation is not supported");
+            GUID id{};GUID* ptr=nullptr;
+            if(a[0] && a[0]<=2){if(p.options.legacy_d3d9)stop("D3D9 profile does not support DirectDraw special adapter sentinels");ptr=reinterpret_cast<GUID*>(std::uintptr_t(a[0]));}
+            else if(a[0]){id=guid(a[0]);if(p.options.legacy_d3d9)selected_default_adapter9(id);ptr=&id;}
             IDirectDraw7* object=nullptr;const auto hr=DirectDrawCreateEx(ptr,reinterpret_cast<void**>(&object),IID_IDirectDraw7,nullptr);if(SUCCEEDED(hr))p.memory.store(a[1],wrap(object,Interface::draw7),32);return U32(hr);
         });
-        api("DirectDrawCreate",3,[this](Args a){if(p.options.legacy_d3d9 && a[0])stop("D3D9 profile supports only the default adapter");p.memory.check(a[1],4,Memory::Write);if(a[2])stop("COM aggregation is not supported");GUID id{};GUID* ptr=nullptr;if(a[0] && a[0]<=2)ptr=reinterpret_cast<GUID*>(std::uintptr_t(a[0]));else if(a[0]){id=guid(a[0]);ptr=&id;}IDirectDraw* object=nullptr;const auto hr=DirectDrawCreate(ptr,&object,nullptr);if(SUCCEEDED(hr))p.memory.store(a[1],wrap(object,Interface::draw1),32);return U32(hr);});
+        api("DirectDrawCreate",3,[this](Args a){p.memory.check(a[1],4,Memory::Write);if(a[2])stop("COM aggregation is not supported");GUID id{};GUID* ptr=nullptr;if(a[0] && a[0]<=2){if(p.options.legacy_d3d9)stop("D3D9 profile does not support DirectDraw special adapter sentinels");ptr=reinterpret_cast<GUID*>(std::uintptr_t(a[0]));}else if(a[0]){id=guid(a[0]);if(p.options.legacy_d3d9)selected_default_adapter9(id);ptr=&id;}IDirectDraw* object=nullptr;const auto hr=DirectDrawCreate(ptr,&object,nullptr);if(SUCCEEDED(hr))p.memory.store(a[1],wrap(object,Interface::draw1),32);return U32(hr);});
     }
 public:
     explicit Draw(Process& q):p(q){install();}
@@ -721,7 +742,7 @@ public:
         for(auto& [address,value]:objects){(void)address;value.surface_model.reset();value.depth_model.reset();}
         for(auto& [address,value]:objects){(void)address;if(value.native)destroy_lock(value);}
         for(auto kind:{Interface::device7,Interface::surface7,Interface::clipper,Interface::d3d7,Interface::compat3d7,Interface::unknown,Interface::draw1,Interface::draw7})for(auto& [address,value]:objects){(void)address;if(value.native && value.kind==kind){for(U32 n=0;n<value.guest_refs;++n)value.native->Release();value.native=nullptr;}}
-        cooperative_windows.clear();root_identities.clear();
+        cooperative_windows.clear();root_identities.clear();enumerated_adapters.clear();
     }
     std::string report() const override{std::ostringstream out;out<<"{\"backend\":"<<quote(p.options.legacy_d3d9?"ddraw-d3d9-bounded":"native-ddraw7")<<",\"d3d9_devices\":"<<renderer9_devices<<",\"d3d9_draws\":"<<renderer9_draws<<",\"d3d9_indexed_draws\":"<<renderer9_indexed_draws<<",\"d3d9_clears\":"<<renderer9_clears<<",\"d3d9_readbacks\":"<<renderer9_readbacks<<",\"d3d9_presents\":"<<renderer9_presents<<",\"d3d9_depth_surfaces\":"<<renderer9_depth_surfaces<<",\"d3d9_depth_binds\":"<<renderer9_depth_binds<<",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"mode_callbacks\":"<<mode_callbacks<<",\"d3d7_wrappers\":"<<d3d_wrappers<<",\"d3d_device_callbacks\":"<<device_callbacks<<",\"mode7_callbacks\":"<<mode7_callbacks<<",\"zformat_callbacks\":"<<zformat_callbacks<<",\"d3d_devices_created\":"<<render_devices<<",\"texture_callbacks\":"<<texture_callbacks<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
 };
