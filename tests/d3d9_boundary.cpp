@@ -97,7 +97,7 @@ void run(){
     CHECK(com(p,device,21,{device,D3DRENDERSTATE_ALPHAREF,out})==D3D_OK && p.memory.load(out,32)==127);
     CHECK(com(p,device,21,{device,D3DRENDERSTATE_ALPHAFUNC,out})==D3D_OK && p.memory.load(out,32)==D3DCMP_GREATER);
     CHECK(com(p,device,21,{device,D3DRENDERSTATE_ALPHATESTENABLE,out})==D3D_OK && p.memory.load(out,32)==TRUE);
-    fault([&]{com(p,device,20,{device,D3DRENDERSTATE_ALPHAREF,256});},wr::FaultKind::unsupported);
+    CHECK(com(p,device,20,{device,D3DRENDERSTATE_ALPHAREF,256})!=D3D_OK);
     CHECK(com(p,device,20,{device,D3DRENDERSTATE_ALPHATESTENABLE,FALSE})==D3D_OK);
     fault([&]{com(p,device,20,{device,7,1});},wr::FaultKind::unsupported);
     CHECK(com(p,device,21,{device,7,out})==D3D_OK && p.memory.load(out,32)==0);
