@@ -1,0 +1,20 @@
+{
+  "schema": "winrecomp.adapter-selection-native.v1",
+  "tested_source": "1dcccce58af82453cc3a7174665bb413c90e1837",
+  "workflow_run": 37248311588,
+  "host": "native Windows x64 / MSVC",
+  "result": "success",
+  "semantics": [
+    "DirectDraw enumeration retains GUID to native HMONITOR identity",
+    "D3D9 adapter 0 exposes its native HMONITOR identity",
+    "a non-null DirectDraw adapter GUID is accepted only if it was enumerated and maps to the same monitor as D3D9 adapter 0",
+    "arbitrary or unseen GUIDs remain explicit failures",
+    "special DirectDraw adapter sentinels remain outside the bounded D3D9 profile"
+  ],
+  "windows_address_sanitizer": "passed",
+  "e3_diagnostic": {
+    "host": "Wine diagnostic only",
+    "result": "E3 selected adapter GUID passed the monitor match and advanced to its real Choose Rasterizer dialog"
+  },
+  "playable": false
+}
