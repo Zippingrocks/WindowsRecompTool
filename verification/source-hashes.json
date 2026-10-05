@@ -3,7 +3,7 @@
   "note": "Exact owned source for opt-in bounded single-stage D3D9 textures; no game material.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "ff667ae1de8004f311cacbb88d4a46a91dc01a956f67468c2a8a626650e9c69c",
+    "CMakeLists.txt": "e1032e434df32064d97a620a400386568e31f188dc760855945ad9869f3e0a45",
     "include/winrecomp/compiled.hpp": "4264c817ee2e5fd3c523b6a5fab7e62208f7a47865c33ea894bb89a341972d04",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
@@ -90,10 +90,10 @@
     "tests/dialog_program.py": "c0aee13bd46245b0ff5f95097ced3cc3fb48048708b1136952ffc63a6f539215",
     "tests/dialog_template.cpp": "130ef0fb96076446148b4e819a21df365088a01242718bbb4b7d4710bf023cd1",
     ".github/workflows/dialog-fixes.yml": "b6c37f8b887d13e69dafddfb1b2acb692cb9f3ff297edbf5ccf8adec99bbab14",
-    "include/winrecomp/d3d9_host.hpp": "37a294ee07f255948e6242d4974e9da42c5450220d09b1c8885bb2657fefc99b",
-    "src/runtime/d3d9_host.cpp": "aa0b22f0837e2eade0f25c4f624d1da9299b5d01c74ac3ea7c9559a907698ff3",
-    "src/runtime/directdraw_d3d9.hpp": "1c6e953bd305f72a31fef5bc320fbd3b145497d9cb6661aa6c7b448ff18b3d2b",
-    "tests/d3d9_boundary.cpp": "0d6a837a170aec610bd9bca3b0fc50c583fb4516a1926070ca6634370fcef741",
+    "include/winrecomp/d3d9_host.hpp": "8f6929b21be90bd9218cb19f63ff3adf809bc2a097ea8bdeb350d9b8aac5ffb1",
+    "src/runtime/d3d9_host.cpp": "da6a4bd72784ac93a685a464675082eae02981682665ae8926d99072f495183d",
+    "src/runtime/directdraw_d3d9.hpp": "85904100a37a70475ef68210c922d5eb652e6cbefbf4f13a52b839a000e15f6b",
+    "tests/d3d9_boundary.cpp": "b2d186927b89fd2ac3e604ce8a51eff924c5083f791a74883082e2d27f133fd0",
     "tests/d3d9_program.py": "3239a413bd3913c39c1ff6d2a6b7a06de448f26e989230aeb18e755b1b9cfd56",
     "tests/d3d9_texture_program.py": "5d63f7969c2eca95bffb49652a0cea028cf4ce6c98a96e1e1ce3e344e5318b65",
     "tests/d3d9_textures.cpp": "5d110953998b7544962732c92a9f58462638328894aa1656622106fac5366c96",
@@ -105,6 +105,7 @@
     "tests/d3d9_depth.cpp": "1e51f37c41842387bfb226b00c339d6b915acdc4bc655a61c835feea2b5cde47",
     "tests/d3d9_depth_program.py": "734e05ca3595cffb99b913b2ce146435bcd8d2e9c0e130a38080be6c5b429959",
     "tests/d3d9_combined.cpp": "53c3b05a108ae27efb20ad0155ea54a5a84de83c0e17dc160578baa968adde4b",
-    "tests/d3d9_blending.cpp": "e3c671955353127f5df70ec48b58f964b3172de09e25b9e99078090f21909c36"
+    "tests/d3d9_blending.cpp": "e3c671955353127f5df70ec48b58f964b3172de09e25b9e99078090f21909c36",
+    "tests/d3d9_alpha_test.cpp": "4bc296a0c3d737ad3d6eb1d99c522e98493cf8fea651ac9b4d28dfeb6632700c"
   }
 }
