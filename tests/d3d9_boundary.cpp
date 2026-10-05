@@ -33,6 +33,7 @@ bool step(wr::Cpu& c,wr::Memory& m,std::uint64_t&){
     CHECK(m.load(at+116,32)==DDBD_32 && m.load(at+120,32)==DDBD_16);
     CHECK((m.load(at+76,32)&D3DPBLENDCAPS_SRCALPHA)!=0);
     CHECK((m.load(at+80,32)&D3DPBLENDCAPS_INVSRCALPHA)!=0);
+    CHECK((m.load(at+84,32)&D3DPCMPCAPS_GREATER)!=0);
     CHECK(m.load(at+124,32)==1 && m.load(at+132,32)>0 && m.load(at+184,32)==0x00010001);
     for(unsigned n=220;n<236;n+=4)CHECK(m.load(at+n,32)==0);
     if(callback_mode==2)m.store(at,0,32);
@@ -74,6 +75,7 @@ void run(){
     CHECK(p.memory.load(desc+120,32)==DDBD_16 && p.memory.load(desc+184,32)==0x00010001);
     CHECK((p.memory.load(desc+76,32)&D3DPBLENDCAPS_SRCALPHA)!=0);
     CHECK((p.memory.load(desc+80,32)&D3DPBLENDCAPS_INVSRCALPHA)!=0);
+    CHECK((p.memory.load(desc+84,32)&D3DPCMPCAPS_GREATER)!=0);
     fault([&]{com(p,device,3,{device,out-228});},wr::FaultKind::memory);
     for(auto [state,value]:{std::pair<U32,U32>{7,0},{14,0},{137,0},{22,1},{9,2},{27,0},{28,0},{29,0}}){
         CHECK(com(p,device,20,{device,state,value})==D3D_OK);
@@ -89,6 +91,14 @@ void run(){
     CHECK(com(p,device,20,{device,D3DRENDERSTATE_ALPHABLENDENABLE,FALSE})==D3D_OK);
     CHECK(com(p,device,20,{device,D3DRENDERSTATE_SRCBLEND,D3DBLEND_ONE})==D3D_OK);
     CHECK(com(p,device,20,{device,D3DRENDERSTATE_DESTBLEND,D3DBLEND_ZERO})==D3D_OK);
+    CHECK(com(p,device,20,{device,D3DRENDERSTATE_ALPHAREF,127})==D3D_OK);
+    CHECK(com(p,device,20,{device,D3DRENDERSTATE_ALPHAFUNC,D3DCMP_GREATER})==D3D_OK);
+    CHECK(com(p,device,20,{device,D3DRENDERSTATE_ALPHATESTENABLE,TRUE})==D3D_OK);
+    CHECK(com(p,device,21,{device,D3DRENDERSTATE_ALPHAREF,out})==D3D_OK && p.memory.load(out,32)==127);
+    CHECK(com(p,device,21,{device,D3DRENDERSTATE_ALPHAFUNC,out})==D3D_OK && p.memory.load(out,32)==D3DCMP_GREATER);
+    CHECK(com(p,device,21,{device,D3DRENDERSTATE_ALPHATESTENABLE,out})==D3D_OK && p.memory.load(out,32)==TRUE);
+    CHECK(com(p,device,20,{device,D3DRENDERSTATE_ALPHAREF,256})!=D3D_OK);
+    CHECK(com(p,device,20,{device,D3DRENDERSTATE_ALPHATESTENABLE,FALSE})==D3D_OK);
     fault([&]{com(p,device,20,{device,7,1});},wr::FaultKind::unsupported);
     CHECK(com(p,device,21,{device,7,out})==D3D_OK && p.memory.load(out,32)==0);
     fault([&]{com(p,device,21,{device,7,out+1});},wr::FaultKind::memory);

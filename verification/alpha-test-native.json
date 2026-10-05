@@ -1,0 +1,37 @@
+{
+  "schema": "winrecomp.alpha-test-native.v1",
+  "tested_source": "bb3aee6ac3c51ca94b66fb279dec2ea5b7e7d805",
+  "workflow_run": 37245895360,
+  "host": "native Windows x64 / MSVC",
+  "result": "success",
+  "supported": {
+    "alpha_test_enable": true,
+    "alpha_reference": "0..255",
+    "alpha_compare": "capability-checked Direct3D comparison functions"
+  },
+  "semantics": [
+    "alpha-zero cutout texels are discarded",
+    "discarded texels do not write D16 depth",
+    "opaque cutout texels write color and depth",
+    "farther geometry remains visible behind discarded texels",
+    "nonindexed and WORD-indexed textured drawing are covered",
+    "guest Direct3D7 device caps advertise alpha comparison support",
+    "guest Direct3D7 alpha-test render states round-trip"
+  ],
+  "retained_components": [
+    "alpha blending",
+    "combined renderer",
+    "presentation",
+    "D16 depth",
+    "indexed geometry",
+    "textures"
+  ],
+  "windows_address_sanitizer": "passed",
+  "limitations": [
+    "synthetic component evidence, not E3",
+    "no multisample alpha-to-coverage",
+    "no fullscreen or display-mode parity claim",
+    "no fog/lighting claim"
+  ],
+  "playable": false
+}

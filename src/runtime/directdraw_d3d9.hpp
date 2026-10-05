@@ -21,6 +21,7 @@
         caps.dwDevCaps=D3DDEVCAPS_FLOATTLVERTEX|D3DDEVCAPS_DRAWPRIMTLVERTEX;
         caps.dpcTriCaps.dwMiscCaps=c.misc;caps.dpcTriCaps.dwShadeCaps=c.shade;
         caps.dpcTriCaps.dwSrcBlendCaps=c.src_blend;caps.dpcTriCaps.dwDestBlendCaps=c.dst_blend;
+        caps.dpcTriCaps.dwAlphaCmpCaps=c.alpha_compare;
         caps.dwDeviceRenderBitDepth=DDBD_32;caps.dwDeviceZBufferBitDepth=c.depth16?DDBD_16:0;
         caps.dpcTriCaps.dwZCmpCaps=c.depth_compare;caps.dvMaxVertexW=c.max_w;
         caps.deviceGUID=IID_IDirect3DHALDevice;
@@ -32,7 +33,7 @@
         caps.dwMaxTextureWidth=c.texture.width;caps.dwMaxTextureHeight=c.texture.height;
         caps.dwMaxTextureAspectRatio=c.texture.aspect;caps.dwTextureOpCaps=c.texture.ops;
         caps.wMaxTextureBlendStages=caps.wMaxSimultaneousTextures=1;
-        // Single-level textures, bounded alpha blending and optional D16; no stencil, multitexturing or lights.
+        // Single-level textures, bounded alpha blend/test and optional D16; no stencil, multitexturing or lights.
         return hr;
     }
     U32 enum_devices9(Args a){
