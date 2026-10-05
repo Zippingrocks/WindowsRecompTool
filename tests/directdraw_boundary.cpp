@@ -1,6 +1,7 @@
 // Native DirectDraw boundary failures; end-to-end compiled x86 coverage lives
 // in directdraw_program.py. No game bytes and no replacement driver.
 #include "winrecomp/process.hpp"
+#include "winrecomp/d3d9_host.hpp"
 #include <array>
 #include <iostream>
 #include <thread>
@@ -13,7 +14,7 @@ namespace {
 unsigned checks=0;
 #define CHECK(x) do {++checks;if(!(x))throw std::runtime_error("DirectDraw assertion: " #x);} while(0)
 constexpr wr::U32 Entry=0x401000,Callback=0x401010,Context=0x12345678;
-wr::U32 saved_description{};unsigned callbacks{};bool throw_callback{};
+wr::U32 saved_description{};unsigned callbacks{};bool throw_callback{},continue_callbacks{};
 wr::Image image(){wr::Image im;im.base=0x400000;im.entry=Entry;im.size=0x3000;im.headers_size=512;im.bytes.resize(1536);im.sections={{".text",0x1000,512,512,512,0x60000020},{".data",0x2000,512,1024,512,0xc0000040}};im.bytes[512]=im.bytes[528]=0xc3;return im;}
 bool step(wr::Cpu& cpu,wr::Memory& memory,std::uint64_t&){
     if(cpu.eip==Entry){cpu.eip=wr::pop(cpu,memory);return true;}
@@ -21,7 +22,7 @@ bool step(wr::Cpu& cpu,wr::Memory& memory,std::uint64_t&){
     if(throw_callback)throw wr::GuestFault(wr::FaultKind::unsupported,Callback,"deliberate adapter callback failure");
     CHECK(memory.load(cpu.r[wr::ESP]+16,32)==Context);
     saved_description=memory.load(cpu.r[wr::ESP]+8,32);CHECK(saved_description && memory.load(saved_description,8));
-    ++callbacks;cpu.r[wr::EAX]=0;cpu.eip=wr::pop(cpu,memory);cpu.r[wr::ESP]+=20;return true;
+    ++callbacks;cpu.r[wr::EAX]=continue_callbacks?1u:0u;cpu.eip=wr::pop(cpu,memory);cpu.r[wr::ESP]+=20;return true;
 }
 wr::U32 call(wr::Process& p,wr::U32 target,std::initializer_list<wr::U32> args){
     auto saved=p.cpu;
@@ -36,6 +37,51 @@ void description(wr::Process& p,wr::U32 at){
     std::array<std::uint8_t,124> zero{};p.memory.copy_in(at,zero);
     for(auto [offset,value]:std::initializer_list<std::pair<unsigned,wr::U32>>{{0,124},{4,0x1007},{8,3},{12,7},{72,32},{76,DDPF_RGB},{84,32},{88,0xff0000},{92,0xff00},{96,0xff},{104,DDSCAPS_OFFSCREENPLAIN|DDSCAPS_SYSTEMMEMORY}})p.memory.store(at+offset,value,32);
 }
+struct NativeAdapterProbe {
+    std::vector<std::pair<GUID,HMONITOR>> values;
+};
+BOOL CALLBACK collect_native_adapter(GUID* id,LPSTR,LPSTR,LPVOID context,HMONITOR monitor){
+    auto& out=*static_cast<NativeAdapterProbe*>(context);
+    if(id)out.values.emplace_back(*id,monitor);
+    return TRUE;
+}
+void adapter_profile(){
+    wr::ProcessOptions options;options.legacy_d3d9=true;
+    wr::Process p(step,options);p.load(image());
+    const auto scratch=p.allocate_bytes(8192),iid=scratch,out=scratch+4092,selected=scratch+128;
+    put_guid(p,iid,IID_IDirectDraw7);
+
+    auto factory=wr::host9::make_factory();CHECK(bool(factory));
+    const auto d3d_monitor=reinterpret_cast<HMONITOR>(factory->adapter_monitor());CHECK(d3d_monitor!=nullptr);
+
+    NativeAdapterProbe native{};
+    constexpr DWORD flags=DDENUM_ATTACHEDSECONDARYDEVICES|DDENUM_DETACHEDSECONDARYDEVICES|DDENUM_NONDISPLAYDEVICES;
+    CHECK(DirectDrawEnumerateExA(collect_native_adapter,&native,flags)==DD_OK);
+
+    // Record exactly the namespace the guest was shown. Continue through all
+    // callbacks so any GUID accepted below was actually exposed by our bridge.
+    callbacks=0;continue_callbacks=true;
+    CHECK(api(p,"DirectDrawEnumerateExA",{Callback,Context,flags})==DD_OK);
+    continue_callbacks=false;CHECK(callbacks>=1);
+
+    bool matched=false;
+    for(const auto& [id,monitor]:native.values)if(monitor==d3d_monitor){
+        put_guid(p,selected,id);
+        CHECK(api(p,"DirectDrawCreateEx",{selected,out,iid,0})==DD_OK);
+        auto draw=p.memory.load(out,32);CHECK(draw);method(p,draw,2,{draw});
+        matched=true;break;
+    }
+
+    // Some Windows configurations expose adapter 0 only through the null
+    // primary-adapter identity. A non-null acceptance is therefore conditional,
+    // but arbitrary GUIDs must never be silently mapped to adapter 0.
+    GUID fake{0x12345678,0x2468,0x1357,{1,2,3,4,5,6,7,8}};
+    put_guid(p,selected,fake);
+    fault([&]{api(p,"DirectDrawCreateEx",{selected,out,iid,0});},wr::FaultKind::unsupported);
+    CHECK(matched || native.values.empty() ||
+          std::none_of(native.values.begin(),native.values.end(),[&](const auto& v){return v.second==d3d_monitor;}));
+}
+
 void basic(){
     wr::Process p(step);p.load(image());const auto scratch=p.allocate_bytes(8192);p.memory.protect(scratch+4096,4096,0);
     const auto id=scratch,output=scratch+4092,desc=scratch+2048,fx=scratch+64;
@@ -73,4 +119,4 @@ void basic(){
     method(p,draw,2,{draw});fault([&]{method(p,draw,1,{draw});},wr::FaultKind::unsupported);
 }
 }
-int main(){SetErrorMode(SEM_FAILCRITICALERRORS|SEM_NOGPFAULTERRORBOX);try{basic();std::cout<<checks<<" native DirectDraw boundary assertions passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+int main(){SetErrorMode(SEM_FAILCRITICALERRORS|SEM_NOGPFAULTERRORBOX);try{basic();adapter_profile();std::cout<<checks<<" native DirectDraw boundary assertions passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
