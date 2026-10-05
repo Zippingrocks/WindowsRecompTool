@@ -26,10 +26,16 @@ template<class T> struct Com {
 constexpr unsigned MaxSize=2048,MaxTriangles=65536;
 // The geometry subset excludes stencil, lights, transforms and blending.
 // Single-stage texture capabilities are separately checked against the host.
-Capabilities bounded(const D3DCAPS9& c){return {
-    c.PrimitiveMiscCaps&(D3DPMISCCAPS_CULLNONE|D3DPMISCCAPS_CULLCW|D3DPMISCCAPS_CULLCCW),
-    c.ShadeCaps&D3DPSHADECAPS_COLORGOURAUDRGB,
-    (c.MaxPrimitiveCount<MaxTriangles?c.MaxPrimitiveCount:MaxTriangles),c.MaxVertexW};}
+Capabilities bounded(const D3DCAPS9& c){
+    Capabilities out{};
+    out.misc=c.PrimitiveMiscCaps&(D3DPMISCCAPS_CULLNONE|D3DPMISCCAPS_CULLCW|D3DPMISCCAPS_CULLCCW);
+    out.shade=c.ShadeCaps&D3DPSHADECAPS_COLORGOURAUDRGB;
+    out.max_primitives=(c.MaxPrimitiveCount<MaxTriangles?c.MaxPrimitiveCount:MaxTriangles);
+    out.max_w=c.MaxVertexW;
+    constexpr DWORD blend=D3DPBLENDCAPS_ZERO|D3DPBLENDCAPS_ONE|D3DPBLENDCAPS_SRCALPHA|D3DPBLENDCAPS_INVSRCALPHA;
+    out.src_blend=c.SrcBlendCaps&blend;out.dst_blend=c.DestBlendCaps&blend;
+    return out;
+}
 Status texture_limits(IDirect3D9* api,const D3DCAPS9& c,TextureLimits& out){
     D3DDISPLAYMODE mode{};auto hr=api->GetAdapterDisplayMode(0,&mode);if(FAILED(hr))return Status(hr);
     hr=api->CheckDeviceFormat(0,D3DDEVTYPE_HAL,mode.Format,0,D3DRTYPE_TEXTURE,D3DFMT_X8R8G8B8);
@@ -103,6 +109,7 @@ public:
         for(auto [state,value]:{std::pair{D3DRS_ZENABLE,DWORD(FALSE)},
             {D3DRS_ZWRITEENABLE,DWORD(FALSE)},{D3DRS_ZFUNC,DWORD(D3DCMP_LESSEQUAL)},{D3DRS_LIGHTING,DWORD(FALSE)},
             {D3DRS_FOGENABLE,DWORD(FALSE)},{D3DRS_ALPHABLENDENABLE,DWORD(FALSE)},
+            {D3DRS_SRCBLEND,DWORD(D3DBLEND_ONE)},{D3DRS_DESTBLEND,DWORD(D3DBLEND_ZERO)},
             {D3DRS_SPECULARENABLE,DWORD(FALSE)},{D3DRS_CULLMODE,DWORD(D3DCULL_CCW)},
             {D3DRS_SHADEMODE,DWORD(D3DSHADE_GOURAUD)}}){
             hr=device.p->SetRenderState(state,value);if(FAILED(hr))return Status(hr);
@@ -171,8 +178,22 @@ public:
         case D3DRS_ZFUNC:
             if(value<1 || value>8)return Invalid;
             if(!(caps.depth_compare&(1u<<(value-1))))return Status(E_NOTIMPL);break;
+        case D3DRS_ALPHABLENDENABLE:
+            if(value>1)return Invalid;
+            if(value && (!(caps.src_blend&D3DPBLENDCAPS_SRCALPHA) || !(caps.dst_blend&D3DPBLENDCAPS_INVSRCALPHA)))
+                return Status(E_NOTIMPL);
+            break;
+        case D3DRS_SRCBLEND:case D3DRS_DESTBLEND:{
+            if(value<D3DBLEND_ZERO || value>D3DBLEND_INVSRCALPHA)return Status(E_NOTIMPL);
+            const DWORD bit=value==D3DBLEND_ZERO?D3DPBLENDCAPS_ZERO:
+                            value==D3DBLEND_ONE?D3DPBLENDCAPS_ONE:
+                            value==D3DBLEND_SRCALPHA?D3DPBLENDCAPS_SRCALPHA:
+                            value==D3DBLEND_INVSRCALPHA?D3DPBLENDCAPS_INVSRCALPHA:0;
+            if(!bit || !((state==D3DRS_SRCBLEND?caps.src_blend:caps.dst_blend)&bit))return Status(E_NOTIMPL);
+            break;
+        }
         case D3DRS_LIGHTING:
-        case D3DRS_ALPHABLENDENABLE:case D3DRS_FOGENABLE:case D3DRS_SPECULARENABLE:
+        case D3DRS_FOGENABLE:case D3DRS_SPECULARENABLE:
             if(value!=FALSE)return Status(E_NOTIMPL);break;
         case D3DRS_CULLMODE:
             if(value<D3DCULL_NONE || value>D3DCULL_CCW)return Invalid;
@@ -187,7 +208,8 @@ public:
     Status get_state(std::uint32_t state,std::uint32_t& value) override{
         if(!valid())return Invalid;
         switch(state){case D3DRS_ZENABLE:case D3DRS_ZWRITEENABLE:case D3DRS_LIGHTING:
-        case D3DRS_ALPHABLENDENABLE:case D3DRS_FOGENABLE:case D3DRS_SPECULARENABLE:
+        case D3DRS_ALPHABLENDENABLE:case D3DRS_SRCBLEND:case D3DRS_DESTBLEND:
+        case D3DRS_FOGENABLE:case D3DRS_SPECULARENABLE:
         case D3DRS_CULLMODE:case D3DRS_SHADEMODE:case D3DRS_ZFUNC:break;default:return Status(E_NOTIMPL);}
         DWORD result{};auto hr=device.p->GetRenderState(D3DRENDERSTATETYPE(state),&result);
         if(SUCCEEDED(hr))value=result;return Status(hr);
