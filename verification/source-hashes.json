@@ -93,7 +93,7 @@
     "include/winrecomp/d3d9_host.hpp": "8f6929b21be90bd9218cb19f63ff3adf809bc2a097ea8bdeb350d9b8aac5ffb1",
     "src/runtime/d3d9_host.cpp": "da6a4bd72784ac93a685a464675082eae02981682665ae8926d99072f495183d",
     "src/runtime/directdraw_d3d9.hpp": "85904100a37a70475ef68210c922d5eb652e6cbefbf4f13a52b839a000e15f6b",
-    "tests/d3d9_boundary.cpp": "b2d186927b89fd2ac3e604ce8a51eff924c5083f791a74883082e2d27f133fd0",
+    "tests/d3d9_boundary.cpp": "2f82e2819332aec30360516d56fd4a7df214d9c52f766d208df60b3c056325ae",
     "tests/d3d9_program.py": "3239a413bd3913c39c1ff6d2a6b7a06de448f26e989230aeb18e755b1b9cfd56",
     "tests/d3d9_texture_program.py": "5d63f7969c2eca95bffb49652a0cea028cf4ce6c98a96e1e1ce3e344e5318b65",
     "tests/d3d9_textures.cpp": "5d110953998b7544962732c92a9f58462638328894aa1656622106fac5366c96",
