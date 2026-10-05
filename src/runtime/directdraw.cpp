@@ -2,6 +2,7 @@
 #include "winrecomp/process.hpp"
 #include "winrecomp/d3d9_host.hpp"
 #include "winrecomp/indexed_geometry.hpp"
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cmath>
