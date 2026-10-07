@@ -134,7 +134,14 @@ try{
     std::filesystem::create_directories(path);{std::ofstream out(path/"sample.bin",std::ios::binary);out<<"ABCDEFGHIJ";}
     wr::ProcessOptions file_options;file_options.data_root=path;wr::Process files(step,file_options);files.load(image());
     const auto filename=files.put_string("sample.bin"),file_buffer=files.allocate_bytes(128),count=files.allocate_bytes(4);
-    auto handle=call(files,"CreateFileA",{filename,0x80000000u,3,0,3,0x80,0});CHECK(handle!=0xffffffffu);
+    auto security=files.allocate_bytes(12);files.memory.store(security,12,32);files.memory.store(security+4,0,32);files.memory.store(security+8,0,32);
+    auto handle=call(files,"CreateFileA",{filename,0x80000000u,3,security,3,0x80,0});CHECK(handle!=0xffffffffu);
+    CHECK(call(files,"CloseHandle",{handle})==1);
+    files.memory.store(security,8,32);fault([&]{call(files,"CreateFileA",{filename,0x80000000u,3,security,3,0x80,0});},wr::FaultKind::unsupported);
+    files.memory.store(security,12,32);files.memory.store(security+4,0x12345678,32);fault([&]{call(files,"CreateFileA",{filename,0x80000000u,3,security,3,0x80,0});},wr::FaultKind::unsupported);
+    files.memory.store(security+4,0,32);files.memory.store(security+8,1,32);fault([&]{call(files,"CreateFileA",{filename,0x80000000u,3,security,3,0x80,0});},wr::FaultKind::unsupported);
+    files.memory.store(security+8,0,32);
+    handle=call(files,"CreateFileA",{filename,0x80000000u,3,0,3,0x80,0});CHECK(handle!=0xffffffffu);
     CHECK(call(files,"GetFileSize",{handle,0})==10);CHECK(call(files,"SetFilePointer",{handle,3,0,0})==3);
     CHECK(call(files,"ReadFile",{handle,file_buffer,4,count,0})==1);CHECK(files.memory.load(count,32)==4);CHECK(files.memory.load(file_buffer,32)==0x47464544u);
     CHECK(call(files,"SetFilePointer",{handle,0xfffffffeu,0,2})==8);CHECK(call(files,"ReadFile",{handle,file_buffer,16,count,0})==1);CHECK(files.memory.load(count,32)==2);
