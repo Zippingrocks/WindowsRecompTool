@@ -1,0 +1,27 @@
+name: Source bundle for private E3 mouse-activate probe
+on:
+  push:
+    branches: [work/e3-mouseactivate-probe-source]
+permissions:
+  contents: read
+jobs:
+  bundle:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - name: Create source bundles only
+        run: |
+          mkdir -p out
+          git bundle create out/WindowsRecompTool.bundle --all
+          git -C third_party/zydis bundle create "$GITHUB_WORKSPACE/out/Zydis.bundle" --all
+          git -C third_party/zydis/dependencies/zycore bundle create "$GITHUB_WORKSPACE/out/Zycore.bundle" --all
+      - uses: actions/upload-artifact@v4
+        with:
+          name: e3-mouseactivate-probe-source
+          path: out/*
+          retention-days: 7
