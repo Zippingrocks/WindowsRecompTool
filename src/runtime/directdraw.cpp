@@ -36,7 +36,7 @@ std::unique_ptr<DirectDrawBackend> install_directdraw(Process& p){if(p.options.l
 namespace {
 using Args=std::span<const U32>;
 using Function=std::function<U32(Args)>;
-enum class Interface {unknown,draw1,draw7,surface7,d3d7,clipper,device7,compat3d7,compatdevice7,depth7};
+enum class Interface {unknown,draw1,draw7,surface1,surface7,d3d7,clipper,device7,compat3d7,compatdevice7,depth7};
 constexpr std::size_t DescSize=124,MaxSurfaceBytes=16u*1024*1024;
 constexpr U32 MaxObjects=256;
 struct Allocation {
@@ -467,6 +467,49 @@ class Draw final:public DirectDrawBackend {
         ModeEnumeration call{this,a[1],a[2],{},0};const auto hr=native->EnumTextureFormats(enumerate_texture,&call);
         if(call.failure)std::rethrow_exception(call.failure);return U32(hr);
     }
+    U32 draw_caps1(Args a){
+        auto native=static_cast<IDirectDraw*>(object(a[0],Interface::draw1).native);
+        const auto size_of=[&](U32 at)->U32{
+            if(!at)return 0;
+            p.memory.check(at,4,Memory::Read);
+            const auto size=p.memory.load(at,32);
+            if(size!=316 && size!=380)stop("IDirectDraw::GetCaps guest DDCAPS size "+std::to_string(size)+" is not modeled");
+            p.memory.check(at,size,Memory::Read|Memory::Write);
+            return size;
+        };
+        const auto driver_size=size_of(a[1]),emulation_size=size_of(a[2]);
+        if(driver_size && emulation_size && driver_size!=emulation_size)
+            stop("mixed IDirectDraw::GetCaps structure versions are outside this profile");
+        const auto guest_size=driver_size?driver_size:emulation_size;
+        if(!guest_size)return U32(native->GetCaps(nullptr,nullptr));
+        if(a[1] && a[2] && std::uint64_t(a[1])<std::uint64_t(a[2])+guest_size && std::uint64_t(a[2])<std::uint64_t(a[1])+guest_size)
+            stop("overlapping IDirectDraw::GetCaps outputs outside this profile");
+        if(guest_size==316){
+            static_assert(sizeof(DDCAPS_DX3)==316 && sizeof(DDSCAPS)==4);
+            DDCAPS_DX3 driver{},emulation{};driver.dwSize=emulation.dwSize=316;
+            const auto hr=native->GetCaps(a[1]?reinterpret_cast<DDCAPS*>(&driver):nullptr,
+                                          a[2]?reinterpret_cast<DDCAPS*>(&emulation):nullptr);
+            if(SUCCEEDED(hr)){
+                driver.dwReserved1=driver.dwReserved2=driver.dwReserved3=0;
+                driver.dwReserved4=driver.dwReserved5=driver.dwReserved6=0;
+                emulation.dwReserved1=emulation.dwReserved2=emulation.dwReserved3=0;
+                emulation.dwReserved4=emulation.dwReserved5=emulation.dwReserved6=0;
+                if(a[1])p.memory.copy_in(a[1],std::span(reinterpret_cast<const std::uint8_t*>(&driver),316));
+                if(a[2])p.memory.copy_in(a[2],std::span(reinterpret_cast<const std::uint8_t*>(&emulation),316));
+            }
+            return U32(hr);
+        }
+        static_assert(sizeof(DDCAPS)==380 && sizeof(DDSCAPS2)==16);
+        DDCAPS driver{},emulation{};driver.dwSize=emulation.dwSize=380;
+        const auto hr=native->GetCaps(a[1]?&driver:nullptr,a[2]?&emulation:nullptr);
+        if(SUCCEEDED(hr)){
+            driver.dwReserved1=driver.dwReserved2=driver.dwReserved3=0;
+            emulation.dwReserved1=emulation.dwReserved2=emulation.dwReserved3=0;
+            if(a[1])p.memory.copy_in(a[1],std::span(reinterpret_cast<const std::uint8_t*>(&driver),380));
+            if(a[2])p.memory.copy_in(a[2],std::span(reinterpret_cast<const std::uint8_t*>(&emulation),380));
+        }
+        return U32(hr);
+    }
     U32 draw_caps(Args a){
         auto native=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native);
         static_assert(sizeof(DDCAPS)==380 && sizeof(DDSCAPS2)==16);
@@ -638,6 +681,50 @@ class Draw final:public DirectDrawBackend {
         auto root=static_cast<IDirectDraw*>(object(a[0],Interface::draw1).native);
         return U32(root->RestoreDisplayMode());
     }
+    U32 create_surface1(Args a){
+        constexpr U32 GuestDescSize=108;
+        p.memory.check(a[1],GuestDescSize,Memory::Read);p.memory.check(a[2],4,Memory::Write);
+        if(a[3])stop("IDirectDraw::CreateSurface aggregation is unsupported");
+        if(p.memory.load(a[1],32)!=GuestDescSize)stop("IDirectDraw::CreateSurface requires the 108-byte x86 DDSURFACEDESC layout");
+        const U32 flags=p.memory.load(a[1]+4,32);
+        constexpr U32 allowed=DDSD_CAPS|DDSD_BACKBUFFERCOUNT;
+        if((flags&~allowed) || !(flags&DDSD_CAPS))stop("IDirectDraw::CreateSurface descriptor flags outside bounded profile");
+        if(p.memory.load(a[1]+36,32))stop("IDirectDraw::CreateSurface caller-owned pixel pointer is unsupported");
+        DDSURFACEDESC d{};d.dwSize=sizeof(d);d.dwFlags=flags;
+        if(flags&DDSD_BACKBUFFERCOUNT)d.dwBackBufferCount=p.memory.load(a[1]+20,32);
+        d.ddsCaps.dwCaps=p.memory.load(a[1]+104,32);
+        constexpr U32 flip_primary=U32(DDSCAPS_PRIMARYSURFACE|DDSCAPS_FLIP|DDSCAPS_COMPLEX|DDSCAPS_VIDEOMEMORY);
+        if(d.ddsCaps.dwCaps!=flip_primary || !(flags&DDSD_BACKBUFFERCOUNT) || d.dwBackBufferCount!=1)
+            stop("IDirectDraw::CreateSurface supports only one-backbuffer primary flip chain in this profile");
+        IDirectDrawSurface* surface{};
+        const auto hr=static_cast<IDirectDraw*>(object(a[0],Interface::draw1).native)->CreateSurface(&d,&surface,nullptr);
+        if(SUCCEEDED(hr)){if(!surface)stop("native IDirectDraw::CreateSurface succeeded without a surface");p.memory.store(a[2],wrap(surface,Interface::surface1),32);}
+        return U32(hr);
+    }
+    U32 attached_surface1(Args a){
+        auto native=static_cast<IDirectDrawSurface*>(object(a[0],Interface::surface1).native);
+        p.memory.check(a[1],4,Memory::Read);p.memory.check(a[2],4,Memory::Write);
+        DDSCAPS caps{};caps.dwCaps=p.memory.load(a[1],32);
+        if(caps.dwCaps!=DDSCAPS_BACKBUFFER)stop("IDirectDrawSurface::GetAttachedSurface supports only DDSCAPS_BACKBUFFER");
+        IDirectDrawSurface* attached{};const auto hr=native->GetAttachedSurface(&caps,&attached);
+        if(SUCCEEDED(hr)){if(!attached)stop("native GetAttachedSurface succeeded without a surface");p.memory.store(a[2],wrap(attached,Interface::surface1),32);}
+        return U32(hr);
+    }
+    U32 blit_surface1(Args a){
+        auto& value=object(a[0],Interface::surface1);
+        if(a[1] || a[2] || a[3] || (a[4]&~U32(DDBLT_COLORFILL|DDBLT_WAIT)) || !(a[4]&DDBLT_COLORFILL))
+            stop("IDirectDrawSurface::Blt supports only whole-surface color fill");
+        p.memory.check(a[5],100,Memory::Read);if(p.memory.load(a[5],32)!=100)stop("IDirectDrawSurface::Blt requires the 100-byte x86 DDBLTFX layout");
+        DDBLTFX fx{};fx.dwSize=sizeof(fx);fx.dwFillColor=p.memory.load(a[5]+80,32);
+        const auto hr=static_cast<IDirectDrawSurface*>(value.native)->Blt(nullptr,nullptr,nullptr,a[4],&fx);
+        if(SUCCEEDED(hr))++blits;return U32(hr);
+    }
+    U32 flip_surface1(Args a){
+        auto native=static_cast<IDirectDrawSurface*>(object(a[0],Interface::surface1).native);
+        IDirectDrawSurface* override_surface=a[1]?static_cast<IDirectDrawSurface*>(object(a[1],Interface::surface1).native):nullptr;
+        if(a[2]&~U32(DDFLIP_WAIT))stop("IDirectDrawSurface::Flip flags outside bounded profile");
+        return U32(native->Flip(override_surface,a[2]));
+    }
     U32 create_clipper(Args a){
         auto native=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native);
         p.memory.check(a[2],4,Memory::Write);if(a[3])stop("COM clipper aggregation is unsupported");
@@ -764,14 +851,14 @@ public:
         for(auto& [address,value]:objects){(void)address;if(value.compat){value.compat.reset();value.guest_refs=0;}}
         for(auto& [address,value]:objects){(void)address;value.surface_model.reset();value.depth_model.reset();}
         for(auto& [address,value]:objects){(void)address;if(value.native)destroy_lock(value);}
-        for(auto kind:{Interface::device7,Interface::surface7,Interface::clipper,Interface::d3d7,Interface::compat3d7,Interface::unknown,Interface::draw1,Interface::draw7})for(auto& [address,value]:objects){(void)address;if(value.native && value.kind==kind){for(U32 n=0;n<value.guest_refs;++n)value.native->Release();value.native=nullptr;}}
+        for(auto kind:{Interface::device7,Interface::surface1,Interface::surface7,Interface::clipper,Interface::d3d7,Interface::compat3d7,Interface::unknown,Interface::draw1,Interface::draw7})for(auto& [address,value]:objects){(void)address;if(value.native && value.kind==kind){for(U32 n=0;n<value.guest_refs;++n)value.native->Release();value.native=nullptr;}}
         cooperative_windows.clear();root_identities.clear();enumerated_adapters.clear();
     }
     std::string report() const override{std::ostringstream out;out<<"{\"backend\":"<<quote(p.options.legacy_d3d9?"ddraw-d3d9-bounded":"native-ddraw7")<<",\"d3d9_devices\":"<<renderer9_devices<<",\"d3d9_draws\":"<<renderer9_draws<<",\"d3d9_indexed_draws\":"<<renderer9_indexed_draws<<",\"d3d9_clears\":"<<renderer9_clears<<",\"d3d9_readbacks\":"<<renderer9_readbacks<<",\"d3d9_presents\":"<<renderer9_presents<<",\"d3d9_depth_surfaces\":"<<renderer9_depth_surfaces<<",\"d3d9_depth_binds\":"<<renderer9_depth_binds<<",\"objects_created\":"<<created<<",\"objects_retired\":"<<retired<<",\"adapter_callbacks\":"<<enumerated<<",\"mode_callbacks\":"<<mode_callbacks<<",\"d3d7_wrappers\":"<<d3d_wrappers<<",\"d3d_device_callbacks\":"<<device_callbacks<<",\"mode7_callbacks\":"<<mode7_callbacks<<",\"zformat_callbacks\":"<<zformat_callbacks<<",\"d3d_devices_created\":"<<render_devices<<",\"texture_callbacks\":"<<texture_callbacks<<",\"surface_locks\":"<<locks<<",\"surface_unlocks\":"<<unlocks<<",\"blits\":"<<blits<<"}";return out.str();}
 };
 U32 Draw::vtable(Interface kind){
     if(auto it=vtables.find(kind);it!=vtables.end())return it->second;
-    const unsigned count=kind==Interface::unknown?3u:kind==Interface::draw1?23u:kind==Interface::draw7?30u:(kind==Interface::d3d7 || kind==Interface::compat3d7)?8u:kind==Interface::clipper?9u:49u;
+    const unsigned count=kind==Interface::unknown?3u:kind==Interface::draw1?23u:kind==Interface::draw7?30u:kind==Interface::surface1?36u:(kind==Interface::d3d7 || kind==Interface::compat3d7)?8u:kind==Interface::clipper?9u:49u;
     Allocation table(p,count*4);
     for(unsigned slot=0;slot<count;++slot){
         const auto name=std::string("WinRecompCOM.")+std::to_string(unsigned(kind))+"."+std::to_string(slot);
@@ -785,6 +872,11 @@ U32 Draw::vtable(Interface kind){
             if(slot==19)method(1,[this](Args a){return restore_display_mode1(a);});
             if(slot==20)method(3,[this](Args a){auto root=static_cast<IDirectDraw*>(object(a[0],Interface::draw1).native);return set_cooperative(root,a[1],a[2]);});
             if(slot==21)method(4,[this](Args a){return set_display_mode1(a);});
+        }
+        if(kind==Interface::surface1){
+            if(slot==5)method(6,[this](Args a){return blit_surface1(a);});
+            if(slot==11)method(3,[this](Args a){return flip_surface1(a);});
+            if(slot==12)method(3,[this](Args a){return attached_surface1(a);});
         }
         if(kind==Interface::draw7){
             if(slot==4)method(4,[this](Args a){return create_clipper(a);});
