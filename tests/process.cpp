@@ -139,7 +139,9 @@ try{
     CHECK(call(files,"CloseHandle",{handle})==1);
     files.memory.store(security,8,32);fault([&]{call(files,"CreateFileA",{filename,0x80000000u,3,security,3,0x80,0});},wr::FaultKind::unsupported);
     files.memory.store(security,12,32);files.memory.store(security+4,0x12345678,32);fault([&]{call(files,"CreateFileA",{filename,0x80000000u,3,security,3,0x80,0});},wr::FaultKind::unsupported);
-    files.memory.store(security+4,0,32);files.memory.store(security+8,1,32);fault([&]{call(files,"CreateFileA",{filename,0x80000000u,3,security,3,0x80,0});},wr::FaultKind::unsupported);
+    files.memory.store(security+4,0,32);files.memory.store(security+8,1,32);
+    handle=call(files,"CreateFileA",{filename,0x80000000u,3,security,3,0x80,0});CHECK(handle!=0xffffffffu);CHECK(call(files,"CloseHandle",{handle})==1);
+    files.memory.store(security+8,2,32);fault([&]{call(files,"CreateFileA",{filename,0x80000000u,3,security,3,0x80,0});},wr::FaultKind::unsupported);
     files.memory.store(security+8,0,32);
     handle=call(files,"CreateFileA",{filename,0x80000000u,3,0,3,0x80,0});CHECK(handle!=0xffffffffu);
     CHECK(call(files,"GetFileSize",{handle,0})==10);CHECK(call(files,"SetFilePointer",{handle,3,0,0})==3);
