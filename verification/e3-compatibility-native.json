@@ -1,0 +1,28 @@
+{
+  "schema": "windowsrecomptool.e3-compatibility-native.v1",
+  "tested_source": "9bb99c6978db2825e3a4e5ada6e600c7ea9de950",
+  "native_windows_run": 37587402612,
+  "result": "success",
+  "host": "native Windows x64 / MSVC",
+  "windows_address_sanitizer": "passed",
+  "e3_observed_slice": [
+    "canonical 32-bit CreateFileA SECURITY_ATTRIBUTES",
+    "rasterizer dialog callback seeds",
+    "DirectDraw v1 exclusive cooperative mode",
+    "DirectDraw v1 display-mode switch",
+    "DirectDraw v1 GetCaps using the 380-byte legacy structure",
+    "one-backbuffer primary flip-chain CreateSurface",
+    "GetAttachedSurface backbuffer retrieval",
+    "backbuffer color fill",
+    "primary Flip"
+  ],
+  "retained_renderer_boundaries": [
+    "D3D9 combined renderer",
+    "alpha blending",
+    "alpha testing",
+    "DirectDraw adapter selection",
+    "process/runtime boundary"
+  ],
+  "note": "This is native Windows synthetic/E3-derived boundary validation. It does not mean the proprietary E3 executable was run in hosted CI or that E3 is playable.",
+  "playable": false
+}

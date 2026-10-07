@@ -20,6 +20,21 @@ def main():
     preserving=bytes.fromhex('83f802b9785634127719ff248500204000b811111111c3b822222222c3b833333333c3b844444444c3')
     preserving_table=make_pe(preserving,struct.pack('<III',0x401011,0x401017,0x40101d))
     cases.append(('preserving_guard',preserving_table,[]))
+    # MSVC compact switch: a bounded selector indexes a byte table, whose byte
+    # selects a slot in the actual DWORD target table. Selector order is
+    # intentionally non-linear so recovery must honor the byte indirection.
+    compact_code=bytes.fromhex(
+        '83f802'          # cmp eax,2
+        '7721'            # ja default
+        '33c9'            # xor ecx,ecx
+        '8a880c204000'    # mov cl,[eax+0x40200c]
+        'ff248d00204000'  # jmp dword [ecx*4+0x402000]
+        'b811111111c3'    # slot 0 @ 0x401014
+        'b822222222c3'    # slot 1 @ 0x40101a
+        'b833333333c3'    # slot 2 @ 0x401020
+        'b844444444c3')   # default @ 0x401026
+    compact_data=struct.pack('<III',0x401014,0x40101a,0x401020)+bytes([2,0,1])
+    cases.append(('compressed_table',make_pe(compact_code,compact_data),[]))
     names=[];images=[];negative_tests=2
 
     for k,(label,pe,args) in enumerate(cases):
@@ -34,6 +49,22 @@ def main():
             q=a.out/'bad.exe';q.write_bytes(invalid)
             bad=json.loads(c.run([str(a.tool),'cfg',str(q)]).stdout)
             assert not bad['recovered_tables'],'data target must not be admitted'
+        if label=='compressed_table':
+            assert len(cfg['recovered_tables'])==1,cfg
+            assert cfg['recovered_tables'][0]['targets']==[0x401014,0x40101a,0x401020],cfg
+            assert any(e['kind']=='jump_table_compressed_static' for e in cfg['edges']),cfg
+            for point in (0x401005,0x401007,0x40100d):
+                rejected=json.loads(c.run([str(a.tool),'cfg',str(p),'--seed',hex(point)]).stdout)
+                assert not rejected['recovered_tables'],'compressed switch post-guard bypass must be rejected'
+                negative_tests+=1
+            mutated=bytearray(compact_code);mutated[5:7]=bytes.fromhex('9090')
+            q=a.out/'compressed-nozero.exe';q.write_bytes(make_pe(mutated,compact_data))
+            assert not json.loads(c.run([str(a.tool),'cfg',str(q)]).stdout)['recovered_tables']
+            negative_tests+=1
+            bad_data=bytearray(compact_data);bad_data[12]=3
+            q=a.out/'compressed-bad-slot.exe';q.write_bytes(make_pe(compact_code,bad_data))
+            assert not json.loads(c.run([str(a.tool),'cfg',str(q)]).stdout)['recovered_tables']
+            negative_tests+=1
         if label=='preserving_guard':
             assert len(cfg['recovered_tables'])==1
             for point in (0x401003,0x401008,0x40100a):
