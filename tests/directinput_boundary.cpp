@@ -24,12 +24,26 @@ U32 api(wr::Process& p,const char* dll,const char* name,std::initializer_list<U3
 U32 com(wr::Process& p,U32 object,unsigned slot,std::initializer_list<U32> args){return call(p,p.memory.load(p.memory.load(object,32)+slot*4,32),args);}
 template<class F>void unsupported(F fn){bool caught=false;try{fn();}catch(const wr::GuestFault& e){caught=true;CHECK(e.kind==wr::FaultKind::unsupported);}CHECK(caught);}
 void put_guid(wr::Process& p,U32 at,const GUID& id){p.memory.copy_in(at,std::span(reinterpret_cast<const std::uint8_t*>(&id),16));}
-U32 put_format(wr::Process& p,const DIDATAFORMAT& native){
-    CHECK(native.dwNumObjs>0 && native.dwNumObjs<=512 && native.rgodf);
-    const U32 count=native.dwNumObjs,total=24+count*16+count*16,base=p.allocate_bytes(total),objects=base+24,guids=objects+count*16;
-    p.memory.store(base,24,32);p.memory.store(base+4,16,32);p.memory.store(base+8,native.dwFlags,32);p.memory.store(base+12,native.dwDataSize,32);p.memory.store(base+16,count,32);p.memory.store(base+20,objects,32);
-    for(U32 i=0;i<count;++i){const auto& o=native.rgodf[i];const auto at=objects+i*16;p.memory.store(at,o.pguid?guids+i*16:0,32);p.memory.store(at+4,o.dwOfs,32);p.memory.store(at+8,o.dwType,32);p.memory.store(at+12,o.dwFlags,32);if(o.pguid)put_guid(p,guids+i*16,*o.pguid);}
+struct GuestFormatObject {const GUID* guid;U32 offset,type,flags;};
+U32 put_format(wr::Process& p,U32 data_size,std::span<const GuestFormatObject> list){
+    CHECK(!list.empty() && list.size()<=512);
+    const U32 count=U32(list.size()),total=24+count*16+count*16,base=p.allocate_bytes(total),objects=base+24,guids=objects+count*16;
+    p.memory.store(base,24,32);p.memory.store(base+4,16,32);p.memory.store(base+8,DIDF_RELAXIS,32);p.memory.store(base+12,data_size,32);p.memory.store(base+16,count,32);p.memory.store(base+20,objects,32);
+    for(U32 i=0;i<count;++i){const auto& o=list[i];const auto at=objects+i*16;p.memory.store(at,o.guid?guids+i*16:0,32);p.memory.store(at+4,o.offset,32);p.memory.store(at+8,o.type,32);p.memory.store(at+12,o.flags,32);if(o.guid)put_guid(p,guids+i*16,*o.guid);}
     return base;
+}
+U32 put_mouse_format(wr::Process& p){
+    constexpr U32 axis=DIDFT_AXIS|DIDFT_ANYINSTANCE,button=DIDFT_BUTTON|DIDFT_ANYINSTANCE;
+    const std::array<GuestFormatObject,7> objects{{
+        {&GUID_XAxis,0,axis,0},{&GUID_YAxis,4,axis,0},{&GUID_ZAxis,8,axis|DIDFT_OPTIONAL,0},
+        {nullptr,12,button,0},{nullptr,13,button,0},{nullptr,14,button|DIDFT_OPTIONAL,0},{nullptr,15,button|DIDFT_OPTIONAL,0}
+    }};
+    return put_format(p,16,objects);
+}
+U32 put_keyboard_format(wr::Process& p){
+    std::vector<GuestFormatObject> objects;objects.reserve(256);
+    for(U32 i=0;i<256;++i)objects.push_back({&GUID_Key,i,DIDFT_BUTTON|DIDFT_MAKEINSTANCE(i)|DIDFT_OPTIONAL,0});
+    return put_format(p,256,objects);
 }
 void run(){
     wr::Process p(step);current=&p;p.load(image());const auto data=p.allocate_bytes(4096),wc=data+64,out=data+512,mouse_id=data+600,key_id=data+620;
@@ -45,7 +59,7 @@ void run(){
     CHECK(com(p,mouse,13,{mouse,window,DISCL_NONEXCLUSIVE|DISCL_FOREGROUND})==DI_OK);
     CHECK(com(p,keyboard,13,{keyboard,window,DISCL_NONEXCLUSIVE|DISCL_FOREGROUND})==DI_OK);
     unsupported([&]{com(p,mouse,13,{mouse,window,DISCL_EXCLUSIVE|DISCL_FOREGROUND});});
-    const auto mouse_format=put_format(p,c_dfDIMouse),key_format=put_format(p,c_dfDIKeyboard);
+    const auto mouse_format=put_mouse_format(p),key_format=put_keyboard_format(p);
     CHECK(com(p,mouse,11,{mouse,mouse_format})==DI_OK);CHECK(com(p,keyboard,11,{keyboard,key_format})==DI_OK);
     p.memory.store(mouse_format,20,32);unsupported([&]{com(p,mouse,11,{mouse,mouse_format});});p.memory.store(mouse_format,24,32);
     const auto prop=data+768;p.memory.store(prop,20,32);p.memory.store(prop+4,16,32);p.memory.store(prop+8,8,32);p.memory.store(prop+12,DIPH_BYOFFSET,32);p.memory.store(prop+16,0,32);

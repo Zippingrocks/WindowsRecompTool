@@ -3,7 +3,7 @@
   "note": "Exact owned source for opt-in bounded single-stage D3D9 textures; no game material.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "59b5584b65bb6946105f5519997f428c377da938b9960ed680ba6bb0241111a1",
+    "CMakeLists.txt": "38a1da8fda94bc142aa53415b11859f8e8fa54dbfa12153267d50d5a10b8bd3e",
     "include/winrecomp/compiled.hpp": "4264c817ee2e5fd3c523b6a5fab7e62208f7a47865c33ea894bb89a341972d04",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
@@ -109,7 +109,7 @@
     "tests/d3d9_alpha_test.cpp": "4bc296a0c3d737ad3d6eb1d99c522e98493cf8fea651ac9b4d28dfeb6632700c",
     "tests/e3_directdraw_v1.cpp": "0e858814557f9a2b3c913ecf91df1d8c1944a6f94242de6370e2d3f89abd7dab",
     "include/winrecomp/directinput.hpp": "f12333ba640b2fe42f97b8fc80332511d4a4a6abf8452e9d535f3af9c6096c9f",
-    "src/runtime/directinput.cpp": "35a182cbb4e430526cf5310de201e79b305c295305f9e9397aaef36352e0da4f",
-    "tests/directinput_boundary.cpp": "d6dd54ae6b1096ebc3fb44a00ea503d8dfe3c6e7e25032f137eb62991849c5bc"
+    "src/runtime/directinput.cpp": "3137dd9fce872ce6c13f2e77c44e32cb20bb1119d52363ddf5e74564b60a2976",
+    "tests/directinput_boundary.cpp": "639c9b4df08ec7198b22aecd79650be71cf119e5d7468800a8543729db7f9748"
   }
 }

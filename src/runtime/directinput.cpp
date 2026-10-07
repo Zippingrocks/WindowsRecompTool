@@ -51,8 +51,18 @@ class Input final:public DirectInputBackend {
     Process& p;DWORD thread{GetCurrentThreadId()};bool stopped{};
     std::map<U32,Object> objects;std::map<Interface,U32> vtables;
     std::uint64_t creates{},devices{},formats{},cooperative{},acquires{},unacquires{},states{},properties{};
+    using CreateFn=HRESULT (WINAPI*)(HINSTANCE,DWORD,LPDIRECTINPUTA*,LPUNKNOWN);
+    HMODULE module{};CreateFn create{};
     [[noreturn]]void stop(const std::string& why){throw GuestFault(FaultKind::unsupported,p.cpu.eip,"DirectInput: "+why);}
     void enter(){if(stopped || GetCurrentThreadId()!=thread)stop("foreign-thread or retired backend");}
+    CreateFn create_function(){
+        if(create)return create;
+        module=LoadLibraryW(L"dinput.dll");
+        if(!module)stop("native dinput.dll is unavailable");
+        create=reinterpret_cast<CreateFn>(GetProcAddress(module,"DirectInputCreateA"));
+        if(!create){FreeLibrary(module);module=nullptr;stop("native dinput.dll lacks DirectInputCreateA");}
+        return create;
+    }
     GUID guid(U32 at){GUID value{};p.memory.copy_out(at,std::span(reinterpret_cast<std::uint8_t*>(&value),16));return value;}
     Object& object(U32 at,Interface kind){auto it=objects.find(at);if(it==objects.end() || !it->second.native || !it->second.guest_refs || it->second.kind!=kind)stop("stale or wrong-interface guest COM object");return it->second;}
     U32 vtable(Interface kind){
@@ -132,12 +142,12 @@ class Input final:public DirectInputBackend {
     }
     void install(){
         p.register_api("dinput.dll","DirectInputCreateA",4,[this](Process& q){enter();const auto hinst=q.argument(0),version=q.argument(1),output=q.argument(2),outer=q.argument(3);q.memory.check(output,4,Memory::Write);if(outer)stop("DirectInputCreateA aggregation is unsupported");if(version!=0x0300)stop("DirectInputCreateA version outside observed E3 profile");if(hinst && hinst!=q.image_base)stop("DirectInputCreateA HINSTANCE is not the guest image base");
-            IDirectInputA* result{};const auto hr=::DirectInputCreateA(GetModuleHandleW(nullptr),version,&result,nullptr);if(SUCCEEDED(hr)){if(!result)stop("DirectInputCreateA succeeded without an object");q.memory.store(output,wrap(result,Interface::input),32);++creates;}return U32(hr);});
+            IDirectInputA* result{};const auto hr=create_function()(GetModuleHandleW(nullptr),version,&result,nullptr);if(SUCCEEDED(hr)){if(!result)stop("DirectInputCreateA succeeded without an object");q.memory.store(output,wrap(result,Interface::input),32);++creates;}return U32(hr);});
     }
 public:
     explicit Input(Process& q):p(q){install();}
     ~Input() override{shutdown();}
-    void shutdown() noexcept override{if(stopped)return;stopped=true;for(auto& [at,o]:objects){(void)at;if(o.native){for(U32 n=0;n<o.guest_refs;++n)o.native->Release();o.native=nullptr;o.guest_refs=0;o.format.reset();}}objects.clear();}
+    void shutdown() noexcept override{if(stopped)return;stopped=true;for(auto& [at,o]:objects){(void)at;if(o.native){for(U32 n=0;n<o.guest_refs;++n)o.native->Release();o.native=nullptr;o.guest_refs=0;o.format.reset();}}objects.clear();if(module){FreeLibrary(module);module=nullptr;create=nullptr;}}
     std::string report() const override{std::ostringstream out;out<<"{\"backend\":\"native-legacy\",\"creates\":"<<creates<<",\"devices\":"<<devices<<",\"formats\":"<<formats<<",\"cooperative\":"<<cooperative<<",\"acquires\":"<<acquires<<",\"unacquires\":"<<unacquires<<",\"states\":"<<states<<",\"properties\":"<<properties<<"}";return out.str();}
 };
 }
