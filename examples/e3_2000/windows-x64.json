@@ -4,10 +4,12 @@
   "guest": "PE32/i386 guest state",
   "host": "Windows x64; native MSVC/Windows SDK build is the primary route",
   "seeds": [
+    4322464,
     4402942,
     4402970,
     4403405,
     4586112,
+    4586480,
     4592112,
     4600000,
     4600448,
@@ -17,8 +19,13 @@
     4602224,
     4602256,
     4602336,
+    4602432,
+    4636864,
     4637984,
+    4638304,
     4638400,
+    4642179,
+    4642258,
     4721232,
     4721299,
     4721318,
@@ -33,13 +40,7 @@
     4903691,
     4906052,
     4911032,
-    4921188,
-    4642258,
-    4642179,
-    4636864,
-    4638304,
-    4586480,
-    4602432
+    4921188
   ],
   "seed_provenance": "The 12 existing runtime.json seeds are prior Linux diagnostic observations. The additional window procedure seed is a SHA-bound static candidate: value 0x00480A50 is stored at 0x0048089F into the WNDCLASSEXA lpfnWndProc field, passed to RegisterClassExA at 0x004808F0. Rechecked against the supplied input; not runtime-observed Windows execution.",
   "windows_execution_verified": false,
@@ -140,6 +141,12 @@
     {
       "target": 4602432,
       "basis": "Actual private E3 Windows-x64 diagnostic under Wine reached 0x00463A40 after legacy DirectDraw fullscreen setup, 380-byte v1 GetCaps, primary flip-chain creation, backbuffer retrieval, color-fill Blt, ShowCursor(FALSE), and observed cleanup calls. Target validated as file-backed executable code by WinRecomp lift (90 instructions / 34 blocks). Diagnostic metadata only; not native-Windows acceptance."
+    }
+  ],
+  "post_directinput_seed_provenance": [
+    {
+      "target": 4322464,
+      "basis": "Actual private E3 Windows-x64 diagnostic under Wine reached 0x0041F4A0 immediately after successful DirectInput 3.00 initialization: system mouse and keyboard CreateDevice, foreground/nonexclusive SetCooperativeLevel, checked SetDataFormat, Acquire on both devices, and mouse DIPROP_GRANULARITY. Target validated as file-backed executable .text. Diagnostic metadata only; not native-Windows gameplay acceptance."
     }
   ]
 }
