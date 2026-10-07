@@ -3,7 +3,7 @@
   "note": "Exact owned source for opt-in bounded single-stage D3D9 textures; no game material.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "e1032e434df32064d97a620a400386568e31f188dc760855945ad9869f3e0a45",
+    "CMakeLists.txt": "1d0cc3bdcc9b1caab4439f8855506afffaa7f7947ad51aa11f935601c5e2ecb3",
     "include/winrecomp/compiled.hpp": "4264c817ee2e5fd3c523b6a5fab7e62208f7a47865c33ea894bb89a341972d04",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
@@ -21,7 +21,7 @@
     "src/main.cpp": "2d4d97d2b932dbb37bcc1b23083c1d0a2d14a7ad91ebba5148dec66c4d811ac7",
     "src/pe.cpp": "889313ff14249f272a983ae177286e3f51abc04d2b3c1fcbc24a9e698c13c148",
     "src/runtime/process.cpp": "f7242f10c428ce7cf8ad64bc3029df5032a8825ec654fcb32eebb894bbd5a158",
-    "src/runtime/win32.cpp": "76b912190e15a0c3f4766684d18a762c2ca39c2a32594b22e3d2c4da4df1d8f3",
+    "src/runtime/win32.cpp": "7218e111dc4a7b200f766f682f75f81bcb8bbc5b5ebf96dc1b2ec64a13983dc6",
     "src/x86.cpp": "e0142766b0362ec456aa09717cd364a0b5d219d2bb2727118c5909f92c6693bf",
     "tests/abi_callbacks.py": "41084cade380e5f2d3b078108b1083d06281264f9c5fd7561aad17664e17460d",
     "tests/conformance.py": "f6fe56e27387711f599209fb1c98d7256839d10d68be569003b21b3637b25933",
@@ -35,7 +35,7 @@
     "tests/hardware_oracle.py": "a74cbec7c67083d77af23413a735bec8aa55c25f8b2c02f6ba77479ee746662d",
     "tests/integer_cases.py": "489a9a4e3e90270f670ae1003df2fbb2bc53566fbd2544efc613fd854b411cfa",
     "tests/nls.cpp": "a5ee6f2d88f7387614a10eecfd3705faf8c6b0a1fb86afbaac88b5e3792711c8",
-    "tests/process.cpp": "59d98737e169c9546e9e4a93300d5194e4a0751e2f3ed9625650257bdc2838a3",
+    "tests/process.cpp": "4c4b1bf74468f5b7868a2f8830dfc00ece8ebf4240ff3f32b5487462f45c50fa",
     "tests/program.py": "76f5e7735d9aea8d6329bb4186a392b6d7378571164ee06e936aa66f74d563f8",
     "tests/runtime.cpp": "11dc97bc6c626b8975f3d6dfb833380e355967cefac746ce81a9c4775ece145e",
     "tests/simd_cases.py": "3ffa3c8339b11f9410c4df2f12530bf204a0c64c56e1fd5159cf4f6719b4ec34",
@@ -63,7 +63,7 @@
     ".github/workflows/windowing.yml": "3bc079f58fa059bc8a343faf34fc7af03337907d4a5c24494a0242eaaf392ddf",
     "tests/exception_unwind.cpp": "3576dcdb5f9ace11e66ef7efbb230364a7d5802d8aa2af541a8cd39ac274a9ca",
     "include/winrecomp/directdraw.hpp": "c5a07b238734fa0dc2fdbdd1a7c17ecaa0d106ce59c9a240df7032f67098cce5",
-    "src/runtime/directdraw.cpp": "ce4a79b57bea3fa9f98102cb37de3493b3e32ba415007d13a5f8b5db74c7e442",
+    "src/runtime/directdraw.cpp": "99a03a860c682770a630aabdafa742c453c83a4a9b65f8a9c10ce5b9a486d48b",
     "tests/directdraw_boundary.cpp": "b463a1556234074f465a25a2d54afb84d9603c2f40756d5983afa75136c59a26",
     "tests/directdraw_program.py": "223f94ca5e5b23514227316946e642234c22483b7bbd0bc2bf4fbece3181ebfe",
     ".github/workflows/directdraw.yml": "8bb41c0f02e2b7a6ae6a6da637772f25d9f88d795e37c2eb96c796ec7f13262d",
@@ -76,7 +76,7 @@
     "tests/processor.cpp": "a0f8fd7536a999e059c026ce800e915b0b8c03948054f44aeaafb747c56374f0",
     "tests/modules_execution.py": "0af675f780ee5864dc609c8b8c46dd3d0a76bae17cc201526d365d0a5e0c03ab",
     "tools/generate_flags_oracle.py": "e65fda31394144274eda2ee8a0a5238c2b91c2ce269c114feb095d754b95d9b4",
-    "examples/e3_2000/windows-x64.json": "43658a43ade6639b79fee30ea4dba48253b717975e8b368ffee08e1f3589f026",
+    "examples/e3_2000/windows-x64.json": "1028720e5df4b5618bcbb4833ae77a005d465be2995f5224bd12b8e3d90c0570",
     "tests/d3d7_boundary.cpp": "ac137f46a7e3c8696754c6c8849bcbd8b5b7a58785aa365c824736c9cecaf65b",
     "tests/d3d7_execution.py": "4f5c58c39f95d7df98e2ee3b75e7a4e6d4a38928537555834b8566b84610a30e",
     "tests/device_identifier.cpp": "a07f988c6a5cab841a949e614cc9f0a461961f7b26a7a573d101171c324668c6",
@@ -106,6 +106,7 @@
     "tests/d3d9_depth_program.py": "734e05ca3595cffb99b913b2ce146435bcd8d2e9c0e130a38080be6c5b429959",
     "tests/d3d9_combined.cpp": "53c3b05a108ae27efb20ad0155ea54a5a84de83c0e17dc160578baa968adde4b",
     "tests/d3d9_blending.cpp": "e3c671955353127f5df70ec48b58f964b3172de09e25b9e99078090f21909c36",
-    "tests/d3d9_alpha_test.cpp": "4bc296a0c3d737ad3d6eb1d99c522e98493cf8fea651ac9b4d28dfeb6632700c"
+    "tests/d3d9_alpha_test.cpp": "4bc296a0c3d737ad3d6eb1d99c522e98493cf8fea651ac9b4d28dfeb6632700c",
+    "tests/e3_directdraw_v1.cpp": "0e858814557f9a2b3c913ecf91df1d8c1944a6f94242de6370e2d3f89abd7dab"
   }
 }
