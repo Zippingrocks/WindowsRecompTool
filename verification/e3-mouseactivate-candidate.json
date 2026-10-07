@@ -1,9 +1,8 @@
 {
   "schema": "windowsrecomptool.e3-mouseactivate-candidate.v1",
   "branch": "work/e3-mouseactivate",
-  "candidate_head": "48ec03865ff10065eb07064651813b7d49d955bc",
   "workflow_run": 37695062703,
-  "status": "native Windows MSVC verification in progress; Windows AddressSanitizer passed",
+  "status": "success",
   "observed_private_e3_blocker": {
     "message": "WM_MOUSEACTIVATE",
     "id": "0x0021",
@@ -20,5 +19,7 @@
   ],
   "windows_address_sanitizer": "passed",
   "hosted_game_bytes": false,
-  "playable": false
+  "playable": false,
+  "native_windows_msvc": "passed",
+  "accepted_source": "48ec03865ff10065eb07064651813b7d49d955bc"
 }
