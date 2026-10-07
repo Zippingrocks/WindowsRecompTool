@@ -35,14 +35,14 @@ U32 put_format(wr::Process& p,U32 data_size,std::span<const GuestFormatObject> l
 U32 put_mouse_format(wr::Process& p){
     constexpr U32 axis=DIDFT_AXIS|DIDFT_ANYINSTANCE,button=DIDFT_BUTTON|DIDFT_ANYINSTANCE;
     const std::array<GuestFormatObject,7> objects{{
-        {&GUID_XAxis,0,axis,0},{&GUID_YAxis,4,axis,0},{&GUID_ZAxis,8,axis|DIDFT_OPTIONAL,0},
-        {nullptr,12,button,0},{nullptr,13,button,0},{nullptr,14,button|DIDFT_OPTIONAL,0},{nullptr,15,button|DIDFT_OPTIONAL,0}
+        {&GUID_XAxis,0,axis,0},{&GUID_YAxis,4,axis,0},{&GUID_ZAxis,8,axis|0x80000000u,0},
+        {nullptr,12,button,0},{nullptr,13,button,0},{nullptr,14,button|0x80000000u,0},{nullptr,15,button|0x80000000u,0}
     }};
     return put_format(p,16,objects);
 }
 U32 put_keyboard_format(wr::Process& p){
     std::vector<GuestFormatObject> objects;objects.reserve(256);
-    for(U32 i=0;i<256;++i)objects.push_back({&GUID_Key,i,DIDFT_BUTTON|DIDFT_MAKEINSTANCE(i)|DIDFT_OPTIONAL,0});
+    for(U32 i=0;i<256;++i)objects.push_back({&GUID_Key,i,DIDFT_BUTTON|DIDFT_MAKEINSTANCE(i)|0x80000000u,0});
     return put_format(p,256,objects);
 }
 void run(){
