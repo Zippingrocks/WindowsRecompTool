@@ -1,0 +1,24 @@
+{
+  "schema": "windowsrecomptool.e3-mouseactivate-candidate.v1",
+  "branch": "work/e3-mouseactivate",
+  "candidate_head": "48ec03865ff10065eb07064651813b7d49d955bc",
+  "workflow_run": 37695062703,
+  "status": "native Windows MSVC verification in progress; Windows AddressSanitizer passed",
+  "observed_private_e3_blocker": {
+    "message": "WM_MOUSEACTIVATE",
+    "id": "0x0021",
+    "context": "generated while dismissing the private E3 rasterizer chooser under diagnostic Wine/Xvfb"
+  },
+  "implementation": [
+    "marshal WM_MOUSEACTIVATE wParam as a guest window token rather than leaking a native HWND",
+    "marshal lParam as the packed hit-test/mouse-message scalar"
+  ],
+  "regression": [
+    "native Windows host SendMessageA injects WM_MOUSEACTIVATE",
+    "guest WNDPROC must receive its own 32-bit window token",
+    "guest WNDPROC must receive the original packed lParam scalar"
+  ],
+  "windows_address_sanitizer": "passed",
+  "hosted_game_bytes": false,
+  "playable": false
+}
