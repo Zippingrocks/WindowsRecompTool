@@ -34,8 +34,9 @@ Process::Process(StepFunction step,ProcessOptions opts):win32_(std::make_unique<
     gui_=install_gui(*this);
     directdraw_=install_directdraw(*this);
     directinput_=install_directinput(*this);
+    directsound_=install_directsound(*this);
 }
-Process::~Process(){if(directinput_)directinput_->shutdown();if(directdraw_)directdraw_->shutdown();if(gui_)gui_->shutdown();}
+Process::~Process(){if(directsound_)directsound_->shutdown();if(directinput_)directinput_->shutdown();if(directdraw_)directdraw_->shutdown();if(gui_)gui_->shutdown();}
 const Image& Process::source_image() const {if(!source_image_)throw std::runtime_error("no loaded source image");return *source_image_;}
 Win32State& Process::state(){return *win32_;}
 void Process::load(const Image& image) {
@@ -192,7 +193,7 @@ std::string Process::report() const {
     bool first=true;for(const auto& x:recent_transfers){if(!first)out<<',';first=false;out<<"{\"pc\":"<<x.pc<<",\"return\":"<<x.return_address<<",\"api\":"<<quote(x.api)<<",\"arguments\":[";for(std::size_t n=0;n<x.arguments.size();++n){if(n)out<<',';out<<x.arguments[n];}out<<"],\"detail\":"<<quote(x.detail)<<"}";}out<<"],\"dll_namespace\":{\"mode\":"<<quote(options.dll_search_roots.empty()?"unconfigured":"explicit_guest_roots")<<",\"roots\":[";
     first=true;for(const auto& root:options.dll_search_roots){if(!first)out<<',';first=false;out<<quote(root.generic_string());}
     out<<"],\"probes\":[";first=true;for(const auto& probe:module_probes){if(!first)out<<',';first=false;out<<"{\"requested\":"<<quote(probe.requested)<<",\"normalized\":"<<quote(probe.normalized)<<",\"outcome\":"<<quote(probe.outcome)<<",\"searched\":[";for(std::size_t i=0;i<probe.searched.size();++i){if(i)out<<',';out<<quote(probe.searched[i]);}out<<"]}";}
-    out<<"]},\"cpu_profile\":"<<quote(processor_profile_name(cpu.processor_profile))<<",\"gui\":"<<(gui_?gui_->report():"null")<<",\"directdraw\":"<<(directdraw_?directdraw_->report():"null")<<",\"directinput\":"<<(directinput_?directinput_->report():"null")<<"}";return out.str();
+    out<<"]},\"cpu_profile\":"<<quote(processor_profile_name(cpu.processor_profile))<<",\"gui\":"<<(gui_?gui_->report():"null")<<",\"directdraw\":"<<(directdraw_?directdraw_->report():"null")<<",\"directinput\":"<<(directinput_?directinput_->report():"null")<<",\"directsound\":"<<(directsound_?directsound_->report():"null")<<"}";return out.str();
 }
 int run_program(int argc,char** argv,StepFunction step,const char* expected_sha256) {
     std::unique_ptr<Process> process;std::string report_path;

@@ -1,0 +1,47 @@
+name: Native Windows E3 DirectSound verification
+on:
+  push:
+    branches: [work/e3-directsound]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: x64
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - run: python tools/check_repository.py
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build --target winrecomp_directsound_boundary winrecomp_gui_boundary winrecomp_directinput_boundary winrecomp_e3_directdraw_v1 --parallel 2
+      - name: E3 DirectSound plus retained startup boundaries
+        run: ctest --test-dir build -R "^(directsound_boundary|gui_boundary|directinput_boundary|e3_directdraw_v1)$" --output-on-failure
+  windows_memory:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - run: cmake -S . -B asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
+      - run: cmake --build asan --target winrecomp_directsound_boundary --parallel 2
+      - name: E3 DirectSound ASan boundary
+        run: ctest --test-dir asan -R "^directsound_boundary$" --output-on-failure

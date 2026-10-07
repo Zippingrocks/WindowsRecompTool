@@ -4,6 +4,7 @@
 #include "winrecomp/gui.hpp"
 #include "winrecomp/directdraw.hpp"
 #include "winrecomp/directinput.hpp"
+#include "winrecomp/directsound.hpp"
 #include <functional>
 #include <memory>
 #include <deque>
@@ -32,6 +33,7 @@ private:
     std::unique_ptr<GuiBackend> gui_;
     std::unique_ptr<DirectDrawBackend> directdraw_;
     std::unique_ptr<DirectInputBackend> directinput_;
+    std::unique_ptr<DirectSoundBackend> directsound_;
     std::unique_ptr<Image> source_image_;
     std::map<U32,Api> apis_;
     std::map<std::string,U32> api_names_;
@@ -85,6 +87,7 @@ public:
     GuiBackend* gui() {return gui_.get();}
     const DirectDrawBackend* directdraw() const {return directdraw_.get();}
     const DirectInputBackend* directinput() const {return directinput_.get();}
+    const DirectSoundBackend* directsound() const {return directsound_.get();}
     const GuiBackend* gui() const {return gui_.get();}
     std::string report() const;
 };
