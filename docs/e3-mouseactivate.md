@@ -15,9 +15,9 @@ token and the same packed scalar.
 Candidate branch: `work/e3-mouseactivate`.
 Verification workflow: `37695062703`.
 
-At the time of this checkpoint, the Windows AddressSanitizer job has passed.
-The normal native-Windows/MSVC job is still in progress, so this document does
-not claim final acceptance yet.
+Both the normal native-Windows/MSVC job and Windows AddressSanitizer job passed.
+The retained DirectInput, E3 DirectDraw v1 and D3D9 alpha-test boundaries also
+passed in workflow `37695062703`.
 
 The private E3 executable/assets/generated game source were not uploaded to CI.
 This is not a rendered-frame or playability milestone.
