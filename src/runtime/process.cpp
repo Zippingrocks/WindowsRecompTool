@@ -34,8 +34,9 @@ Process::Process(StepFunction step,ProcessOptions opts):win32_(std::make_unique<
     gui_=install_gui(*this);
     directdraw_=install_directdraw(*this);
     directinput_=install_directinput(*this);
+    directsound_=install_directsound(*this);
 }
-Process::~Process(){if(directinput_)directinput_->shutdown();if(directdraw_)directdraw_->shutdown();if(gui_)gui_->shutdown();}
+Process::~Process(){if(directsound_)directsound_->shutdown();if(directinput_)directinput_->shutdown();if(directdraw_)directdraw_->shutdown();if(gui_)gui_->shutdown();}
 const Image& Process::source_image() const {if(!source_image_)throw std::runtime_error("no loaded source image");return *source_image_;}
 Win32State& Process::state(){return *win32_;}
 void Process::load(const Image& image) {
