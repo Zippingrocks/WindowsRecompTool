@@ -7,6 +7,7 @@
     4402942,
     4402970,
     4403405,
+    4721232,
     4821462,
     4821521,
     4821576,
@@ -17,7 +18,7 @@
     4911032,
     4921188
   ],
-  "seed_provenance": "Actual untranslated PCs observed in local compiled execution of this exact input; no prologue/data scanning or game code bytes. Guarded switch cases are now recovered statically and are not manual roots.",
+  "seed_provenance": "Actual untranslated/callback PCs observed in local compiled execution of this exact input; includes the main-window WNDPROC reached through RegisterClassExA/CreateWindowExA. No prologue/data scanning or game code bytes. Guarded switch cases are recovered statically and are not manual roots.",
   "execution_budget": 100000000,
   "last_local_checkpoint": {
     "api": "user32.dll!LoadIconA",
