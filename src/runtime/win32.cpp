@@ -367,8 +367,13 @@ void install_win32(Process& p) {
             // Accept only the canonical no-descriptor, non-inheritable form;
             // never expose a guest pointer as a native security descriptor.
             q.memory.check(security,12,Memory::Read);
-            if(q.memory.load(security,32)!=12 || q.memory.load(security+4,32)!=0 || q.memory.load(security+8,32)!=0)
+            const auto inherit=q.memory.load(security+8,32);
+            if(q.memory.load(security,32)!=12 || q.memory.load(security+4,32)!=0 || inherit>1)
                 throw GuestFault(FaultKind::unsupported,q.cpu.eip,"unsupported CreateFileA security attributes");
+            // Handle inheritance matters only when creating a child process.
+            // This runtime exposes virtual file handles and has no child-process
+            // API, so TRUE/FALSE are both valid and no native guest pointer crosses.
+            
         }
         if(templ || flags&~0x80u || share&~7u || access&~0xc0000000u)throw GuestFault(FaultKind::unsupported,q.cpu.eip,"unsupported CreateFileA flags/template");
         const bool write=(access&0x40000000u)!=0,read=(access&0x80000000u)!=0;
