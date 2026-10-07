@@ -869,6 +869,7 @@ U32 Draw::vtable(Interface kind){
         else if(slot==2)method(1,[this,kind](Args a){return release(object(a[0],kind));});
         if(kind==Interface::draw1){
             if(slot==8)method(5,[this](Args a){return enum_modes(a);});
+            if(slot==11)method(3,[this](Args a){return draw_caps1(a);});
             if(slot==19)method(1,[this](Args a){return restore_display_mode1(a);});
             if(slot==20)method(3,[this](Args a){auto root=static_cast<IDirectDraw*>(object(a[0],Interface::draw1).native);return set_cooperative(root,a[1],a[2]);});
             if(slot==21)method(4,[this](Args a){return set_display_mode1(a);});
