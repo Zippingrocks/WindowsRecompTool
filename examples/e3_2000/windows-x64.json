@@ -32,6 +32,7 @@
     4721372,
     4721388,
     4721452,
+    4725936,
     4821462,
     4821521,
     4821576,
@@ -147,6 +148,12 @@
     {
       "target": 4322464,
       "basis": "Actual private E3 Windows-x64 diagnostic under Wine reached 0x0041F4A0 immediately after successful DirectInput 3.00 initialization: system mouse and keyboard CreateDevice, foreground/nonexclusive SetCooperativeLevel, checked SetDataFormat, Acquire on both devices, and mouse DIPROP_GRANULARITY. Target validated as file-backed executable .text. Diagnostic metadata only; not native-Windows gameplay acceptance."
+    }
+  ],
+  "post_directsound_seed_provenance": [
+    {
+      "target": 4725936,
+      "basis": "Actual private E3 Windows-x64 diagnostic reached 0x00481CB0 after the verified DirectInput mouse/keyboard initialization and subsequent timing/allocation setup. Static disassembly shows this function begins E3's DirectSound startup and calls DSOUND.dll ordinal 1 (DirectSoundCreate) via the import thunk at 0x004ABC32. Target is file-backed executable .text. Diagnostic/Wine evidence only; not native-Windows gameplay acceptance."
     }
   ]
 }
