@@ -1,0 +1,40 @@
+{
+  "schema": "windowsrecomptool.e3-directsound-native.v1",
+  "tested_source": "615fe66cc7c466bef39617b91d3106465c1f26c9",
+  "workflow_run": 37704812368,
+  "result": "success",
+  "host": "native Windows x64 / MSVC hosted runner",
+  "hosted_audio_device": "unavailable (DirectSoundCreate reached DSERR_NODRIVER path)",
+  "verified_on_host": [
+    "dsound.dll ordinal #1 resolves to bounded DirectSoundCreate bridge",
+    "no-driver HRESULT is propagated without fake success or object creation",
+    "DirectSound backend presence is visible in process diagnostics",
+    "Windows AddressSanitizer boundary completed successfully"
+  ],
+  "implemented_e3_slice": [
+    "DirectSoundCreate by ordinal #1 and named export",
+    "SetCooperativeLevel",
+    "96-byte DSCAPS GetCaps translation",
+    "36-byte x86 DSBUFFERDESC translation",
+    "primary 3D buffer and PCM SetFormat",
+    "IDirectSound3DListener wrapping and setters",
+    "secondary PCM buffers",
+    "IDirectSound3DBuffer wrapping and setters",
+    "buffer position/status/play/stop/restore/volume/pan/frequency subset",
+    "IKsPropertySet/EAX probe returns E_NOINTERFACE to preserve E3 fallback"
+  ],
+  "not_yet_native_device_verified": [
+    "successful DirectSoundCreate on a machine with an audio device",
+    "actual primary/secondary buffer creation on real DirectSound output",
+    "3D listener/buffer success path",
+    "sound playback",
+    "Lock/Unlock streaming"
+  ],
+  "retained_boundaries": [
+    "DirectInput",
+    "E3 DirectDraw v1",
+    "GUI"
+  ],
+  "hosted_game_bytes": false,
+  "playable": false
+}
