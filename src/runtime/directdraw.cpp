@@ -868,6 +868,7 @@ U32 Draw::vtable(Interface kind){
         else if(slot==1)method(1,[this,kind](Args a){auto& value=object(a[0],kind);if(value.guest_refs==0xffffffffu)stop("reference count overflow");const auto result=(value.compat || value.depth_model)?value.guest_refs+1:value.native->AddRef();++value.guest_refs;return result;});
         else if(slot==2)method(1,[this,kind](Args a){return release(object(a[0],kind));});
         if(kind==Interface::draw1){
+            if(slot==6)method(4,[this](Args a){return create_surface1(a);});
             if(slot==8)method(5,[this](Args a){return enum_modes(a);});
             if(slot==11)method(3,[this](Args a){return draw_caps1(a);});
             if(slot==19)method(1,[this](Args a){return restore_display_mode1(a);});
