@@ -1,0 +1,29 @@
+{
+  "schema": "windowsrecomptool.e3-directinput-native.v1",
+  "tested_source": "e8323522bb38892c44c7659152295ee29046c502",
+  "workflow_run": 37680286857,
+  "result": "success",
+  "host": "native Windows x64 / MSVC",
+  "windows_address_sanitizer": "passed",
+  "observed_e3_path": [
+    "DirectInputCreateA version 0x0300",
+    "system mouse and system keyboard CreateDevice",
+    "foreground/nonexclusive SetCooperativeLevel",
+    "x86 DIDATAFORMAT translation without guest pointer leakage",
+    "DIPROP_GRANULARITY query",
+    "Acquire and Unacquire",
+    "GetDeviceState with installed data-format size"
+  ],
+  "portability": [
+    "dinput.dll is loaded lazily at runtime",
+    "no legacy dinput.lib dependency is required by modern MSVC"
+  ],
+  "retained": [
+    "E3 DirectDraw v1 slice",
+    "process boundary",
+    "DirectDraw boundary",
+    "D3D9 alpha-test boundary"
+  ],
+  "note": "No proprietary E3 executable/assets/generated game source were uploaded to CI. This is component/boundary evidence, not playability.",
+  "playable": false
+}

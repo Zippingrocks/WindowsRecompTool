@@ -3,7 +3,7 @@
   "note": "Exact owned source for opt-in bounded single-stage D3D9 textures; no game material.",
   "sha256": {
     ".github/workflows/ci.yml": "ae3b4d593ef7eb3ca27f9a35989be676fbc26a52b7dfcab4a638f1349c0e8d59",
-    "CMakeLists.txt": "1d0cc3bdcc9b1caab4439f8855506afffaa7f7947ad51aa11f935601c5e2ecb3",
+    "CMakeLists.txt": "38a1da8fda94bc142aa53415b11859f8e8fa54dbfa12153267d50d5a10b8bd3e",
     "include/winrecomp/compiled.hpp": "4264c817ee2e5fd3c523b6a5fab7e62208f7a47865c33ea894bb89a341972d04",
     "include/winrecomp/core.hpp": "562f8da0cbc116dc4fef20d621192405e376bba2d031906817e2abf40764d7ec",
     "include/winrecomp/fp_state.hpp": "6d0c908ff0fc1186402085fa65961febdf5e30fadfdc0e25887603db24e3fda3",
@@ -11,7 +11,7 @@
     "include/winrecomp/integer.hpp": "10777e00720fc8b00d40c808dac4bc90ee234d404297d4076ec1721ef73666a7",
     "include/winrecomp/memory.hpp": "e80f6e71306c8176e6a3a5421c79c2c7241a4d14841c610ac78e02f866621fa9",
     "include/winrecomp/nls_reference.hpp": "7adced99976b988e3adaa654089aa89dad0ea3f67f42c2c9cc81e9437ab0800b",
-    "include/winrecomp/process.hpp": "96c0364a87a107c99eeae4510be734c4df78db824c6ceee0d951489d11b0e205",
+    "include/winrecomp/process.hpp": "ff8f84521dfdd16d17c5d19d22c2b3c2c66437b8a89aa841da54845ff7bb74bf",
     "include/winrecomp/runtime.hpp": "82173cb2fada2045e01698fe1f570a222eb11de9e011ce1506f9fbc0425a64c4",
     "include/winrecomp/sse.hpp": "edf9b6d8e6284160e8576f5d4887bd64e8a96736c7cd47514fbb9fab01bfdfc8",
     "include/winrecomp/win32_state.hpp": "fd3bddcc125cd92d3154f0bbfb22e9b353d11eea5330eeed13ba5a106baea1be",
@@ -20,7 +20,7 @@
     "src/lift.cpp": "5d474b386da33782fbd3094d4522e0e46848b4272d5c1a288f2bf150c0bcd4c0",
     "src/main.cpp": "2d4d97d2b932dbb37bcc1b23083c1d0a2d14a7ad91ebba5148dec66c4d811ac7",
     "src/pe.cpp": "889313ff14249f272a983ae177286e3f51abc04d2b3c1fcbc24a9e698c13c148",
-    "src/runtime/process.cpp": "f7242f10c428ce7cf8ad64bc3029df5032a8825ec654fcb32eebb894bbd5a158",
+    "src/runtime/process.cpp": "bebcd9cfc414cd175fc268bc5f5f3d9478a4e879ce151433e24f203158e5fd0c",
     "src/runtime/win32.cpp": "1acfa76dbd95a479d45a9994d57c265be72854f971757000964dfffdcbe20228",
     "src/x86.cpp": "e0142766b0362ec456aa09717cd364a0b5d219d2bb2727118c5909f92c6693bf",
     "tests/abi_callbacks.py": "41084cade380e5f2d3b078108b1083d06281264f9c5fd7561aad17664e17460d",
@@ -107,6 +107,9 @@
     "tests/d3d9_combined.cpp": "53c3b05a108ae27efb20ad0155ea54a5a84de83c0e17dc160578baa968adde4b",
     "tests/d3d9_blending.cpp": "e3c671955353127f5df70ec48b58f964b3172de09e25b9e99078090f21909c36",
     "tests/d3d9_alpha_test.cpp": "4bc296a0c3d737ad3d6eb1d99c522e98493cf8fea651ac9b4d28dfeb6632700c",
-    "tests/e3_directdraw_v1.cpp": "0e858814557f9a2b3c913ecf91df1d8c1944a6f94242de6370e2d3f89abd7dab"
+    "tests/e3_directdraw_v1.cpp": "0e858814557f9a2b3c913ecf91df1d8c1944a6f94242de6370e2d3f89abd7dab",
+    "include/winrecomp/directinput.hpp": "f12333ba640b2fe42f97b8fc80332511d4a4a6abf8452e9d535f3af9c6096c9f",
+    "src/runtime/directinput.cpp": "3137dd9fce872ce6c13f2e77c44e32cb20bb1119d52363ddf5e74564b60a2976",
+    "tests/directinput_boundary.cpp": "fa2e26052a2f63fb4aac34e05c9e826dca4304a9b655c9b87a31d38a97b818db"
   }
 }
