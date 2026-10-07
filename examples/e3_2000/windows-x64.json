@@ -35,7 +35,8 @@
     4911032,
     4921188,
     4642258,
-    4642179
+    4642179,
+    4636864
   ],
   "seed_provenance": "The 12 existing runtime.json seeds are prior Linux diagnostic observations. The additional window procedure seed is a SHA-bound static candidate: value 0x00480A50 is stored at 0x0048089F into the WNDCLASSEXA lpfnWndProc field, passed to RegisterClassExA at 0x004808F0. Rechecked against the supplied input; not runtime-observed Windows execution.",
   "windows_execution_verified": false,
@@ -114,6 +115,12 @@
     {
       "target": 4642179,
       "basis": "Actual private E3 Windows-x64 diagnostic under Wine reached 0x0046D583 as an untranslated callback immediately after the rasterizer dialog issued SendMessageA. Target validated as file-backed executable code by WinRecomp lift. Diagnostic metadata only; not native-Windows acceptance."
+    }
+  ],
+  "post_dialog_seed_provenance": [
+    {
+      "target": 4636864,
+      "basis": "Actual private E3 Windows-x64 diagnostic under Wine reached 0x0046C0C0 immediately after resource-101 Choose Rasterizer completed via the standard IDOK command. Target validated as file-backed executable code by WinRecomp lift. Diagnostic metadata only; not native-Windows acceptance."
     }
   ]
 }
