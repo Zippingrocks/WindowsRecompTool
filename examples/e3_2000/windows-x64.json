@@ -38,7 +38,8 @@
     4642179,
     4636864,
     4638304,
-    4586480
+    4586480,
+    4602432
   ],
   "seed_provenance": "The 12 existing runtime.json seeds are prior Linux diagnostic observations. The additional window procedure seed is a SHA-bound static candidate: value 0x00480A50 is stored at 0x0048089F into the WNDCLASSEXA lpfnWndProc field, passed to RegisterClassExA at 0x004808F0. Rechecked against the supplied input; not runtime-observed Windows execution.",
   "windows_execution_verified": false,
@@ -135,6 +136,10 @@
     {
       "target": 4586480,
       "basis": "Actual private E3 Windows-x64 diagnostic under Wine reached 0x0045FBF0 after legacy DirectDraw display mode, caps, primary flip-chain creation, backbuffer lookup and color-fill completed. Target validated as file-backed executable code by WinRecomp lift (60 instructions / 23 blocks). Diagnostic metadata only; not native-Windows acceptance."
+    },
+    {
+      "target": 4602432,
+      "basis": "Actual private E3 Windows-x64 diagnostic under Wine reached 0x00463A40 after legacy DirectDraw fullscreen setup, 380-byte v1 GetCaps, primary flip-chain creation, backbuffer retrieval, color-fill Blt, ShowCursor(FALSE), and observed cleanup calls. Target validated as file-backed executable code by WinRecomp lift (90 instructions / 34 blocks). Diagnostic metadata only; not native-Windows acceptance."
     }
   ]
 }
