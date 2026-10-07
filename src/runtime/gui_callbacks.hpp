@@ -34,7 +34,8 @@ struct Frame {
         case WM_SIZING:case WM_MOVING:wp=scalar(native_w);plain(reinterpret_cast<void*>(native_l),16);break;
         case WM_SETTEXT:{wp=scalar(native_w);const auto* text=reinterpret_cast<const char*>(native_l);if(!text){lp=0;break;}std::size_t n=0;while(n<32768 && text[n])++n;if(n==32768)g.unsupported("oversized native window text");lp=scratch.string(std::string(text,n));break;}
         case WM_GETTEXT:{wp=scalar(native_w);if(wp>32768)g.unsupported("oversized native text output");if(!native_l && wp)g.unsupported("null native text output");lp=wp?scratch.alloc(wp):0;break;}
-        case WM_SETCURSOR:case WM_SETFOCUS:case WM_KILLFOCUS:case WM_CONTEXTMENU:wp=g.window_token(reinterpret_cast<HWND>(native_w));lp=scalar(std::uintptr_t(native_l));break;
+        case WM_SETCURSOR:case WM_SETFOCUS:case WM_KILLFOCUS:case WM_CONTEXTMENU:case WM_MOUSEACTIVATE:
+            wp=g.window_token(reinterpret_cast<HWND>(native_w));lp=scalar(std::uintptr_t(native_l));break;
         case WM_ACTIVATE:case WM_CAPTURECHANGED:wp=scalar(native_w);lp=g.window_token(reinterpret_cast<HWND>(native_l));break;
         case WM_INPUTLANGCHANGE:case WM_INPUTLANGCHANGEREQUEST:wp=scalar(native_w);lp=g.token(Kind::keyboard_layout,std::uintptr_t(native_l));break;
         case WM_ACTIVATEAPP:wp=scalar(native_w);lp=U32(native_l)==GetCurrentThreadId()?1u:scalar(std::uintptr_t(native_l));break;

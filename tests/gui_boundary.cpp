@@ -22,8 +22,9 @@ wr::Image image(){
     im.bytes.resize(1536);im.sections={{".text",0x1000,512,512,512,0x60000020},{".data",0x2000,512,1024,512,0xc0000040}};
     im.bytes[512]=0xc3;im.bytes[528]=0xc3;return im;
 }
-unsigned palette_queries{};
+unsigned palette_queries{},mouseactivate_queries{};
 bool palette_answer{};
+wr::U32 mouseactivate_wp{},mouseactivate_lp{};
 bool step(wr::Cpu& cpu,wr::Memory& memory,std::uint64_t&){
     if(cpu.eip==Entry){cpu.eip=wr::pop(cpu,memory);return true;}
     if(cpu.eip!=Callback)return false;
@@ -33,6 +34,13 @@ bool step(wr::Cpu& cpu,wr::Memory& memory,std::uint64_t&){
     if(message==WM_QUERYNEWPALETTE){
         ++palette_queries;
         if(palette_answer){cpu.r[wr::EAX]=1;cpu.eip=wr::pop(cpu,memory);cpu.r[wr::ESP]+=16;return true;}
+    }
+    if(message==WM_MOUSEACTIVATE){
+        ++mouseactivate_queries;
+        mouseactivate_wp=memory.load(cpu.r[wr::ESP]+12,32);
+        mouseactivate_lp=memory.load(cpu.r[wr::ESP]+16,32);
+        cpu.r[wr::EAX]=MA_ACTIVATE;
+        cpu.eip=wr::pop(cpu,memory);cpu.r[wr::ESP]+=16;return true;
     }
     if(message==Custom){
         cpu.r[wr::EAX]=memory.load(cpu.r[wr::ESP]+12,32)+memory.load(cpu.r[wr::ESP]+16,32);
@@ -75,6 +83,13 @@ struct TestWindow {
 };
 void basic(){
     mode=Mode::normal;TestWindow w("basic");auto& p=w.p;CHECK(w.native());
+    // Native WM_MOUSEACTIVATE carries an HWND in wParam. The guest must see
+    // its 32-bit window token, never the native host pointer.
+    const auto packed_mouse=wr::U32(MAKELPARAM(HTCLIENT,WM_LBUTTONDOWN));
+    const auto mouse_before=mouseactivate_queries;
+    CHECK(::SendMessageA(w.native(),WM_MOUSEACTIVATE,reinterpret_cast<WPARAM>(w.native()),LPARAM(packed_mouse))==MA_ACTIVATE);
+    CHECK(mouseactivate_queries==mouse_before+1);
+    CHECK(mouseactivate_wp==w.handle && mouseactivate_lp==packed_mouse);
     // The query is a real guest callback, not a host-only notification. Its
     // default return must agree with native DefWindowProcA.
     CHECK(invoke(p,"SendMessageA",{w.handle,WM_QUERYNEWPALETTE,0,0})==wr::U32(::DefWindowProcA(w.native(),WM_QUERYNEWPALETTE,0,0)));
