@@ -63,7 +63,7 @@
     ".github/workflows/windowing.yml": "3bc079f58fa059bc8a343faf34fc7af03337907d4a5c24494a0242eaaf392ddf",
     "tests/exception_unwind.cpp": "3576dcdb5f9ace11e66ef7efbb230364a7d5802d8aa2af541a8cd39ac274a9ca",
     "include/winrecomp/directdraw.hpp": "c5a07b238734fa0dc2fdbdd1a7c17ecaa0d106ce59c9a240df7032f67098cce5",
-    "src/runtime/directdraw.cpp": "99a03a860c682770a630aabdafa742c453c83a4a9b65f8a9c10ce5b9a486d48b",
+    "src/runtime/directdraw.cpp": "e2b6a8eb0b475214e66514bd7fd2fd7e2697652bf205baa026aa7dec31a8b01f",
     "tests/directdraw_boundary.cpp": "b463a1556234074f465a25a2d54afb84d9603c2f40756d5983afa75136c59a26",
     "tests/directdraw_program.py": "223f94ca5e5b23514227316946e642234c22483b7bbd0bc2bf4fbece3181ebfe",
     ".github/workflows/directdraw.yml": "8bb41c0f02e2b7a6ae6a6da637772f25d9f88d795e37c2eb96c796ec7f13262d",
