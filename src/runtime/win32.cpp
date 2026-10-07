@@ -362,7 +362,15 @@ void install_win32(Process& p) {
     kernel(p,"SetHandleCount",1,[](auto& q){return arg(q,0);}); // obsolete Win32 API returns its input
     kernel(p,"CloseHandle",1,[](auto& q){auto it=q.state().files.find(arg(q,0));if(it!=q.state().files.end()){if(it->second.owned && it->second.stream)std::fclose(it->second.stream);q.state().files.erase(it);return 1;}if(q.state().mutexes.erase(arg(q,0)))return 1;q.set_error(6);return 0;});
     kernel(p,"CreateFileA",7,[](auto& q){const auto name=q.read_string(arg(q,0));const auto path=guest_path(q,name);auto access=arg(q,1),share=arg(q,2),security=arg(q,3),creation=arg(q,4),flags=arg(q,5),templ=arg(q,6);
-        if(security || templ || flags&~0x80u || share&~7u || access&~0xc0000000u)throw GuestFault(FaultKind::unsupported,q.cpu.eip,"unsupported CreateFileA flags/security/template");
+        if(security){
+            // Win32 SECURITY_ATTRIBUTES is 12 bytes in the 32-bit guest ABI.
+            // Accept only the canonical no-descriptor, non-inheritable form;
+            // never expose a guest pointer as a native security descriptor.
+            q.memory.check(security,12,Memory::Read);
+            if(q.memory.load(security,32)!=12 || q.memory.load(security+4,32)!=0 || q.memory.load(security+8,32)!=0)
+                throw GuestFault(FaultKind::unsupported,q.cpu.eip,"unsupported CreateFileA security attributes");
+        }
+        if(templ || flags&~0x80u || share&~7u || access&~0xc0000000u)throw GuestFault(FaultKind::unsupported,q.cpu.eip,"unsupported CreateFileA flags/template");
         const bool write=(access&0x40000000u)!=0,read=(access&0x80000000u)!=0;
         if(!read && !write)throw GuestFault(FaultKind::unsupported,q.cpu.eip,"metadata-only CreateFileA not implemented");
         if((write || creation!=3) && !q.options.allow_file_write){q.set_error(5);return 0xffffffffu;}
