@@ -616,6 +616,28 @@ class Draw final:public DirectDrawBackend {
         catch(const GuestFault&){throw;}
         catch(const std::exception& error){stop(std::string("guest window lookup: ")+error.what());}
     }
+    template<class DrawT>
+    U32 set_cooperative(DrawT* root,U32 guest_hwnd,U32 flags){
+        constexpr U32 exclusive=U32(DDSCL_FULLSCREEN|DDSCL_EXCLUSIVE|DDSCL_NOWINDOWCHANGES);
+        if(flags!=DDSCL_NORMAL && flags!=exclusive)
+            stop("cooperative flags outside bounded normal/exclusive profile");
+        auto window=guest_window(guest_hwnd);
+        if(flags==exclusive && !window)stop("exclusive cooperative mode requires a window");
+        const auto hr=root->SetCooperativeLevel(window,flags);
+        if(SUCCEEDED(hr))cooperative_windows[identity9(root)]=window;
+        return U32(hr);
+    }
+    U32 set_display_mode1(Args a){
+        auto root=static_cast<IDirectDraw*>(object(a[0],Interface::draw1).native);
+        const auto width=a[1],height=a[2],bpp=a[3];
+        if(!width || !height || width>4096 || height>4096 || (bpp!=16 && bpp!=32))
+            return U32(DDERR_INVALIDMODE);
+        return U32(root->SetDisplayMode(width,height,bpp));
+    }
+    U32 restore_display_mode1(Args a){
+        auto root=static_cast<IDirectDraw*>(object(a[0],Interface::draw1).native);
+        return U32(root->RestoreDisplayMode());
+    }
     U32 create_clipper(Args a){
         auto native=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native);
         p.memory.check(a[2],4,Memory::Write);if(a[3])stop("COM clipper aggregation is unsupported");
@@ -758,14 +780,19 @@ U32 Draw::vtable(Interface kind){
         if(slot==0)method(3,[this,kind](Args a){return query(object(a[0],kind),a);});
         else if(slot==1)method(1,[this,kind](Args a){auto& value=object(a[0],kind);if(value.guest_refs==0xffffffffu)stop("reference count overflow");const auto result=(value.compat || value.depth_model)?value.guest_refs+1:value.native->AddRef();++value.guest_refs;return result;});
         else if(slot==2)method(1,[this,kind](Args a){return release(object(a[0],kind));});
-        if(kind==Interface::draw1 && slot==8)method(5,[this](Args a){return enum_modes(a);});
+        if(kind==Interface::draw1){
+            if(slot==8)method(5,[this](Args a){return enum_modes(a);});
+            if(slot==19)method(1,[this](Args a){return restore_display_mode1(a);});
+            if(slot==20)method(3,[this](Args a){auto root=static_cast<IDirectDraw*>(object(a[0],Interface::draw1).native);return set_cooperative(root,a[1],a[2]);});
+            if(slot==21)method(4,[this](Args a){return set_display_mode1(a);});
+        }
         if(kind==Interface::draw7){
             if(slot==4)method(4,[this](Args a){return create_clipper(a);});
             if(slot==6)method(4,[this](Args a){return create_surface(a);});
             if(slot==8)method(5,[this](Args a){return enum_modes7(a);});
             if(slot==11)method(3,[this](Args a){return draw_caps(a);});
             if(slot==12)method(2,[this](Args a){p.memory.check(a[1],DescSize,Memory::Read|Memory::Write);if(p.memory.load(a[1],32)!=DescSize)stop("GetDisplayMode description size");DDSURFACEDESC2 d{};d.dwSize=sizeof(d);auto hr=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->GetDisplayMode(&d);if(SUCCEEDED(hr)){if(d.lpSurface)stop("GetDisplayMode returned a native pixel pointer");write_description(a[1],d);}return U32(hr);});
-            if(slot==20)method(3,[this](Args a){if(a[2]!=DDSCL_NORMAL)stop("only normal/windowed cooperative mode is supported");auto window=guest_window(a[1]);auto root=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native);const auto hr=root->SetCooperativeLevel(window,a[2]);if(SUCCEEDED(hr))cooperative_windows[identity9(root)]=window;return U32(hr);});
+            if(slot==20)method(3,[this](Args a){auto root=static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native);return set_cooperative(root,a[1],a[2]);});
             if(slot==27)method(3,[this](Args a){return device_identifier(a);});
             if(slot==26)method(1,[this](Args a){return U32(static_cast<IDirectDraw7*>(object(a[0],Interface::draw7).native)->TestCooperativeLevel());});
         }
