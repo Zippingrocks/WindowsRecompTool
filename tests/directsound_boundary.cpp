@@ -105,12 +105,41 @@ void run(){
     CHECK(SUCCEEDED(HRESULT(com(p,secondary,17,{secondary,22050}))));
     CHECK(SUCCEEDED(HRESULT(com(p,listener,17,{listener}))));
 
+    // E3 writes 16-bit sample data through the normal Lock/Unlock path (flags 0).
+    const auto lock_out=data+1600,lock_bytes1=data+1604,lock_out2=data+1608,lock_bytes2=data+1612;
+    auto do_lock=[&](U32 offset,U32 bytes){
+        p.memory.store(lock_out,0,32);p.memory.store(lock_bytes1,0,32);p.memory.store(lock_out2,0,32);p.memory.store(lock_bytes2,0,32);
+        CHECK(SUCCEEDED(HRESULT(com(p,secondary,11,{secondary,offset,bytes,lock_out,lock_bytes1,lock_out2,lock_bytes2,0}))));
+        const auto a=p.memory.load(lock_out,32),n1=p.memory.load(lock_bytes1,32),b=p.memory.load(lock_out2,32),n2=p.memory.load(lock_bytes2,32);
+        CHECK(a&&n1&&n1+n2==bytes);CHECK((!n2&&!b)||(n2&&b));
+        return std::array<U32,4>{a,n1,b,n2};
+    };
+    auto first=do_lock(0,512);
+    for(U32 i=0;i<first[1];++i)p.memory.store(first[0]+i,(i*17u+3u)&0xffu,8);
+    for(U32 i=0;i<first[3];++i)p.memory.store(first[2]+i,((first[1]+i)*17u+3u)&0xffu,8);
+    unsupported([&]{com(p,secondary,19,{secondary,first[0],first[1]-1,first[2],first[3]});});
+    CHECK(SUCCEEDED(HRESULT(com(p,secondary,19,{secondary,first[0],first[1],first[2],first[3]}))));
+
+    auto verify=do_lock(0,512);
+    for(U32 i=0;i<verify[1];++i)CHECK(p.memory.load(verify[0]+i,8)==((i*17u+3u)&0xffu));
+    for(U32 i=0;i<verify[3];++i)CHECK(p.memory.load(verify[2]+i,8)==(((verify[1]+i)*17u+3u)&0xffu));
+    CHECK(SUCCEEDED(HRESULT(com(p,secondary,19,{secondary,verify[0],verify[1],verify[2],verify[3]}))));
+
+    auto wrapped=do_lock(4096-96,512);
+    CHECK(wrapped[1]==96&&wrapped[3]==416);
+    for(U32 i=0;i<wrapped[1];++i)p.memory.store(wrapped[0]+i,0x5a,8);
+    for(U32 i=0;i<wrapped[3];++i)p.memory.store(wrapped[2]+i,0xa5,8);
+    CHECK(SUCCEEDED(HRESULT(com(p,secondary,19,{secondary,wrapped[0],wrapped[1],wrapped[2],wrapped[3]}))));
+    unsupported([&]{com(p,secondary,11,{secondary,0,64,lock_out,lock_bytes1,lock_out2,lock_bytes2,DSBLOCK_ENTIREBUFFER});});
+
     const auto report=p.report();
     CHECK(report.find("\"directsound\":{\"backend\":\"native-legacy\"")!=std::string::npos);
     CHECK(report.find("\"primary_buffers\":1")!=std::string::npos);
     CHECK(report.find("\"secondary_buffers\":1")!=std::string::npos);
     CHECK(report.find("\"listeners\":1")!=std::string::npos);
     CHECK(report.find("\"buffers3d\":1")!=std::string::npos);
+    CHECK(report.find("\"locks\":3")!=std::string::npos);
+    CHECK(report.find("\"unlocks\":3")!=std::string::npos);
 
     com(p,buffer3d,2,{buffer3d});com(p,secondary,2,{secondary});com(p,listener,2,{listener});com(p,primary,2,{primary});
     CHECK(SUCCEEDED(HRESULT(com(p,sound,6,{sound,window,DSSCL_NORMAL}))));com(p,sound,2,{sound});
