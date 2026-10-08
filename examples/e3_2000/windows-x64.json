@@ -37,6 +37,7 @@
     4821521,
     4821576,
     4821606,
+    4828800,
     4902070,
     4903691,
     4906052,
@@ -154,6 +155,12 @@
     {
       "target": 4725936,
       "basis": "Actual private E3 Windows-x64 diagnostic reached 0x00481CB0 after the verified DirectInput mouse/keyboard initialization and subsequent timing/allocation setup. Static disassembly shows this function begins E3's DirectSound startup and calls DSOUND.dll ordinal 1 (DirectSoundCreate) via the import thunk at 0x004ABC32. Target is file-backed executable .text. Diagnostic/Wine evidence only; not native-Windows gameplay acceptance."
+    }
+  ],
+  "post_audio_initialization_seed_provenance": [
+    {
+      "target": 4828800,
+      "basis": "Actual private E3 Windows-x64 diagnostic under Wine/null-ALSA reached 0x0049AE80 after the Choose Rasterizer dialog completed, DirectInput initialized, and the bounded DirectSound bridge successfully created 1 primary buffer, 16 secondary 3D buffers, 1 listener, applied 112 3D-buffer updates and 32 buffer-control updates. DirectSound reported creates=1, buffers=17, primary_buffers=1, secondary_buffers=16, listeners=1, buffers3d=16, locks=0, unlocks=0 before this untranslated target. Static disassembly validates 0x0049AE80 as file-backed executable code that builds lookup tables for loaded structures. Wine diagnostic evidence only; not native-Windows gameplay acceptance."
     }
   ]
 }
