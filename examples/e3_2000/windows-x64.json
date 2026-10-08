@@ -5,6 +5,7 @@
   "host": "Windows x64; native MSVC/Windows SDK build is the primary route",
   "seeds": [
     4204496,
+    4204560,
     4204624,
     4204640,
     4322464,
@@ -176,6 +177,10 @@
     {
       "target": 4204640,
       "basis": "After admitting the 0x00402850 success stub, the next actual private E3 Windows-x64 diagnostic under Wine/null-ALSA reached 0x00402860 after 20,715,418 translated instructions and 1,201 API calls. Static disassembly validates 0x00402860 as a larger file-backed executable validation/resource routine operating over loaded structures and invoking additional resource helpers. DirectSound state remained stable and successful. Wine diagnostic metadata only; not native-Windows gameplay acceptance."
+    },
+    {
+      "target": 4204560,
+      "basis": "After admitting 0x00402860, the next actual private E3 Windows-x64 diagnostic under Wine/null-ALSA reached 0x00402810 after 20,715,304 translated instructions and 1,201 API calls. Static disassembly validates 0x00402810 as file-backed executable code that iterates loaded structure records, updates an object field, and calls resource helper 0x00403C10. DirectSound initialization remained successful (1 primary buffer, 16 secondary 3D buffers, 1 listener, 16 3D buffers); Lock/Unlock counters remained zero. Wine diagnostic metadata only; not native-Windows gameplay acceptance."
     }
   ]
 }
