@@ -112,7 +112,7 @@
     "src/runtime/directinput.cpp": "3137dd9fce872ce6c13f2e77c44e32cb20bb1119d52363ddf5e74564b60a2976",
     "tests/directinput_boundary.cpp": "fa2e26052a2f63fb4aac34e05c9e826dca4304a9b655c9b87a31d38a97b818db",
     "include/winrecomp/directsound.hpp": "06a653994d3812c36fbcc1851b9bb2423895cad79cb3fe949b5a26bd37f54188",
-    "src/runtime/directsound.cpp": "08b112524dcdf5c6d72084111407032f354fed76bde25e514181618008f423d6",
-    "tests/directsound_boundary.cpp": "172d44e0e5e03025090ca8fc959a378dd788bb417fe7adf5b70e839e292f6e8b"
+    "src/runtime/directsound.cpp": "4501f48767c64c3f82f3fbdb2b091a4f54e7f3479385f7221a24ddfbc9cfd655",
+    "tests/directsound_boundary.cpp": "3dfe1b1ce66add818996b68e22d2032b4f5e21930c536843743eb1a49ccec7d0"
   }
 }
