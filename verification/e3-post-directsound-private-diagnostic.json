@@ -5,7 +5,7 @@
   "rebuilt_pe32plus_sha256": "6a5ed179a1e67d9f5eabbcda753048fa0aa793dd7104dc8f1363c0804996b768",
   "host": "Wine 10.0 / Linux x64 diagnostic only, Xvfb, ALSA null PCM",
   "native_windows_acceptance": false,
-  "result": "advanced beyond DirectSound initialization",
+  "result": "advanced through DirectSound initialization and two subsequent indirect discovery roots",
   "native_instructions": 20625606,
   "api_calls": 1170,
   "directsound": {
@@ -26,9 +26,55 @@
     "unlocks": 0
   },
   "next_untranslated_target": {
-    "decimal": 4828800,
-    "hex": "0x0049AE80",
-    "classification": "file-backed executable function; static disassembly shows lookup-table construction for loaded structures"
+    "decimal": 4204496,
+    "hex": "0x004027D0",
+    "classification": "file-backed executable object/resource initializer; adjacent routines process loaded resource/tag structures"
   },
-  "note": "This diagnostic proves the bounded DirectSound initialization bridge can succeed under the private Wine/null-audio host. It does not replace native Windows audio-device acceptance and does not establish gameplay or rendered-frame fidelity."
+  "note": "Both runs used Wine 10.0/Linux x64 with Xvfb and an ALSA null PCM solely for private diagnostics. DirectSound success here does not replace native-Windows audio-device acceptance. Lock/Unlock was not yet reached by these startup runs (counters remained zero).",
+  "runs": [
+    {
+      "rebuilt_pe32plus_sha256": "6a5ed179a1e67d9f5eabbcda753048fa0aa793dd7104dc8f1363c0804996b768",
+      "native_instructions": 20625606,
+      "api_calls": 1170,
+      "next_untranslated_target": {
+        "decimal": 4828800,
+        "hex": "0x0049AE80"
+      },
+      "directsound": {
+        "creates": 1,
+        "buffers": 17,
+        "primary_buffers": 1,
+        "secondary_buffers": 16,
+        "listeners": 1,
+        "buffers3d": 16,
+        "listener_updates": 4,
+        "buffer3d_updates": 112,
+        "buffer_updates": 32,
+        "locks": 0,
+        "unlocks": 0
+      }
+    },
+    {
+      "rebuilt_pe32plus_sha256": "8f1cb875a1064c0fc942cb51653ab5ba4d7aeaac5a793ab66a15fc23a92df089",
+      "native_instructions": 20714185,
+      "api_calls": 1198,
+      "next_untranslated_target": {
+        "decimal": 4204496,
+        "hex": "0x004027D0"
+      },
+      "directsound": {
+        "creates": 1,
+        "buffers": 17,
+        "primary_buffers": 1,
+        "secondary_buffers": 16,
+        "listeners": 1,
+        "buffers3d": 16,
+        "listener_updates": 4,
+        "buffer3d_updates": 112,
+        "buffer_updates": 32,
+        "locks": 0,
+        "unlocks": 0
+      }
+    }
+  ]
 }
