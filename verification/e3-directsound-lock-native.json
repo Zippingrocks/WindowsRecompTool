@@ -1,0 +1,32 @@
+{
+  "schema": "windowsrecomptool.e3-directsound-lock-native.v1",
+  "tested_source": "6bf867d2af99db39536125459c838b87c6c3ae3a",
+  "workflow_run": 37709329311,
+  "result": "success",
+  "host": "native Windows x64 / MSVC hosted runner",
+  "windows_address_sanitizer": "passed",
+  "implementation": [
+    "IDirectSoundBuffer::Lock slot 11",
+    "IDirectSoundBuffer::Unlock slot 19",
+    "native DirectSound pointers remain host-only",
+    "guest receives temporary 32-bit staging allocations",
+    "initial native bytes are copied into guest staging",
+    "guest-written bytes are copied back before native Unlock",
+    "two-region wraparound locks are supported",
+    "Unlock pointer/length tuple must exactly match the active Lock",
+    "nested locks and Release-with-lock are rejected",
+    "outstanding locks are retired during backend shutdown"
+  ],
+  "native_test": [
+    "conditional 2000-byte wraparound lock round-trip is present in directsound_boundary",
+    "bad Unlock tuple is explicitly rejected",
+    "second Lock verifies the byte pattern when a DirectSound device is available"
+  ],
+  "hosted_runner_limitation": "This GitHub runner has previously reported DSERR_NODRIVER. Successful ctest output is suppressed, so this workflow proves Windows build/ASan/conditional-boundary acceptance but does not independently prove that the real audio-device round-trip branch executed.",
+  "retained_boundaries": [
+    "DirectInput",
+    "GUI"
+  ],
+  "hosted_game_bytes": false,
+  "playable": false
+}
