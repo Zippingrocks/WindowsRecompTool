@@ -1,0 +1,47 @@
+name: Native Windows compressed-switch discovery verification
+on:
+  push:
+    branches: [work/e3-compressed-switch-guard]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: x64
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - run: python tools/check_repository.py
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build --target winrecomp --parallel 2
+      - name: Frontend and compressed-switch discovery
+        run: ctest --test-dir build -R "^frontend$" --output-on-failure
+  windows_memory:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - run: git submodule update --init --recursive third_party/zydis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - run: cmake -S . -B asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi" "-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO"
+      - run: cmake --build asan --target winrecomp --parallel 2
+      - name: Frontend discovery under AddressSanitizer
+        run: ctest --test-dir asan -R "^frontend$" --output-on-failure
