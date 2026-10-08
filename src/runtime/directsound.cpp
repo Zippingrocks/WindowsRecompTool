@@ -7,6 +7,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <utility>
 #ifdef _WIN32
@@ -42,12 +43,22 @@ struct Allocation {
     ~Allocation(){if(address)try{p.memory.release(address);}catch(...){}}
     U32 keep(){return std::exchange(address,0u);}
 };
+struct BufferLock {
+    void* native1{};
+    DWORD bytes1{};
+    void* native2{};
+    DWORD bytes2{};
+    U32 guest1{};
+    U32 guest2{};
+};
 struct Object {
     Interface kind{};
     IUnknown* native{};
     U32 guest_refs{};
     bool primary{};
     DWORD flags{};
+    U32 buffer_bytes{};
+    std::optional<BufferLock> lock;
 };
 
 class Sound final:public DirectSoundBackend {
@@ -60,7 +71,7 @@ class Sound final:public DirectSoundBackend {
     using CreateFn=HRESULT (WINAPI*)(LPCGUID,LPDIRECTSOUND*,LPUNKNOWN);
     CreateFn create{};
     std::uint64_t creates{},buffers{},primary_buffers{},secondary_buffers{},cooperative{},caps_queries{},formats{};
-    std::uint64_t listeners{},buffers3d{},listener_updates{},buffer3d_updates{},buffer_updates{},plays{};
+    std::uint64_t listeners{},buffers3d{},listener_updates{},buffer3d_updates{},buffer_updates{},plays{},locks{},unlocks{};
 
     [[noreturn]]void stop(const std::string& why){throw GuestFault(FaultKind::unsupported,p.cpu.eip,"DirectSound: "+why);}
     void enter(){if(stopped || GetCurrentThreadId()!=thread)stop("foreign-thread or retired backend");}
@@ -84,7 +95,7 @@ class Sound final:public DirectSoundBackend {
         if(!std::isfinite(value))stop("non-finite 3D audio scalar");
         return value;
     }
-    U32 wrap(IUnknown* native,Interface kind,bool primary=false,DWORD flags=0){
+    U32 wrap(IUnknown* native,Interface kind,bool primary=false,DWORD flags=0,U32 buffer_bytes=0){
         if(!native)stop("attempted to wrap null native object");
         for(auto& [at,o]:objects)if(o.native==native && o.kind==kind){
             if(o.guest_refs==0xffffffffu)stop("reference count overflow");
@@ -92,9 +103,10 @@ class Sound final:public DirectSoundBackend {
         }
         if(objects.size()>=MaxObjects)stop("COM object budget exhausted");
         Allocation memory(p,4);p.memory.store(memory.address,vtable(kind),32);p.memory.protect(memory.address,4096,Memory::Read);
-        const auto at=memory.keep();objects.emplace(at,Object{kind,native,1,primary,flags});return at;
+        const auto at=memory.keep();objects.emplace(at,Object{kind,native,1,primary,flags,buffer_bytes,{}});return at;
     }
     U32 release(Object& o){
+        if(o.kind==Interface::buffer && o.lock)stop("Release while a DirectSound buffer is locked");
         const auto n=o.native->Release();
         if(!--o.guest_refs)o.native=nullptr;
         return U32(n);
@@ -173,7 +185,7 @@ class Sound final:public DirectSoundBackend {
         IDirectSoundBuffer* result{};const auto hr=native->CreateSoundBuffer(&d,&result,nullptr);
         if(SUCCEEDED(hr)){
             if(!result)stop("CreateSoundBuffer succeeded without a buffer");
-            p.memory.store(a[2],wrap(result,Interface::buffer,primary,flags),32);
+            p.memory.store(a[2],wrap(result,Interface::buffer,primary,flags,bytes),32);
             ++buffers;if(primary)++primary_buffers;else ++secondary_buffers;
         }
         return U32(hr);
@@ -203,6 +215,61 @@ class Sound final:public DirectSoundBackend {
     U32 set_buffer_format(Args a){
         auto native=static_cast<IDirectSoundBuffer*>(object(a[0],Interface::buffer).native);auto f=read_format(a[1]);
         const auto hr=native->SetFormat(&f);if(SUCCEEDED(hr))++formats;return U32(hr);
+    }
+
+    U32 lock_buffer(Args a){
+        auto& o=object(a[0],Interface::buffer);
+        if(o.primary || !o.buffer_bytes)stop("Lock is supported only on secondary E3 buffers");
+        if(o.lock)stop("nested DirectSound buffer Lock");
+        const U32 offset=a[1],requested=a[2],out1=a[3],bytes1_at=a[4],out2=a[5],bytes2_at=a[6],flags=a[7];
+        if(flags!=0)stop("Lock flags outside observed E3 profile");
+        if(offset>=o.buffer_bytes || !requested || requested>o.buffer_bytes)stop("Lock range outside observed E3 buffer");
+        p.memory.check(out1,4,Memory::Write);p.memory.check(bytes1_at,4,Memory::Write);
+        p.memory.check(out2,4,Memory::Write);p.memory.check(bytes2_at,4,Memory::Write);
+        void* native1{};void* native2{};DWORD bytes1{},bytes2{};
+        const auto hr=static_cast<IDirectSoundBuffer*>(o.native)->Lock(offset,requested,&native1,&bytes1,&native2,&bytes2,0);
+        if(FAILED(hr))return U32(hr);
+        if(!native1 || !bytes1 || bytes1>requested || bytes2>requested || std::uint64_t(bytes1)+bytes2!=requested){
+            static_cast<IDirectSoundBuffer*>(o.native)->Unlock(native1,bytes1,native2,bytes2);
+            stop("native Lock returned an invalid region split");
+        }
+        if(bytes2 && !native2){
+            static_cast<IDirectSoundBuffer*>(o.native)->Unlock(native1,bytes1,native2,bytes2);
+            stop("native Lock returned null wrapped region");
+        }
+        BufferLock lock{};lock.native1=native1;lock.bytes1=bytes1;lock.native2=native2;lock.bytes2=bytes2;
+        try{
+            lock.guest1=p.allocate_bytes(bytes1);
+            p.memory.copy_in(lock.guest1,std::span(reinterpret_cast<const std::uint8_t*>(native1),bytes1));
+            if(bytes2){
+                lock.guest2=p.allocate_bytes(bytes2);
+                p.memory.copy_in(lock.guest2,std::span(reinterpret_cast<const std::uint8_t*>(native2),bytes2));
+            }
+            p.memory.store(out1,lock.guest1,32);p.memory.store(bytes1_at,bytes1,32);
+            p.memory.store(out2,lock.guest2,32);p.memory.store(bytes2_at,bytes2,32);
+            o.lock=lock;++locks;return U32(hr);
+        }catch(...){
+            if(lock.guest2)try{p.memory.release(lock.guest2);}catch(...){}
+            if(lock.guest1)try{p.memory.release(lock.guest1);}catch(...){}
+            static_cast<IDirectSoundBuffer*>(o.native)->Unlock(native1,bytes1,native2,bytes2);
+            throw;
+        }
+    }
+    U32 unlock_buffer(Args a){
+        auto& o=object(a[0],Interface::buffer);
+        if(!o.lock)stop("Unlock without a matching Lock");
+        auto lock=*o.lock;
+        if(a[1]!=lock.guest1 || a[2]!=lock.bytes1 || a[3]!=lock.guest2 || a[4]!=lock.bytes2)
+            stop("Unlock regions do not match the active Lock");
+        p.memory.copy_out(lock.guest1,std::span(reinterpret_cast<std::uint8_t*>(lock.native1),lock.bytes1));
+        if(lock.bytes2)p.memory.copy_out(lock.guest2,std::span(reinterpret_cast<std::uint8_t*>(lock.native2),lock.bytes2));
+        const auto hr=static_cast<IDirectSoundBuffer*>(o.native)->Unlock(lock.native1,lock.bytes1,lock.native2,lock.bytes2);
+        if(SUCCEEDED(hr)){
+            if(lock.guest2)p.memory.release(lock.guest2);
+            p.memory.release(lock.guest1);
+            o.lock.reset();++unlocks;
+        }
+        return U32(hr);
     }
     U32 buffer_update(Interface kind,unsigned slot,Args a){
         if(kind==Interface::buffer){
@@ -266,6 +333,7 @@ class Sound final:public DirectSoundBackend {
             } else if(kind==Interface::buffer){
                 if(slot==4)method(3,[this](Args a){return buffer_position(a);});
                 if(slot==9)method(2,[this](Args a){return buffer_update(Interface::buffer,9,a);});
+                if(slot==11)method(8,[this](Args a){return lock_buffer(a);});
                 if(slot==12)method(4,[this](Args a){return buffer_update(Interface::buffer,12,a);});
                 if(slot==13)method(2,[this](Args a){return buffer_update(Interface::buffer,13,a);});
                 if(slot==14)method(2,[this](Args a){return set_buffer_format(a);});
@@ -273,6 +341,7 @@ class Sound final:public DirectSoundBackend {
                 if(slot==16)method(2,[this](Args a){return buffer_update(Interface::buffer,16,a);});
                 if(slot==17)method(2,[this](Args a){return buffer_update(Interface::buffer,17,a);});
                 if(slot==18)method(1,[this](Args a){return buffer_update(Interface::buffer,18,a);});
+                if(slot==19)method(5,[this](Args a){return unlock_buffer(a);});
                 if(slot==20)method(1,[this](Args a){return buffer_update(Interface::buffer,20,a);});
             } else if(kind==Interface::listener){
                 if(slot==11)method(3,[this](Args a){return buffer_update(Interface::listener,11,a);});
@@ -315,7 +384,15 @@ public:
     ~Sound() override{shutdown();}
     void shutdown() noexcept override{
         if(stopped)return;stopped=true;
-        for(auto it=objects.rbegin();it!=objects.rend();++it){auto& o=it->second;if(o.native){for(U32 n=0;n<o.guest_refs;++n)o.native->Release();o.native=nullptr;o.guest_refs=0;}}
+        for(auto it=objects.rbegin();it!=objects.rend();++it){auto& o=it->second;
+            if(o.native && o.kind==Interface::buffer && o.lock){
+                auto lock=*o.lock;static_cast<IDirectSoundBuffer*>(o.native)->Unlock(lock.native1,lock.bytes1,lock.native2,lock.bytes2);
+                if(lock.guest2)try{p.memory.release(lock.guest2);}catch(...){}
+                if(lock.guest1)try{p.memory.release(lock.guest1);}catch(...){}
+                o.lock.reset();
+            }
+            if(o.native){for(U32 n=0;n<o.guest_refs;++n)o.native->Release();o.native=nullptr;o.guest_refs=0;}
+        }
         objects.clear();if(module){FreeLibrary(module);module=nullptr;create=nullptr;}
     }
     std::string report() const override{
@@ -323,7 +400,8 @@ public:
           <<",\"primary_buffers\":"<<primary_buffers<<",\"secondary_buffers\":"<<secondary_buffers
           <<",\"cooperative\":"<<cooperative<<",\"caps_queries\":"<<caps_queries<<",\"formats\":"<<formats
           <<",\"listeners\":"<<listeners<<",\"buffers3d\":"<<buffers3d<<",\"listener_updates\":"<<listener_updates
-          <<",\"buffer3d_updates\":"<<buffer3d_updates<<",\"buffer_updates\":"<<buffer_updates<<",\"plays\":"<<plays<<"}";return s.str();
+          <<",\"buffer3d_updates\":"<<buffer3d_updates<<",\"buffer_updates\":"<<buffer_updates<<",\"plays\":"<<plays
+          <<",\"locks\":"<<locks<<",\"unlocks\":"<<unlocks<<"}";return s.str();
     }
 };
 }
