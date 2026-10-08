@@ -68,6 +68,32 @@ class Frontend(unittest.TestCase):
         j=self.cfg('ffe0');self.assertEqual(j['edges'][0]['kind'],'jump_indirect');self.assertIsNone(j['edges'][0]['to'])
     def test_jump_table_is_only_a_candidate(self):
         j=self.cfg('ff248580204000');self.assertEqual(j['jump_table_candidates'],[0x401000]);self.assertEqual(len(j['instructions']),1)
+    def test_compressed_switch_allows_preserving_guard_gap(self):
+        # E3/MSVC shape: CMP selector; PUSH nonvolatile; JA default; then a
+        # byte selector table feeding a compact DWORD target table.
+        code=bytes.fromhex(
+            '83f802'          # cmp eax,2
+            '57'              # push edi (preserves flags and eax)
+            '7721'            # ja default
+            '33c9'            # xor ecx,ecx
+            '8a880c204000'    # mov cl,[eax+0x40200c]
+            'ff248d00204000'  # jmp dword [ecx*4+0x402000]
+            'b811111111c3'    # slot 0 @ 0x401015
+            'b822222222c3'    # slot 1 @ 0x40101b
+            'b833333333c3'    # slot 2 @ 0x401021
+            'b844444444c3')   # default @ 0x401027
+        import struct
+        data=struct.pack('<III',0x401015,0x40101b,0x401021)+bytes([2,0,1])
+        j=json.loads(self.invoke('cfg',make_pe(code,data)).stdout)
+        self.assertEqual(j['recovered_tables'][0]['targets'],[0x401015,0x40101b,0x401021])
+        self.assertTrue(any(e['kind']=='jump_table_compressed_static' for e in j['edges']))
+        # Entering at the preserving instruction bypasses the guarding CMP.
+        bypass=json.loads(self.invoke('cfg',make_pe(code,data),'--seed','0x401003').stdout)
+        self.assertFalse(bypass['recovered_tables'])
+        # INC EAX changes both flags and the selector; it must invalidate proof.
+        mutated=bytearray(code);mutated[3]=0x40
+        bad=json.loads(self.invoke('cfg',make_pe(mutated,data)).stdout)
+        self.assertFalse(bad['recovered_tables'])
     def test_overlap_is_diagnostic(self):
         j=self.cfg('7401b878563412c3');self.assertTrue(any('overlap' in x for x in j['diagnostics']))
     def test_decode_stops_at_raw_boundary(self):
