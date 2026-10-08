@@ -1,0 +1,45 @@
+{
+  "schema": "windowsrecomptool.e3-directsound-lock-native.v1",
+  "tested_head": "e005688a7097d0a06f2359eaf70fd58a01445ff0",
+  "runtime_source": "201c196d6400796a29ef0c8d8fea262d69ba4145",
+  "workflow_run": 37705556609,
+  "result": "success",
+  "host": "native Windows x64 / MSVC hosted runner",
+  "windows_address_sanitizer": "passed",
+  "hosted_audio_device": "unavailable; DirectSound boundary exits through DSERR_NODRIVER before buffer creation",
+  "e3_static_observation": {
+    "lock_call": "0x00482A61 -> IDirectSoundBuffer vtable slot 11",
+    "unlock_call": "0x00482AB6 -> IDirectSoundBuffer vtable slot 19",
+    "flags": 0,
+    "offset": "E3 sample offset multiplied by 2 bytes",
+    "length": "E3 sample count multiplied by 2 bytes",
+    "split": "normal DirectSound two-region wraparound outputs"
+  },
+  "implementation": [
+    "secondary-buffer Lock only",
+    "flags must be zero",
+    "requested length must be nonzero and no larger than the E3 buffer",
+    "native lock pointers remain host-only",
+    "guest receives private 32-bit guest allocations containing the locked bytes",
+    "Unlock requires exact guest pointer/count identity",
+    "guest bytes are copied back to native lock regions before native Unlock",
+    "wraparound second region is supported",
+    "nested Lock, mismatched Unlock, primary-buffer Lock, and unobserved flags fail closed",
+    "shutdown unwinds an outstanding native lock without leaking guest mappings"
+  ],
+  "success_path_test_defined": [
+    "contiguous 512-byte upload and re-lock byte verification",
+    "mismatched Unlock rejection followed by valid Unlock",
+    "4096-byte buffer wraparound: offset 4000, length 512 -> expected 96/416 split",
+    "DSBLOCK_ENTIREBUFFER rejection"
+  ],
+  "success_path_executed_on_hosted_windows": false,
+  "retained_boundaries": [
+    "DirectSound initialization/no-driver path",
+    "DirectInput",
+    "E3 DirectDraw v1",
+    "GUI"
+  ],
+  "hosted_game_bytes": false,
+  "playable": false
+}
