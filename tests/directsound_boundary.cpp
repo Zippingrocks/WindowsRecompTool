@@ -105,12 +105,33 @@ void run(){
     CHECK(SUCCEEDED(HRESULT(com(p,secondary,17,{secondary,22050}))));
     CHECK(SUCCEEDED(HRESULT(com(p,listener,17,{listener}))));
 
+    // Exercise guest-safe Lock/Unlock staging, including wraparound. Native
+    // pointers must never enter guest memory: the returned regions are guest
+    // allocations owned by the bridge.
+    const auto lock_ptr1=data+1536,lock_bytes1=data+1540,lock_ptr2=data+1544,lock_bytes2=data+1548;
+    CHECK(SUCCEEDED(HRESULT(com(p,secondary,11,{secondary,3000,2000,lock_ptr1,lock_bytes1,lock_ptr2,lock_bytes2,0}))));
+    const auto gp1=p.memory.load(lock_ptr1,32),gb1=p.memory.load(lock_bytes1,32),gp2=p.memory.load(lock_ptr2,32),gb2=p.memory.load(lock_bytes2,32);
+    CHECK(gp1 && gb1 && gb1+gb2==2000);CHECK((gb2==0)==(gp2==0));
+    for(U32 i=0;i<gb1;++i)p.memory.store(gp1+i,(i*17u+3u)&0xffu,8);
+    for(U32 i=0;i<gb2;++i)p.memory.store(gp2+i,((gb1+i)*17u+3u)&0xffu,8);
+    unsupported([&]{com(p,secondary,19,{secondary,gp1,gb1,gp2,gb2?gb2-1:1});});
+    CHECK(SUCCEEDED(HRESULT(com(p,secondary,19,{secondary,gp1,gb1,gp2,gb2}))));
+
+    CHECK(SUCCEEDED(HRESULT(com(p,secondary,11,{secondary,3000,2000,lock_ptr1,lock_bytes1,lock_ptr2,lock_bytes2,0}))));
+    const auto rp1=p.memory.load(lock_ptr1,32),rb1=p.memory.load(lock_bytes1,32),rp2=p.memory.load(lock_ptr2,32),rb2=p.memory.load(lock_bytes2,32);
+    CHECK(rb1+rb2==2000);
+    for(U32 i=0;i<rb1;++i)CHECK(p.memory.load(rp1+i,8)==((i*17u+3u)&0xffu));
+    for(U32 i=0;i<rb2;++i)CHECK(p.memory.load(rp2+i,8)==(((rb1+i)*17u+3u)&0xffu));
+    CHECK(SUCCEEDED(HRESULT(com(p,secondary,19,{secondary,rp1,rb1,rp2,rb2}))));
+
     const auto report=p.report();
     CHECK(report.find("\"directsound\":{\"backend\":\"native-legacy\"")!=std::string::npos);
     CHECK(report.find("\"primary_buffers\":1")!=std::string::npos);
     CHECK(report.find("\"secondary_buffers\":1")!=std::string::npos);
     CHECK(report.find("\"listeners\":1")!=std::string::npos);
     CHECK(report.find("\"buffers3d\":1")!=std::string::npos);
+    CHECK(report.find("\"locks_started\":2")!=std::string::npos);
+    CHECK(report.find("\"locks_completed\":2")!=std::string::npos);
 
     com(p,buffer3d,2,{buffer3d});com(p,secondary,2,{secondary});com(p,listener,2,{listener});com(p,primary,2,{primary});
     CHECK(SUCCEEDED(HRESULT(com(p,sound,6,{sound,window,DSSCL_NORMAL}))));com(p,sound,2,{sound});
