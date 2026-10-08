@@ -1,0 +1,32 @@
+{
+  "schema": "windowsrecomptool.e3-post-lock-seeds.v1",
+  "base": "work/e3-directsound-lock",
+  "targets": [
+    {
+      "target": 4828800,
+      "hex": "0x0049AE80",
+      "process": {
+        "executed_instructions": 20619395,
+        "api_calls": 997
+      },
+      "directinput_initialized": true,
+      "directsound_creates": 0,
+      "validation": "file-backed executable .text; isolated CFG admitted 5,000 instructions / 1,407 blocks before diagnostic budget exhaustion"
+    },
+    {
+      "target": 4204496,
+      "hex": "0x004027D0",
+      "process": {
+        "executed_instructions": 20707974,
+        "api_calls": 1025
+      },
+      "directinput_initialized": true,
+      "directsound_creates": 0,
+      "validation": "file-backed executable .text; isolated entry-only CFG completed with 6 instructions / 1 block and no diagnostics"
+    }
+  ],
+  "host": "private Wine 10 / Xvfb diagnostic only",
+  "hosted_game_bytes": false,
+  "native_windows_acceptance": false,
+  "playable": false
+}
