@@ -162,18 +162,43 @@ Graph discover(const Image& image,Address entry,std::size_t budget,bool include_
         const auto guard_it=std::prev(zero_it);if(guard_it==g.instructions.begin())continue;
         const auto& j=guard_it->second;
         if(j.next()!=zero.address || (j.decoded.mnemonic!=ZYDIS_MNEMONIC_JNBE && j.decoded.mnemonic!=ZYDIS_MNEMONIC_JNB))continue;
-        const auto cmp_it=std::prev(guard_it);const auto& cmp=cmp_it->second;
-        if(cmp.next()!=j.address || cmp.flow!=Flow::normal || cmp.decoded.mnemonic!=ZYDIS_MNEMONIC_CMP ||
-           cmp.decoded.operand_count_visible<2 || cmp.operands[0].type!=ZYDIS_OPERAND_TYPE_REGISTER ||
-           cmp.operands[1].type!=ZYDIS_OPERAND_TYPE_IMMEDIATE || cmp.operands[0].size!=32 ||
-           ZydisRegisterGetLargestEnclosing(ZYDIS_MACHINE_MODE_LEGACY_32,cmp.operands[0].reg.value)!=select_index)continue;
+
+        // MSVC may place flag-preserving setup (for example PUSH of a saved
+        // nonvolatile register) between CMP and the unsigned guard. Prove a
+        // short straight-line chain exactly as for ordinary jump tables: no
+        // flags or selector register writes may occur before the guard.
+        auto cmp_it=guard_it;bool proved_cmp=false;Address successor_pc=j.address;
+        std::vector<Address> preguard;
+        for(unsigned distance=0;distance<16 && cmp_it!=g.instructions.begin();++distance) {
+            --cmp_it;const auto& i=cmp_it->second;
+            if(i.next()!=successor_pc || i.flow!=Flow::normal)break;
+            if(i.decoded.mnemonic==ZYDIS_MNEMONIC_CMP) {
+                proved_cmp=i.decoded.operand_count_visible>=2 && i.operands[0].type==ZYDIS_OPERAND_TYPE_REGISTER &&
+                           i.operands[1].type==ZYDIS_OPERAND_TYPE_IMMEDIATE && i.operands[0].size==32 &&
+                           ZydisRegisterGetLargestEnclosing(ZYDIS_MACHINE_MODE_LEGACY_32,i.operands[0].reg.value)==select_index;
+                break;
+            }
+            if(const auto* flags=i.decoded.cpu_flags;flags && (flags->modified|flags->set_0|flags->set_1|flags->undefined))break;
+            bool changes_selector=false;
+            for(unsigned n=0;n<i.decoded.operand_count;++n) {
+                const auto& op=i.operands[n];
+                if(op.type==ZYDIS_OPERAND_TYPE_REGISTER && (op.actions&ZYDIS_OPERAND_ACTION_MASK_WRITE) &&
+                   ZydisRegisterGetLargestEnclosing(ZYDIS_MACHINE_MODE_LEGACY_32,op.reg.value)==select_index){changes_selector=true;break;}
+            }
+            if(changes_selector)break;
+            preguard.push_back(i.address);successor_pc=i.address;
+        }
+        if(!proved_cmp)continue;
+        const auto& cmp=cmp_it->second;std::reverse(preguard.begin(),preguard.end());
 
         const auto only_incoming=[&](Address address,Address predecessor,const char* kind){
             if(g.roots.contains(address))return false;
             for(const auto& e:g.edges)if(e.to && *e.to==address && (e.from!=predecessor || e.kind!=kind))return false;
             return true;
         };
-        if(!only_incoming(j.address,cmp.address,"fallthrough") ||
+        bool bypass=false;Address predecessor=cmp.address;
+        for(auto address:preguard){if(!only_incoming(address,predecessor,"fallthrough")){bypass=true;break;}predecessor=address;}
+        if(bypass || !only_incoming(j.address,predecessor,"fallthrough") ||
            !only_incoming(zero.address,j.address,"branch_not_taken") ||
            !only_incoming(selector.address,zero.address,"fallthrough") ||
            !only_incoming(pc,selector.address,"fallthrough"))continue;
