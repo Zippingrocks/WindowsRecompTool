@@ -1,0 +1,34 @@
+{
+  "schema": "windowsrecomptool.e3-post-directsound-private-diagnostic.v1",
+  "input_sha256": "3de853fe163d6c869107a861fe57b394cfe198d823d47331c5ffce5fa28b9fda",
+  "runtime_checkpoint": "work/e3-dsound-lock @ ceeda1ba28af6c606faaf6abb07d7fdbf7e24b20",
+  "rebuilt_pe32plus_sha256": "6a5ed179a1e67d9f5eabbcda753048fa0aa793dd7104dc8f1363c0804996b768",
+  "host": "Wine 10.0 / Linux x64 diagnostic only, Xvfb, ALSA null PCM",
+  "native_windows_acceptance": false,
+  "result": "advanced beyond DirectSound initialization",
+  "native_instructions": 20625606,
+  "api_calls": 1170,
+  "directsound": {
+    "creates": 1,
+    "buffers": 17,
+    "primary_buffers": 1,
+    "secondary_buffers": 16,
+    "cooperative": 1,
+    "caps_queries": 1,
+    "formats": 1,
+    "listeners": 1,
+    "buffers3d": 16,
+    "listener_updates": 4,
+    "buffer3d_updates": 112,
+    "buffer_updates": 32,
+    "plays": 0,
+    "locks": 0,
+    "unlocks": 0
+  },
+  "next_untranslated_target": {
+    "decimal": 4828800,
+    "hex": "0x0049AE80",
+    "classification": "file-backed executable function; static disassembly shows lookup-table construction for loaded structures"
+  },
+  "note": "This diagnostic proves the bounded DirectSound initialization bridge can succeed under the private Wine/null-audio host. It does not replace native Windows audio-device acceptance and does not establish gameplay or rendered-frame fidelity."
+}
