@@ -5,7 +5,7 @@
   "rebuilt_pe32plus_sha256": "6a5ed179a1e67d9f5eabbcda753048fa0aa793dd7104dc8f1363c0804996b768",
   "host": "Wine 10.0 / Linux x64 diagnostic only, Xvfb, ALSA null PCM",
   "native_windows_acceptance": false,
-  "result": "advanced through DirectSound initialization and two subsequent indirect discovery roots",
+  "result": "advanced through DirectSound initialization and four subsequent indirect discovery roots; next admitted target is 0x00402810",
   "native_instructions": 20625606,
   "api_calls": 1170,
   "directsound": {
@@ -30,7 +30,7 @@
     "hex": "0x004027D0",
     "classification": "file-backed executable object/resource initializer; adjacent routines process loaded resource/tag structures"
   },
-  "note": "Both runs used Wine 10.0/Linux x64 with Xvfb and an ALSA null PCM solely for private diagnostics. DirectSound success here does not replace native-Windows audio-device acceptance. Lock/Unlock was not yet reached by these startup runs (counters remained zero).",
+  "note": "Private Wine 10.0/Linux x64 + Xvfb + ALSA null-PCM diagnostic only. DirectSound initialization repeatedly succeeds, but startup has not yet reached Lock/Unlock (counters remain zero). This does not replace native-Windows audio-device acceptance and is not gameplay evidence.",
   "runs": [
     {
       "rebuilt_pe32plus_sha256": "6a5ed179a1e67d9f5eabbcda753048fa0aa793dd7104dc8f1363c0804996b768",
@@ -50,6 +50,7 @@
         "listener_updates": 4,
         "buffer3d_updates": 112,
         "buffer_updates": 32,
+        "plays": 0,
         "locks": 0,
         "unlocks": 0
       }
@@ -72,9 +73,84 @@
         "listener_updates": 4,
         "buffer3d_updates": 112,
         "buffer_updates": 32,
+        "plays": 0,
+        "locks": 0,
+        "unlocks": 0
+      }
+    },
+    {
+      "rebuilt_pe32plus_sha256": "9d5d7340fdc961652feba7b6bcfcc561219f32ff716af1e0214ae8dcfa15b77c",
+      "native_instructions": 20715234,
+      "api_calls": 1200,
+      "next_untranslated_target": {
+        "decimal": 4204624,
+        "hex": "0x00402850"
+      },
+      "directsound": {
+        "creates": 1,
+        "buffers": 17,
+        "primary_buffers": 1,
+        "secondary_buffers": 16,
+        "listeners": 1,
+        "buffers3d": 16,
+        "listener_updates": 4,
+        "buffer3d_updates": 112,
+        "buffer_updates": 32,
+        "plays": 0,
+        "locks": 0,
+        "unlocks": 0
+      }
+    },
+    {
+      "rebuilt_pe32plus_sha256": "f7391a5afe81220acbd3e5bdad7dd3a78b915f609febd30d8b6de22a00822c36",
+      "native_instructions": 20715418,
+      "api_calls": 1201,
+      "next_untranslated_target": {
+        "decimal": 4204640,
+        "hex": "0x00402860"
+      },
+      "directsound": {
+        "creates": 1,
+        "buffers": 17,
+        "primary_buffers": 1,
+        "secondary_buffers": 16,
+        "listeners": 1,
+        "buffers3d": 16,
+        "listener_updates": 4,
+        "buffer3d_updates": 112,
+        "buffer_updates": 32,
+        "plays": 0,
+        "locks": 0,
+        "unlocks": 0
+      }
+    },
+    {
+      "rebuilt_pe32plus_sha256": "5af93a48bc96cb0a2a3552b98ad8858b7c60894acd0b131c6a6d69a5e03686b8",
+      "native_instructions": 20715304,
+      "api_calls": 1201,
+      "next_untranslated_target": {
+        "decimal": 4204560,
+        "hex": "0x00402810"
+      },
+      "directsound": {
+        "creates": 1,
+        "buffers": 17,
+        "primary_buffers": 1,
+        "secondary_buffers": 16,
+        "listeners": 1,
+        "buffers3d": 16,
+        "listener_updates": 4,
+        "buffer3d_updates": 112,
+        "buffer_updates": 32,
+        "plays": 0,
         "locks": 0,
         "unlocks": 0
       }
     }
-  ]
+  ],
+  "next_admitted_target": {
+    "decimal": 4204560,
+    "hex": "0x00402810",
+    "classification": "file-backed resource iteration helper; updates loaded-structure records and calls 0x00403C10"
+  }
 }
