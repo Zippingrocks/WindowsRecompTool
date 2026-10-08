@@ -1,5 +1,6 @@
 #include "winrecomp/directsound.hpp"
 #include "winrecomp/process.hpp"
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cmath>
@@ -9,6 +10,7 @@
 #include <memory>
 #include <sstream>
 #include <utility>
+#include <vector>
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
