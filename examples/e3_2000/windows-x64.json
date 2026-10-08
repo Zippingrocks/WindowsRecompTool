@@ -4,6 +4,7 @@
   "guest": "PE32/i386 guest state",
   "host": "Windows x64; native MSVC/Windows SDK build is the primary route",
   "seeds": [
+    4204496,
     4322464,
     4402942,
     4402970,
@@ -161,6 +162,10 @@
     {
       "target": 4828800,
       "basis": "Actual private E3 Windows-x64 diagnostic from the verified DirectSound Lock/Unlock branch reached 0x0049AE80 after the rasterizer chooser completed and extensive tag-data reads. Process report: 20,619,395 executed guest instructions, 997 API calls; DirectInput initialized, DirectSound had not yet been invoked on this path. Target was validated as file-backed executable .text; isolated CFG discovery from this entry admitted 5,000 instructions / 1,407 blocks before its diagnostic budget exhausted. Wine/Xvfb diagnostic metadata only; not native-Windows gameplay acceptance."
+    },
+    {
+      "target": 4204496,
+      "basis": "Actual private E3 Windows-x64 diagnostic after admitting 0x0049AE80 reached 0x004027D0 following further tag-data reads. Process report: 20,707,974 executed guest instructions and 1,025 API calls; DirectInput remained initialized and DirectSound had not yet been invoked. Target is file-backed executable .text. Isolated entry-only CFG discovery completed cleanly with 6 instructions / 1 block and no diagnostics. Wine/Xvfb diagnostic metadata only; not native-Windows gameplay acceptance."
     }
   ]
 }
